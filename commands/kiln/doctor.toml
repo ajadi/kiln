@@ -1,0 +1,2 @@
+description = "Check that a Kiln project can really work \u2014 Blender Lab MCP and the engine's MCP (Godot AI, MCP for Unity or Unreal MCP) connected to live editors with real tool calls, not config inspection; the right project open, addon and plugin versions, Kiln hooks active, git/LFS state. Use before starting pro"
+prompt = "Use the Kiln skill `doctor`: activate it with activate_skill (name \"doctor\") and follow it.\nArguments (may be empty): {{args}}\n"

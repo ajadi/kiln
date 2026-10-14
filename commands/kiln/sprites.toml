@@ -1,0 +1,2 @@
+description = "Make 2D game art from an image or a description, without having to make a game - a character or prop sprite sheet with animations and directions (pre-rendered from a Blender model, or drawn), or a 2D map and its tileset cut from a reference image - delivered as PNG + Aseprite-compatible JSON or a Ti"
+prompt = "Use the Kiln skill `sprites`: activate it with activate_skill (name \"sprites\") and follow it.\nArguments (may be empty): {{args}}\n"

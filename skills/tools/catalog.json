@@ -1,0 +1,600 @@
+{
+ "format": "kiln-tools-catalog/1",
+ "checked": "2026-10-14",
+ "note": "Official sources only. Versions resolve at install time from the source (latest release, or the version a project pins in production/tools.json); checksums come from the source (GitHub asset digests, Blender's .sha256 file). A source without a published checksum is installed with checksum 'unpublished' recorded.",
+ "tools": {
+  "godot": {
+   "title": "Godot engine",
+   "action": "install",
+   "when": "engine=godot",
+   "source": {
+    "kind": "github",
+    "repo": "godotengine/godot-builds",
+    "tag": "{version}-stable",
+    "default_version": "4.7.2"
+   },
+   "assets": {
+    "windows": "Godot_v{version}-stable_win64.exe.zip",
+    "linux": "Godot_v{version}-stable_linux.x86_64.zip",
+    "macos": "Godot_v{version}-stable_macos.universal.zip"
+   },
+   "find": [
+    "godot",
+    "godot4",
+    "Godot_v*-stable_win64_console.exe",
+    "Godot_v*-stable_win64.exe",
+    "Godot_v*-stable_linux.x86_64"
+   ],
+   "known": [
+    "C:/Program Files/Godot/*/Godot_v*_win64*.exe",
+    "~/Applications/Godot.app/Contents/MacOS/Godot"
+   ],
+   "verify": [
+    "{path}",
+    "--headless",
+    "--version"
+   ],
+   "expect": "{version}",
+   "size_mb": 70,
+   "licence": "MIT"
+  },
+  "blender": {
+   "title": "Blender",
+   "action": "install",
+   "when": "always",
+   "source": {
+    "kind": "blender",
+    "series": "5.2",
+    "index": "https://download.blender.org/release/Blender{series}/",
+    "checksums": "blender-{version}.sha256"
+   },
+   "assets": {
+    "windows": "blender-{version}-windows-x64.zip",
+    "linux": "blender-{version}-linux-x64.tar.xz",
+    "macos": null
+   },
+   "macos_instruction": "Download blender-{version}-macos-arm64.dmg from https://www.blender.org/download/ and drag Blender into Applications.",
+   "find": [
+    "blender",
+    "blender.exe"
+   ],
+   "known": [
+    "C:/Program Files/Blender Foundation/Blender */blender.exe",
+    "~/AppData/Local/Programs/Blender Foundation/Blender */blender.exe",
+    "/Applications/Blender.app/Contents/MacOS/Blender",
+    "/usr/bin/blender"
+   ],
+   "verify": [
+    "{path}",
+    "--version"
+   ],
+   "expect": "Blender {series}",
+   "size_mb": 420,
+   "licence": "GPL-3.0-or-later",
+   "after": "Start Blender with --online-mode (the Blender Lab add-on needs online access)."
+  },
+  "uv": {
+   "title": "uv (Python tools and environments)",
+   "action": "install",
+   "when": "always",
+   "source": {
+    "kind": "github",
+    "repo": "astral-sh/uv",
+    "tag": "{version}"
+   },
+   "assets": {
+    "windows": "uv-x86_64-pc-windows-msvc.zip",
+    "linux": "uv-x86_64-unknown-linux-gnu.tar.gz",
+    "macos": "uv-aarch64-apple-darwin.tar.gz"
+   },
+   "find": [
+    "uv",
+    "uv.exe"
+   ],
+   "known": [
+    "~/.local/bin/uv",
+    "~/.local/bin/uv.exe",
+    "~/.cargo/bin/uv",
+    "~/.cargo/bin/uv.exe"
+   ],
+   "verify": [
+    "{path}",
+    "--version"
+   ],
+   "expect": "uv ",
+   "size_mb": 20,
+   "licence": "MIT OR Apache-2.0"
+  },
+  "git-lfs": {
+   "title": "Git LFS (large binary assets in git)",
+   "action": "install",
+   "when": "always",
+   "source": {
+    "kind": "github",
+    "repo": "git-lfs/git-lfs",
+    "tag": "v{version}"
+   },
+   "assets": {
+    "windows": "git-lfs-windows-amd64-v{version}.zip",
+    "linux": "git-lfs-linux-amd64-v{version}.tar.gz",
+    "macos": "git-lfs-darwin-arm64-v{version}.zip"
+   },
+   "find": [
+    "git-lfs",
+    "git-lfs.exe"
+   ],
+   "known": [
+    "C:/Program Files/Git LFS/git-lfs.exe",
+    "C:/Program Files/Git/mingw64/bin/git-lfs.exe",
+    "/usr/local/bin/git-lfs",
+    "/opt/homebrew/bin/git-lfs"
+   ],
+   "verify": [
+    "{path}",
+    "version"
+   ],
+   "expect": "git-lfs/",
+   "size_mb": 6,
+   "licence": "MIT",
+   "after": "Add its folder to PATH for git (the installer prints it), then `git lfs install --local` in the project."
+  },
+  "ollama": {
+   "title": "Ollama (local language models for LLM NPCs)",
+   "action": "install",
+   "when": "llm_npc=local",
+   "source": {
+    "kind": "github",
+    "repo": "ollama/ollama",
+    "tag": "v{version}"
+   },
+   "assets": {
+    "windows": "ollama-windows-amd64.zip",
+    "linux": null,
+    "macos": "Ollama-darwin.zip"
+   },
+   "linux_instruction": "Linux: the official package is a .tar.zst (https://github.com/ollama/ollama/releases) or the install script from https://ollama.com/download/linux; Kiln does not pipe a script into the shell.",
+   "find": [
+    "ollama",
+    "ollama.exe"
+   ],
+   "known": [
+    "~/AppData/Local/Programs/Ollama/ollama.exe",
+    "/usr/local/bin/ollama",
+    "/Applications/Ollama.app/Contents/Resources/ollama"
+   ],
+   "verify": [
+    "{path}",
+    "--version"
+   ],
+   "expect": "ollama",
+   "size_mb": 1470,
+   "licence": "MIT",
+   "after": "Pull the model the llm-npc skill names (`ollama pull <model>`); the serve process listens on 127.0.0.1:11434."
+  },
+  "godot-ai": {
+   "title": "Godot AI MCP server",
+   "action": "install",
+   "when": "engine=godot",
+   "source": {
+    "kind": "uv-tool",
+    "spec": "godot-ai=={version}",
+    "default_version": "4.3.0"
+   },
+   "find": [
+    "godot-ai",
+    "godot-ai.exe"
+   ],
+   "known": [
+    "~/.local/bin/godot-ai.exe",
+    "~/.local/bin/godot-ai"
+   ],
+   "verify": [
+    "{path}",
+    "--version"
+   ],
+   "expect": "",
+   "size_mb": 60,
+   "licence": "MIT",
+   "after": "Register it: `claude mcp add --scope user godot-ai -- <path> attach`; the editor addon is the tool godot-ai-addon.",
+   "mcp": {
+    "name": "godot-ai",
+    "claude": [
+     "claude",
+     "mcp",
+     "add",
+     "--scope",
+     "user",
+     "godot-ai",
+     "--",
+     "{path}",
+     "attach"
+    ],
+    "codex": [
+     "codex",
+     "mcp",
+     "add",
+     "godot-ai",
+     "--",
+     "{path}",
+     "attach"
+    ],
+    "gemini": [
+     "gemini",
+     "mcp",
+     "add",
+     "-s",
+     "user",
+     "godot-ai",
+     "{path}",
+     "attach"
+    ],
+    "copilot": [
+     "copilot",
+     "mcp",
+     "add",
+     "godot-ai",
+     "--",
+     "{path}",
+     "attach"
+    ]
+   }
+  },
+  "godot-ai-addon": {
+   "title": "Godot AI editor addon",
+   "action": "install",
+   "when": "engine=godot",
+   "source": {
+    "kind": "github",
+    "repo": "hi-godot/godot-ai",
+    "tag": "v{version}",
+    "default_version": "4.3.0"
+   },
+   "assets": {
+    "windows": "godot-ai-v4-plugin.zip",
+    "linux": "godot-ai-v4-plugin.zip",
+    "macos": "godot-ai-v4-plugin.zip"
+   },
+   "find": [],
+   "known": [],
+   "verify": null,
+   "expect": "",
+   "size_mb": 2,
+   "licence": "MIT",
+   "after": "Link <install dir>/addons/godot_ai into the project (setup step 4). godot-ai-plugin.zip is the Migration plugin, not this one."
+  },
+  "blender-mcp": {
+   "title": "Blender Lab MCP server and add-on",
+   "action": "install",
+   "when": "always",
+   "source": {
+    "kind": "uv-tool",
+    "spec": "git+https://projects.blender.org/lab/blender_mcp.git@v{version}#subdirectory=mcp",
+    "default_version": "1.0.3"
+   },
+   "addon": "https://projects.blender.org/lab/blender_mcp/releases/download/v{version}/mcp-{version}.zip",
+   "find": [
+    "blender-mcp",
+    "blender-mcp.exe"
+   ],
+   "known": [
+    "~/.local/bin/blender-mcp.exe",
+    "~/.local/bin/blender-mcp"
+   ],
+   "verify": null,
+   "expect": "",
+   "size_mb": 40,
+   "licence": "GPL-3.0-or-later",
+   "after": "Install the add-on: `<blender> --command extension install-file -r user_default -e <mcp-{version}.zip>`; never PyPI blender_mcp (a different server with the same name).",
+   "mcp": {
+    "name": "blender",
+    "claude": [
+     "claude",
+     "mcp",
+     "add",
+     "--scope",
+     "user",
+     "blender",
+     "--",
+     "{path}"
+    ],
+    "codex": [
+     "codex",
+     "mcp",
+     "add",
+     "blender",
+     "--",
+     "{path}"
+    ],
+    "gemini": [
+     "gemini",
+     "mcp",
+     "add",
+     "-s",
+     "user",
+     "blender",
+     "{path}"
+    ],
+    "copilot": [
+     "copilot",
+     "mcp",
+     "add",
+     "blender",
+     "--",
+     "{path}"
+    ]
+   }
+  },
+  "unity": {
+   "title": "Unity 6 editor",
+   "action": "manual",
+   "when": "engine=unity",
+   "find": [
+    "Unity.exe",
+    "Unity"
+   ],
+   "known": [
+    "C:/Program Files/Unity/Hub/Editor/6*/Editor/Unity.exe",
+    "/Applications/Unity/Hub/Editor/6*/Unity.app/Contents/MacOS/Unity"
+   ],
+   "verify": null,
+   "expect": "",
+   "instruction": "Unity needs a Unity account and a licence, so Kiln does not install it. 1) Install Unity Hub from https://unity.com/download and sign in. 2) Installs → Install Editor → the Unity 6 LTS version the project names, with the Build Support modules for your target platforms. 3) Tell Kiln when it is done; it finds the editor under Hub/Editor/ and carries on (setup step 4)."
+  },
+  "unreal": {
+   "title": "Unreal Engine 5.8",
+   "action": "manual",
+   "when": "engine=unreal",
+   "find": [
+    "UnrealEditor.exe",
+    "UnrealEditor"
+   ],
+   "known": [
+    "C:/Program Files/Epic Games/UE_5.*/Engine/Binaries/Win64/UnrealEditor.exe"
+   ],
+   "verify": null,
+   "expect": "",
+   "instruction": "Unreal needs an Epic Games account and its EULA, so Kiln does not install it. 1) Install the Epic Games Launcher from https://store.epicgames.com/download and sign in. 2) Unreal Engine → Library → + → Unreal Engine 5.8 → Install (C++ projects also need Visual Studio 2022 with the 'Game development with C++' workload). 3) Tell Kiln when it is done; it finds UnrealEditor.exe and carries on (setup step 4)."
+  },
+  "unity-mcp": {
+   "title": "MCP for Unity (package + server)",
+   "action": "install",
+   "when": "engine=unity",
+   "source": {
+    "kind": "project",
+    "default_version": "10.3.0"
+   },
+   "project_edit": "Packages/manifest.json dependencies: \"com.coplaydev.unity-mcp\": \"https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v{version}\" (before the editor first opens the project)",
+   "mcp": {
+    "name": "unity",
+    "claude": [
+     "claude",
+     "mcp",
+     "add",
+     "--scope",
+     "user",
+     "--transport",
+     "http",
+     "unity",
+     "http://localhost:8080/mcp"
+    ],
+    "codex": [
+     "codex",
+     "mcp",
+     "add",
+     "unity",
+     "--url",
+     "http://localhost:8080/mcp"
+    ],
+    "gemini": [
+     "gemini",
+     "mcp",
+     "add",
+     "-s",
+     "user",
+     "-t",
+     "http",
+     "unity",
+     "http://localhost:8080/mcp"
+    ],
+    "copilot": [
+     "copilot",
+     "mcp",
+     "add",
+     "--transport",
+     "http",
+     "unity",
+     "http://localhost:8080/mcp"
+    ]
+   },
+   "find": [],
+   "known": [],
+   "verify": null,
+   "expect": "",
+   "size_mb": 5,
+   "licence": "MIT",
+   "after": "In the editor: Window → MCP for Unity → start the HTTP server; tool groups core, testing, scripting_ext, profiling (asset_gen off)."
+  },
+  "unreal-mcp": {
+   "title": "Unreal MCP (Epic, UE 5.8)",
+   "action": "install",
+   "when": "engine=unreal",
+   "source": {
+    "kind": "project",
+    "default_version": "5.8"
+   },
+   "project_edit": "<project>.uproject Plugins entries {\"Name\": <n>, \"Enabled\": true} for ModelContextProtocol (Epic's Unreal MCP), AllToolsets and PythonScriptPlugin, before the first open (engine-unreal skill)",
+   "mcp": {
+    "name": "unreal",
+    "claude": [
+     "claude",
+     "mcp",
+     "add",
+     "--scope",
+     "user",
+     "--transport",
+     "http",
+     "unreal",
+     "http://127.0.0.1:8000/mcp"
+    ],
+    "codex": [
+     "codex",
+     "mcp",
+     "add",
+     "unreal",
+     "--url",
+     "http://127.0.0.1:8000/mcp"
+    ],
+    "gemini": [
+     "gemini",
+     "mcp",
+     "add",
+     "-s",
+     "user",
+     "-t",
+     "http",
+     "unreal",
+     "http://127.0.0.1:8000/mcp"
+    ],
+    "copilot": [
+     "copilot",
+     "mcp",
+     "add",
+     "--transport",
+     "http",
+     "unreal",
+     "http://127.0.0.1:8000/mcp"
+    ]
+   },
+   "find": [],
+   "known": [],
+   "verify": null,
+   "expect": "",
+   "size_mb": 0,
+   "licence": "Unreal Engine EULA",
+   "after": "Editor preferences: MCP auto-start on, port 8000, path /mcp."
+  }
+ },
+ "offers": {
+  "triposr": {
+   "title": "TripoSR",
+   "repo": "https://github.com/VAST-AI-Research/TripoSR",
+   "commit": "107cefdc244c",
+   "makes": "rough shape with vertex colours from 1 image",
+   "gpu_gb": 0,
+   "cpu": true,
+   "licence": "MIT (code and weights)",
+   "commercial": true,
+   "size_gb": 2,
+   "quality": "low: a blockout to clean up; a wide crop (head + neck + collar) works better than a tight face",
+   "speed": "~40 s model + ~40 s mesh on CPU"
+  },
+  "triposg": {
+   "title": "TripoSG",
+   "repo": "https://github.com/VAST-AI-Research/TripoSG",
+   "commit": "fc5c40990181",
+   "makes": "shape only from 1 image (texture by projection in Blender)",
+   "gpu_gb": 8,
+   "licence": "MIT",
+   "commercial": true,
+   "size_gb": 6,
+   "quality": "good shapes for organic props and characters on an 8 GB GPU",
+   "speed": "under a minute on a mid GPU"
+  },
+  "sf3d": {
+   "title": "Stable Fast 3D",
+   "repo": "https://github.com/Stability-AI/stable-fast-3d",
+   "commit": "ff21fc491b4d",
+   "makes": "textured mesh with de-lit albedo from 1 image",
+   "gpu_gb": 6,
+   "licence": "Stability AI Community: free under $1M annual revenue",
+   "commercial": "limited",
+   "size_gb": 4,
+   "quality": "fast, lower fidelity",
+   "speed": "seconds"
+  },
+  "step1x-3d": {
+   "title": "Step1X-3D",
+   "repo": "https://github.com/stepfun-ai/Step1X-3D",
+   "commit": "cb5ac944709c",
+   "makes": "watertight shape + texture from 1 image",
+   "gpu_gb": 27,
+   "licence": "Apache-2.0",
+   "commercial": true,
+   "size_gb": 20,
+   "quality": "high",
+   "speed": "minutes; rented GPU on most machines (model_generators=remote)"
+  },
+  "trellis2": {
+   "title": "TRELLIS.2",
+   "repo": "https://github.com/microsoft/TRELLIS.2",
+   "commit": "75fbf0183001",
+   "makes": "high-resolution shape + PBR textures from 1 image",
+   "gpu_gb": 24,
+   "linux_only": true,
+   "licence": "MIT + DINOv3 licence for the image encoder",
+   "commercial": true,
+   "size_gb": 25,
+   "quality": "best local fidelity",
+   "speed": "minutes; Linux, so a rented GPU on Windows (model_generators=remote)"
+  },
+  "spar3d": {
+   "title": "SPAR3D (Stable Point-Aware 3D)",
+   "repo": "https://github.com/Stability-AI/stable-point-aware-3d",
+   "commit": "fdc311b16809",
+   "makes": "UV-unwrapped textured GLB with roughness/metallic from 1 image; remesh to tris or quads",
+   "gpu_gb": 7,
+   "licence": "Stability Community Licence",
+   "commercial": true,
+   "terms": "free commercial use under US$1M annual revenue, registration required",
+   "size_gb": 6,
+   "quality": "clean game-ready props in seconds; low-VRAM mode about 7 GB (10.5 GB default)",
+   "speed": "seconds"
+  },
+  "pixal3d": {
+   "title": "Pixal3D (Tencent ARC)",
+   "repo": "https://github.com/TencentARC/Pixal3D",
+   "commit": "f7cf38429b0b",
+   "makes": "GLB with PBR from 1 image or several views (multi-view since 2026-09)",
+   "gpu_gb": 24,
+   "licence": "MIT",
+   "commercial": true,
+   "size_gb": 16,
+   "quality": "high detail, uses all 1-3 input views; VRAM not published, --low_vram at 1024",
+   "speed": "about a minute on a 24 GB GPU (not published)"
+  },
+  "ace-step-1.5": {
+   "kind": "audio",
+   "title": "ACE-Step 1.5",
+   "repo": "https://github.com/ace-step/ACE-Step-1.5",
+   "commit": "ca1e85fe9430",
+   "makes": "full songs or instrumentals from a text prompt and optional lyrics, up to 10 min, 50+ languages",
+   "gpu_gb": 4,
+   "licence": "MIT",
+   "commercial": true,
+   "terms": "model card: outputs may be used commercially; trained on licensed, royalty-free and synthetic data",
+   "size_gb": 8,
+   "quality": "the best open music model that fits a small GPU",
+   "speed": "under 10 s per song on an RTX 3090"
+  },
+  "diffrhythm": {
+   "kind": "audio",
+   "title": "DiffRhythm 1.2",
+   "repo": "https://github.com/ASLP-lab/DiffRhythm",
+   "commit": "28ad63c0f096",
+   "makes": "full songs from lyrics (LRC) and a style prompt or reference, or instrumentals, up to 4:45",
+   "gpu_gb": 8,
+   "licence": "Apache-2.0",
+   "commercial": true,
+   "size_gb": 6,
+   "quality": "second choice: song structure from timed lyrics",
+   "speed": "fast (diffusion, no published benchmark)"
+  }
+ },
+ "not_offered": {
+  "hunyuan3d": "licence excludes the EU, the UK and South Korea and covers the output; 2.5 and later are hosted only",
+  "musicgen": "weights CC BY-NC (non-commercial)",
+  "yue": "weights CC BY-NC 4.0; only individuals may monetise outputs, companies need a licence",
+  "stable-audio-open": "47 s clips, weak on music (sound effects fit better); Stability Community Licence",
+  "udio": "downloads disabled since 2025-10-29"
+ }
+}

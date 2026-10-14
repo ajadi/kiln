@@ -1,0 +1,2 @@
+description = "Run the backlog unattended \u2014 the producer loop from /kiln:run, chaining tasks without stopping between them, with Stop-hook continuation and hard stops. Use only when the user explicitly asks to work on their own / while they are away."
+prompt = "Use the Kiln skill `autopilot`: activate it with activate_skill (name \"autopilot\") and follow it.\nArguments (may be empty): {{args}}\n"

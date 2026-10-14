@@ -1,0 +1,2 @@
+description = "Write the user's own complaint about Kiln into kiln-report.md - what went wrong, where, what they would want instead - as one numbered row next to the problems the agents report while working. Use when the user wants to complain about Kiln, report a Kiln problem or leave feedback for the framework."
+prompt = "Use the Kiln skill `report`: activate it with activate_skill (name \"report\") and follow it.\nArguments (may be empty): {{args}}\n"

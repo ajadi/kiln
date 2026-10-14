@@ -1,0 +1,2 @@
+description = "Create or update an isolated test scene (\"gym\") for one mechanic \u2014 terrain features, targets and on-screen debug readouts for the values being tuned \u2014 so the mechanic can be played and measured before it goes into a level. Use when starting a mechanic, tuning feel, or reproducing a bug in isolation."
+prompt = "Use the Kiln skill `gym`: activate it with activate_skill (name \"gym\") and follow it.\nArguments (may be empty): {{args}}\n"

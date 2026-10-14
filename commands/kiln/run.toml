@@ -1,0 +1,2 @@
+description = "Producer loop \u2014 pick the next ready task(s), delegate to the right Kiln roles with the right gates (playtest, art review, risk review, verification), handle NEEDS_WORK cycles, close and commit, and report to the user what now works. Use when the user says to continue, do the next task, run TASK-NNN,"
+prompt = "Use the Kiln skill `run`: activate it with activate_skill (name \"run\") and follow it.\nArguments (may be empty): {{args}}\n"

@@ -1,0 +1,2 @@
+description = "Ask a running autopilot to stop cleanly after the task it is working on \u2014 writes .kiln/stop-after-task so the run finishes the current task, writes a resume point, turns autopilot off and reports, instead of being killed mid-task. Use when the user says to stop, pause or wind down the autopilot (usa"
+prompt = "Use the Kiln skill `stop`: activate it with activate_skill (name \"stop\") and follow it.\nArguments (may be empty): {{args}}\n"

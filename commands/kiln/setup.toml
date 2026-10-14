@@ -1,0 +1,2 @@
+description = "Set up Kiln in the current folder as a game project for Godot, Unity or Unreal (3D or 2D) with Blender \u2014 engine and dimension choice, project files (manifest, CLAUDE.md, GAME.md, backlog, memory), git ignores and LFS, project-scope plugin enable, MCP permissions, the engine project and its MCP serve"
+prompt = "Use the Kiln skill `setup`: activate it with activate_skill (name \"setup\") and follow it.\nArguments (may be empty): {{args}}\n"

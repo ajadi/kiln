@@ -1,0 +1,2 @@
+description = "Short Kiln project status \u2014 backlog progress, tasks in progress with open checklist items, blocked work and open questions, editor locks, autopilot state, last session handoff, and the next ready task. Use when the user asks where things stand, what is next, or to resume after a break."
+prompt = "Use the Kiln skill `status`: activate it with activate_skill (name \"status\") and follow it.\nArguments (may be empty): {{args}}\n"

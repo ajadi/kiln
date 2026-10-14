@@ -1,0 +1,2 @@
+description = "The whole game production pipeline from idea to release, run by the Kiln studio with the user as director \u2014 phases with gates (setup, concept, style, tech plan, look-dev, mechanics one by one in gyms, vertical slice, content, polish, release), a state file that makes every session resumable, user in"
+prompt = "Use the Kiln skill `pipeline`: activate it with activate_skill (name \"pipeline\") and follow it.\nArguments (may be empty): {{args}}\n"

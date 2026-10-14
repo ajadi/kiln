@@ -1,0 +1,2 @@
+description = "Retrospective on a Kiln session or task batch \u2014 mine the evidence (guard denials, tool errors, review rounds, the user's corrections, proxy decisions), turn each real problem into a fix for Kiln or the project, most costly first. Use when the user runs /kiln:retro, at the end of an autopilot run, or"
+prompt = "Use the Kiln skill `retro`: activate it with activate_skill (name \"retro\") and follow it.\nArguments (may be empty): {{args}}\n"

@@ -1,0 +1,2 @@
+description = "Turn GAME.md and design specs into a phased backlog of task files \u2014 batches per role, dependency order (model \u2192 rig \u2192 animation \u2192 gameplay \u2192 integration), gyms before levels, editor-exclusive scheduling, acceptance checks copied from the design. Use after /kiln:concept, when the design changes, or w"
+prompt = "Use the Kiln skill `plan`: activate it with activate_skill (name \"plan\") and follow it.\nArguments (may be empty): {{args}}\n"

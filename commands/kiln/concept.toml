@@ -1,0 +1,2 @@
+description = "Shape the game with the user \u2014 read their briefs and references, interview in short rounds with recommended options, and produce GAME.md plus design specs with acceptance checks (via the game-designer agent). Use at the start of a project, when the user brings new task briefs, or when the design mus"
+prompt = "Use the Kiln skill `concept`: activate it with activate_skill (name \"concept\") and follow it.\nArguments (may be empty): {{args}}\n"

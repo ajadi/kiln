@@ -1,0 +1,2 @@
+description = "Show or change this project's Kiln settings (manifest.md) \u2014 kind game/prototype/assets, user_gates proxy/ask, repo_access, generators, engine policies. Use when the user runs /kiln:settings, asks what Kiln is set to here, or asks to change how Kiln works in this project (\"ask me before deciding\", \"d"
+prompt = "Use the Kiln skill `settings`: activate it with activate_skill (name \"settings\") and follow it.\nArguments (may be empty): {{args}}\n"

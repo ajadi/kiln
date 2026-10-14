@@ -1,0 +1,2 @@
+description = "Cutscenes, in-game cinematics, trailer shots and standalone clips made by agents; /kiln:cinematic <description> makes one end to end (a clip rendered in Blender in asset mode, a cutscene in the engine in a game) - in-engine vs pre-rendered, script to shot list to animatic, camera grammar with number"
+prompt = "Use the Kiln skill `cinematic`: activate it with activate_skill (name \"cinematic\") and follow it.\nArguments (may be empty): {{args}}\n"
