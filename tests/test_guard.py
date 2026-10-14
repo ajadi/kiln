@@ -176,6 +176,14 @@ class GodotTests(GuardCase):
         self.check(write("tools/infra/sync.sh"), "ALLOW", root)
         self.check(write("tools/game/gen.py"), "DENY", root)
 
+    def test_kiln_report_is_open_to_everyone(self):
+        # S07: the rules tell every role and the main session to report Kiln problems in
+        # kiln-report.md, so it is appendable without any manifest setting, also in old projects.
+        for role in (None, "playtester", "verifier", "art-director", "gameplay-dev"):
+            self.check(write("kiln-report.md", role), "ALLOW")
+        root = make_project("godot", "notes_files=memory/kiln_reports.md\n")
+        self.check(write("kiln-report.md", "qa-audio"), "ALLOW", root)
+
     def test_roles_write_their_tasks_paths(self):
         # g2 row 130: the producer asked the art-director for production/props/; the zone said no.
         root = make_project("godot")

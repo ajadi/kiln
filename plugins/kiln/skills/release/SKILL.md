@@ -22,7 +22,7 @@ rated without the user's explicit consent for that platform; autopilot never pro
 | `${CLAUDE_SKILL_DIR}/references/steam.md` | SteamPipe, store assets, reviews and timelines, AI disclosure |
 | `${CLAUDE_SKILL_DIR}/references/distribution.md` | itch.io butler, signing, IARC, store copy, credits and licences |
 
-Engine executables: `--machine ${CLAUDE_PLUGIN_DATA}/machine.json` (`godot_exe`, `unity_exe`,
+Engine executables: `--machine ~/.kiln/machine.json` (the default; `godot_exe`, `unity_exe`,
 `unreal_exe`) or `--engine-exe`. Output: `export/<preset>/` (git-ignored).
 
 ## When to build

@@ -37,14 +37,19 @@ fallback lines and the game is fully playable with the server off.
 Never ship an API key in the client, and never expose open-llm-npc to the internet: the client
 sends the prompts, so anyone reaching it gets a free general-purpose LLM proxy.
 
-## The installed open-llm-npc server (this machine)
+## Ollama and the open-llm-npc server
 
-`~/.local/share/open-llm-npc`, commit 1128019: Flask + waitress, stateless. `POST /chat`
+With `llm_npc=local` the tools skill installs Ollama after the user's yes (`tools_check.py install
+ollama --yes`, into tools_root, checksum verified) and pulls the model chosen for the NPCs
+(`ollama pull <model>`; size and licence go in the same question). Kiln never pipes an install
+script into a shell.
+
+open-llm-npc (when the project uses it; record where it lives in machine.json): Flask + waitress,
+stateless. `POST /chat`
 `{message, configuration{state, prompts, quests, rewards}, context?, state_change?}` →
 `{text, context{state, history}, quest, reward}`; `GET /health` → `{"ok": true}`. `.env`:
 `LLM_BASE_URL` (any OpenAI-compatible `/v1`), `LLM_MODEL`, `LLM_API_KEY`, `PORT=8100`,
-`MAX_CONTEXT_MESSAGES=20`. Ollama is **not installed**, so `/chat` answers 502 until the user
-installs it and pulls a model. Behaviour, gaps (binds 0.0.0.0 without auth, no streaming, no
+`MAX_CONTEXT_MESSAGES=20`. Without a running Ollama and a pulled model `/chat` answers 502. Behaviour, gaps (binds 0.0.0.0 without auth, no streaming, no
 length cap, unescaped `[PLAYER]` tags) and the Ollama Modelfile settings that close them:
 `${CLAUDE_SKILL_DIR}/references/open-llm-npc.md`. Do not start, patch or reconfigure the server
 without the user; keep it off ports 8000/8080/9500/9876 (editor MCP ports the Kiln guard blocks).

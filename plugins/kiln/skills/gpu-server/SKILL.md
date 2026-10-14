@@ -13,7 +13,7 @@ or any SSH box.
 
 ## 1. The profile lives outside the project
 
-`${CLAUDE_PLUGIN_DATA}/gpu.json` (else `~/.config/kiln/gpu.json`): host, SSH key **path**,
+`~/.kiln/gpu.json` (the machine's Kiln folder, next to `machine.json`): host, SSH key **path**,
 provider ids, price per hour, start / stop / status commands. Never put a host, key, token or
 provider id in the project or in git; API tokens stay in the provider CLI's own login or in an
 environment variable. The script's header shows the profile format. Examples to adapt (verify

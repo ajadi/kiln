@@ -66,8 +66,10 @@ below say what each failure usually means.
    `git status` lists files whose diff is line endings only (`git diff --ignore-cr-at-eol
    --name-only` shorter than `git diff --name-only`) → add `* text=auto eol=lf` to
    `.gitattributes` and `git add --renormalize .` (setup §3).
-7b. **Tools** — `tools_check.py verify production/tools.json --tools-root <tools_root>` (tools
-   skill): every tool at its pinned version; fix what fails yourself.
+7b. **Tools** — `tools_check.py plan --project .` (tools skill): every tool the project needs is
+   found (or listed for install / as a manual step); `production/tools.json` pins pass
+   `tools_check.py verify`. Missing tools go to the user as one install question, never installed
+   silently.
 7a. **Tool environments** — sound or music roles in the backlog: `<venvs>/audio` exists and
    imports numpy, soundfile, pyloudnorm (create it yourself, setup §3). Venvs live under
    machine.json `tools_root` when it is set.

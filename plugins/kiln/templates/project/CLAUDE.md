@@ -41,6 +41,18 @@ and talks to the user. Roles do the hands-on work; acceptance roles judge it.
 - A task is done when it was seen working in the running game or the real editor, with
   measurements and captures — not when files exist.
 
+## Problem reports (kiln-report.md)
+
+Every role and the main session report problems with Kiln itself while working, the moment they
+hit one, then carry on: a guard denial or hook nudge that looks wrong, a skill or role instruction
+that is wrong, missing or contradicts another, a tool, MCP server or add-on that fails to install
+or connect, a Kiln script that errors, a step that needed a workaround. One row per problem:
+
+`python "${CLAUDE_PLUGIN_ROOT}/skills/pipeline/scripts/pipeline.py" row kiln-report.md "<YYYY-MM-DD> | <main or role> | <area> | <what happened, exact message> | <suggestion or -> | open"`
+
+Game bugs go to `memory/known-issues.md`, not here. Seen again → a new row "again, see #N". The
+user adds their own with `/kiln:report`. Mention new rows in the task report.
+
 ## Kiln settings
 
 Settings live in `manifest.md`. `/kiln:settings` shows them and changes one

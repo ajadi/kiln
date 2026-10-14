@@ -31,6 +31,16 @@ class ProjectKind(unittest.TestCase):
         self.assertIn("Project kind: PROTOTYPE", ctx)
         self.assertIn("Never change kind yourself", ctx)
 
+    def test_asset_mode_is_announced_without_an_engine(self):
+        # S08: kind=assets, engine=none - no engine skill to load, no game pipeline.
+        root = tempfile.mkdtemp(prefix="kiln-session-")
+        with open(os.path.join(root, "manifest.md"), "w", encoding="utf-8") as fh:
+            fh.write("project_name=t\nframework=kiln\nengine=none\nkind=assets\n")
+        ctx = context(root)
+        self.assertIn("Project kind: ASSETS", ctx)
+        self.assertIn("/kiln:model", ctx)
+        self.assertNotIn("kiln:engine-none", ctx)
+
     def test_game_is_the_default_and_silent(self):
         for extra in ("", "kind=game\n"):
             self.assertNotIn("PROTOTYPE", context(make_project(extra)))

@@ -142,7 +142,7 @@ def policy_list(policy, key, default=""):
 
 def notes_files(policy):
     """Shared notes files every role and the main session may append to (manifest notes_files)."""
-    return policy_list(policy, "notes_files", "memory/kiln_reports.md")
+    return ["kiln-report.md"] + policy_list(policy, "notes_files", "memory/kiln_reports.md")
 
 
 def task_paths(root, role):

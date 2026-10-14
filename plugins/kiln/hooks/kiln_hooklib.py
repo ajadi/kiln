@@ -23,7 +23,7 @@ BUILD_ROLES = {"modeler", "animator", "level-designer", "gameplay-dev", "fx-arti
 KILN_ROLES = {"game-designer"} | BUILD_ROLES | READ_ONLY_ROLES | EXPERT_ROLES
 
 DEFAULT_POLICY = {
-    "engine": "godot",                                 # godot | unity | unreal
+    "engine": "godot",                                 # godot | unity | unreal | none (assets)
     "dimension": "3d",                                 # 3d | 2d
     "model_generators": "off",                         # off | local | remote | api — image-to-3D/2D generators
     "audio_generators": "off",                         # off | local | remote | api — music/sound models
@@ -37,11 +37,12 @@ DEFAULT_POLICY = {
     "editor_lock_ttl": "600",                          # seconds before an idle lock expires
     "editor_lock_other_session_ttl": "120",            # same, for a lock left by another session
     "editor_lease_s": "900",                           # holder hands over when someone waits
-    "kind": "game",                                    # game | prototype (user-set; light review)
+    "kind": "game",                                    # game | prototype | assets (user-set)
     "user_gates": "proxy",                             # proxy (decide for the user, listed) | ask
     "autopilot_max_nudges": "3",                       # Stop-hook continuations without progress
     "agent_model": "",                                 # every Agent call: sonnet | opus | ...
     "agent_effort": "",                                # every Agent call: low ... max
+    "llm_npc": "off",                                  # off | local | api (LLM-driven NPC talk)
     "perf_gate": "on",                                 # on | informational | off (qa-performance)
     "on_screen": "anytime",                            # anytime | slot (batch on-screen runs)
 }
@@ -489,6 +490,16 @@ ROUTE = {
     "audio": ["qa-audio", "verifier"],
     "music": ["qa-audio", "verifier"],
     "integration": ["playtester", "autoplayer", "verifier"],
+    "cinematic": ["art-director", "qa-readability", "qa-performance", "verifier"],
+}
+# kind=assets: a model, sprite sheet or track made on its own, without a game to play it in.
+ASSET_ROUTE = {
+    "art": ["art-director", "verifier"],
+    "animation": ["art-director", "verifier"],
+    "fx": ["art-director", "verifier"],
+    "cinematic": ["art-director", "verifier"],
+    "audio": ["qa-audio", "verifier"],
+    "music": ["qa-audio", "verifier"],
 }
 # What a task touches decides the consultants and acceptors it needs. The plan writes it as
 # `touches: humanoid, physics, ...` in the spec; that line is the contract the gates enforce.
@@ -563,12 +574,15 @@ def suggested_gates(text, kind="game", perf_gate="on", guess=True):
     if kind == "prototype":
         return [("verifier", "close (prototype: plus one acceptance role)")]
     ttype = task_type(text)
-    out = [(role, "route table") for role in ROUTE.get(ttype, ["verifier"])]
+    route = ASSET_ROUTE if kind == "assets" else ROUTE
+    out = [(role, "route table") for role in route.get(ttype, ["verifier"])]
     touches = declared_touches(text)
     if touches is None:
         touches = guess_touches(text) if guess else []
     for touch in touches:
         for role, types, why in TOUCHES.get(touch, []):
+            if kind == "assets" and not role.endswith("-expert"):
+                continue  # no running game to accept movement, AI or damage in
             if (types is None or ttype in types) and role not in [r for r, _ in out]:
                 out.insert(len(out) - 1 if out and out[-1][0] == "verifier" else len(out),
                            (role, why))

@@ -40,6 +40,14 @@ class McpCheck(unittest.TestCase):
         self.assertFalse(reqs[0]["required"])  # Blender optional in 2D
         self.assertIn("tilemap_manage", reqs[1]["tools"])
 
+    def test_asset_mode_needs_only_blender(self):
+        # S08: engine=none (kind=assets) - no engine server; Blender required even for 2D,
+        # where sprite sheets are rendered from a model.
+        for dimension in ("3d", "2d"):
+            code, reqs = run(project("none", dimension), "required")
+            self.assertEqual([r["server"] for r in reqs], ["blender"])
+            self.assertTrue(reqs[0]["required"])
+
     def test_verify(self):
         root = project("godot", "3d")
         _, reqs = run(root, "required")

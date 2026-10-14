@@ -1,6 +1,6 @@
 project_name={{PROJECT_NAME}}
 framework=kiln
-framework_version=0.7.0
+framework_version=0.7.1
 repo_access=private-solo
 runtimes={{RUNTIMES}}
 engine={{ENGINE}}
@@ -9,6 +9,7 @@ mcp_only=on
 scene_first=on
 model_generators=off
 audio_generators=off
+llm_npc=off
 godot_files_via_mcp=scenes,resources,scripts
 orchestrator_writes=state
 state_paths=

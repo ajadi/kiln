@@ -265,7 +265,18 @@ def last_rows(path, n, prefix="|"):
     return rows[-n:]
 
 
+def asset_status():
+    """kind=assets: no phases; the backlog's asset tasks and where they stand."""
+    lines = [l.strip() for l in (read("backlog.md") or "").splitlines()
+             if re.match(r"^\s*- \[[ x~]\]", l)]
+    print("asset mode (kind=assets): no game pipeline - assets are tasks in backlog.md")
+    for line in lines or ["(no asset tasks yet: /kiln:model, /kiln:sprites, /kiln:track)"]:
+        print(" ", line)
+
+
 def status(full):
+    if kind() == "assets":
+        return asset_status()
     text = read(PIPELINE)
     if text is None:
         sys.exit("no production/PIPELINE.md — run: python pipeline.py init")
@@ -469,6 +480,14 @@ def page(out_path):
     return 0
 
 
+def report_rule_section():
+    """The "## Problem reports" section of the project rules template, up to the next heading."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "templates",
+                        "project", "CLAUDE.md")
+    m = re.search(r"^## Problem reports.*?(?=^## )", read(path) or "", re.M | re.S)
+    return m.group(0) if m else None
+
+
 def migrate():
     """Bring a project planned by an older Kiln to the current task format: open task files
     (tasks/*.md, not the archive) get a `touches:` line (guessed, marked for confirmation) and a
@@ -525,6 +544,15 @@ def migrate():
     if missing and manifest:
         write("manifest.md", manifest.rstrip("\n") + "\n" + "\n".join(missing) + "\n")
         changed.append("manifest.md: added " + ", ".join(m.split("=")[0] for m in missing))
+    rules = next((f for f in ("AGENTS.md", "CLAUDE.md")
+                  if "## Rules that matter most" in (read(f) or "")), None)
+    section = report_rule_section()
+    if rules and section and "## Problem reports" not in read(rules):
+        text = read(rules)
+        at = text.find("## Kiln settings")
+        text = text[:at] + section + text[at:] if at >= 0 else text.rstrip("\n") + "\n\n" + section
+        write(rules, text)
+        changed.append(f"{rules}: problem report rule added")
     if not changed:
         print("nothing to migrate")
         return 0
@@ -534,6 +562,13 @@ def migrate():
     print("Confirm every guessed touches: line (then delete its touches_source line), and fill "
           "or SKIP the new gates rows.")
     return 0
+
+
+REPORT_HEADER = ("# Kiln problem reports\n\n"
+                 "Problems with Kiln itself, written while working (rules) or by the user "
+                 "(/kiln:report).\n\n"
+                 "| # | date | who | area | what happened | suggestion | status |\n"
+                 "|---|---|---|---|---|---|---|\n")
 
 
 def append_row(path, cells):
@@ -553,6 +588,8 @@ def append_row(path, cells):
         return 1
     try:
         text = read(path) or ""
+        if not text and os.path.basename(path) == "kiln-report.md":
+            text = REPORT_HEADER
         numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)\s*\|", text, re.M)]
         n = max(numbers, default=0) + 1
         text = text.rstrip("\n") + f"\n| {n} | {cells.strip().strip('|').strip()} |\n"
@@ -596,6 +633,8 @@ def main():
         sys.exit(append_row(a.file, a.cells))
 
     if a.cmd == "init":
+        if kind() == "assets":
+            sys.exit("kind=assets: asset mode has no game pipeline (no phases or gates to init)")
         if os.path.exists(PIPELINE):
             sys.exit("production/PIPELINE.md exists — not overwriting")
         text = read(TEMPLATE)

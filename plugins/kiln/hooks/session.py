@@ -57,7 +57,8 @@ def start(data, root, policy):
              f"orchestrator_writes={policy.get('orchestrator_writes')}, "
              f"user_gates={policy.get('user_gates', 'proxy')} (proxy: decide for the user with the "
              f"recommended option, record PROXY, list it in the report; ask: ask and wait). "
-             f"Engine rules: skill kiln:engine-{policy.get('engine', 'godot')}. "
+             + (f"Engine rules: skill kiln:engine-{policy.get('engine', 'godot')}. "
+                if policy.get("engine", "godot") != "none" else "No game engine. ")
              + ("Workflow skills of the kiln plugin: pipeline, status, run, doctor (mention with $ "
                 "or pick in /skills); Kiln roles are the custom agents kiln-<role>."
                 if k.runtime() == "codex" else
@@ -73,6 +74,12 @@ def start(data, root, policy):
                      "review per the run skill: one acceptance role + verifier, no risk review, no "
                      "separate playtester, at most 2 rounds per gate. Start every report to the user "
                      "with the mode. Never change kind yourself.")
+    if policy.get("kind") == "assets":
+        lines.append("Project kind: ASSETS (manifest kind=assets, set by the user) - assets made on "
+                     "their own, no game: /kiln:model (a 3D model from 1-3 images), /kiln:sprites "
+                     "(a sprite sheet or 2D map from an image), /kiln:track (a track from a "
+                     "description). No game pipeline, no engine; Blender through its MCP; deliver "
+                     "into out/<asset>/ with the numbers and licences. Never change kind yourself.")
     lines += state_lines(root)
     if os.path.exists(os.path.join(root, ".kiln", "autopilot")):
         if k.runtime() == "codex" or k.autopilot_session(data, root) == "self":
@@ -183,6 +190,10 @@ def subagent(data, root, policy):
             f"mcp_only={policy.get('mcp_only')}, scene_first={policy.get('scene_first')}, "
             f"model_generators={policy.get('model_generators', 'off')}, "
             f"audio_generators={policy.get('audio_generators', 'off')}.")
+    if engine == "none":
+        k.add_context("SubagentStart", head + " No game engine (asset mode): deliver files and "
+                                              "Blender scenes into out/<asset>/; no engine work.")
+        return
     if role in NO_ENGINE_PROFILE:  # ~11-14k chars these roles never use
         k.add_context("SubagentStart", head + f" Load skill kiln:engine-{engine} only if your "
                                               "task turns out to need engine details.")

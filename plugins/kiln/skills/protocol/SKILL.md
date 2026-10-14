@@ -17,6 +17,7 @@ user-invocable: false
 | `memory/registries.md` | Physics layers, input actions, groups, audio buses | whoever changes them |
 | `memory/decisions.md` | Decisions with a one-line reason | anyone, append-only |
 | `memory/known-issues.md` | Problems and workarounds, `[recurring]` tag when seen twice | anyone, append-only |
+| `kiln-report.md` | Problems with Kiln itself (wrong denial, misfiring hook, wrong or missing instruction, failed install, script error), one row each via `pipeline.py row kiln-report.md "<date> \| <role> \| <area> \| <what happened> \| <suggestion> \| open"`; game bugs go to known-issues | anyone, append-only, the moment it happens |
 | `notes_files` in `manifest.md` (default `memory/kiln_reports.md`) | Shared notes the user asked for, e.g. ideas for Kiln | anyone, append-only, next free row number |
 | `memory/out-of-scope/*.md` | Ideas the user rejected, one file per concept — check before proposing; match by meaning | orchestrator, when the user rejects with a reason |
 | `manifest.md` | `framework=kiln`, repo access mode, policy switches | user / setup |
@@ -31,7 +32,7 @@ already decide. Pass file paths to other agents, not file contents.
 # TASK-NNN: <name>
 ## spec
 type: design | tech | art | animation | level | lighting | gameplay | ai | ui | fx | audio | music |
-      narrative | release | integration
+      narrative | cinematic | release | integration
 role: <kiln agent>[, <kiln agent> ...]   (every role named here may write the task's paths)
 batch: <what this worker owns in this task, e.g. "all parts of the enemy walker">
 complexity: normal | high   (high: the orchestrator may raise the role's model/effort)
@@ -136,6 +137,7 @@ task touches its area, instead of guessing:
 | `ui` / `accessibility` / `localization` | HUD and menus / accessibility options / translated text |
 | `save-system` / `balance` / `procgen` | saving and loading / numbers and progression / generated content |
 | `narrative` / `llm-npc` | story, quests, dialogue, cutscenes / LLM-driven NPC dialogue (opt-in) |
+| `cinematic` | a cutscene, trailer shot or standalone clip: shot list and animatic, camera grammar and lenses, Godot AnimationPlayer + Movie Maker, Unity Timeline + Cinemachine + Recorder, Unreal Sequencer + Movie Render Queue, Blender camera markers and video output, subtitles, checks |
 | `shaders` / `optimization` | writing shaders and materials / making a scene meet its budget |
 | `release` | builds, CI, store packaging, the release checklist |
 | `engine-godot` / `engine-unity` / `engine-unreal` | the profile was not injected |

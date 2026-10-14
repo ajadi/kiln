@@ -28,7 +28,8 @@ smoke  Launches one built executable (a .py runs under this Python - used by the
        into a soak run with memory samples and a growth limit.
 
 Engine executable: --engine-exe, else $KILN_ENGINE_EXE, else machine.json (--machine, or
-$CLAUDE_PLUGIN_DATA/machine.json) key godot_exe / unity_exe / unreal_exe, else the same key in
+~/.kiln/machine.json, then $CLAUDE_PLUGIN_DATA/machine.json) key godot_exe / unity_exe / unreal_exe or
+tools.<engine>.path, else the same key in
 manifest.md, else PATH. Output is JSON with "verdict"; exit code 1 when the verdict is "fail".
 """
 
@@ -573,12 +574,18 @@ def engine_exe(engine, root, manifest, args):
     if os.environ.get("KILN_ENGINE_EXE"):
         return os.environ["KILN_ENGINE_EXE"], "$KILN_ENGINE_EXE"
     key = EXE_KEYS[engine]
-    machine = args.machine or (os.path.join(os.environ["CLAUDE_PLUGIN_DATA"], "machine.json")
-                               if os.environ.get("CLAUDE_PLUGIN_DATA") else None)
+    machine = args.machine
+    if not machine:  # the shared machine config, then the old per-plugin copy
+        home = os.environ.get("KILN_HOME") or os.path.join(os.path.expanduser("~"), ".kiln")
+        candidates = [os.path.join(home, "machine.json")]
+        if os.environ.get("CLAUDE_PLUGIN_DATA"):
+            candidates.append(os.path.join(os.environ["CLAUDE_PLUGIN_DATA"], "machine.json"))
+        machine = next((c for c in candidates if os.path.isfile(c)), None)
     if machine and os.path.isfile(machine):
         try:
             with open(machine, encoding="utf-8") as fh:
-                value = json.load(fh).get(key)
+                data = json.load(fh)
+            value = data.get(key) or ((data.get("tools") or {}).get(engine) or {}).get("path")
             if value:
                 return value, f"{norm(machine)}:{key}"
         except (OSError, ValueError):

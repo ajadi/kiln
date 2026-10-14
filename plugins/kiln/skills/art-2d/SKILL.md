@@ -117,6 +117,14 @@ Animation + PSD Importer; sprites Filter Point, Compression None for pixel art.
 | `sprite_qa.py frames <cycle frames>` | fixed canvas, baseline within 1 px for grounded cycles |
 | in game | camera on whole pixels (no jitter), animation durations as specified, 0 tile-seam pixels while the camera moves at fractional speeds |
 
+## Tile maps from a reference
+
+`${CLAUDE_SKILL_DIR}/scripts/tiles.py extract <map.png> --tile <px> [--flips] [--tolerance N]
+--out <folder>`: the image cut on the tile grid, one copy per distinct tile (mirrored copies
+stored once with Tiled flip flags under `--flips`; `--tolerance` 4-8 for lossy images) →
+`tileset.png` + `map.tmj` (Tiled JSON, orthogonal). Many unique tiles = off-grid or painted
+reference. New maps in that style: the procgen skill (WFC).
+
 ## Sprite sheets
 
 `${CLAUDE_SKILL_DIR}/scripts/sheet.py` prepares files; nodes and clips are built in the editor

@@ -2,9 +2,9 @@
 
 Read from the installed clone on 2026-10-06. Re-check after any update of the clone.
 
-## Install on this machine
+## Install
 
-- Path `~/.local/share/open-llm-npc` (user-global, outside every project), git clone of
+- A user-global clone outside every project (record its path in machine.json), git clone of
   github.com/studioigor/open-llm-npc at commit `1128019` ("first commit").
 - Python server: `llm_npc.py` → `sources/server.py` (Flask app served by waitress),
   `sources/processor.py` (prompt and state logic), `sources/config.py` (`.env` via python-dotenv).
@@ -12,13 +12,13 @@ Read from the installed clone on 2026-10-06. Re-check after any update of the cl
   `start.sh` is an interactive bash menu (presets: Ollama, OpenAI, LM Studio).
 - `.env`: `LLM_BASE_URL=http://localhost:11434/v1` (Ollama), `LLM_MODEL=llama3.2`,
   `PORT=8100` (the upstream default 8000 collides with the Unreal MCP port and the Kiln guard's
-  MCP-port block), `MAX_CONTEXT_MESSAGES=20`. Ollama is not installed, so `/chat` returns 502.
+  MCP-port block), `MAX_CONTEXT_MESSAGES=20`. Without a running Ollama and model `/chat` returns 502.
 - Clients: `clients/godot/OpenLlmNpc.gd`, `clients/unity/OpenLlmNpc.cs`,
   `clients/unreal/OpenLlmNpc.{h,cpp}`, `clients/javascript/open-llm-npc.js`; docs in `docs/en/`.
 - Licence: README says MIT; there is no LICENSE file and the GitHub API reports no licence.
 
 Starting, stopping or reconfiguring the server, installing Ollama and pulling models are the
-user's actions (or done with the user's explicit go-ahead). Agents may call `GET /health` and run
+user's actions (or done with the user's explicit go-ahead; Ollama via `tools_check.py install ollama`). Agents may call `GET /health` and run
 `npc_eval.py` against a server the user started.
 
 ## API

@@ -110,7 +110,9 @@ def requirements(policy, runtime):
     dimension = policy.get("dimension", "3d")
     by_role = role_tools()
     out = []
-    for sid in ("blender", ENGINE_SERVER.get(engine, "godot-ai")):
+    servers = ["blender"] if engine == "none" else ["blender", ENGINE_SERVER.get(engine, "godot-ai")]
+    optional_blender = dimension == "2d" and engine != "none"  # asset mode renders sprites in it
+    for sid in servers:
         spec = SERVERS[sid]
         tools = list(spec["tools"])
         if dimension == "2d":
@@ -120,8 +122,8 @@ def requirements(policy, runtime):
                 tools.append(tool)
         out.append({
             "server": sid,
-            "required": not (sid == "blender" and dimension == "2d"),
-            "why": spec["why"] + ("" if sid != "blender" or dimension != "2d"
+            "required": not (sid == "blender" and optional_blender),
+            "why": spec["why"] + ("" if sid != "blender" or not optional_blender
                                   else " (2D: only for pre-rendered sprites)"),
             "register": spec["codex" if runtime == "codex" else "claude"],
             "tools": tools,

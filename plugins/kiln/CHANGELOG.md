@@ -387,3 +387,39 @@ a real `claude -p --plugin-dir` session).
   user in their language.
 - Known gaps: Unity/Unreal helpers for mesh fits and autoplay (listed in the engine-unity and engine-unreal skills); 3D
   jump-buffer/coyote values stay open (report row 36, needs research).
+
+## 0.7.1 — 2026-10-14
+
+- **Tools found, installed and offered.** One machine config for both plugins and Codex:
+  `~/.kiln/machine.json` (the old plugin-data file is merged once). The tools folder
+  (`tools_root`) is asked once, at `/kiln-start:here`, and never again unless the user changes it.
+  `tools_check.py plan` looks everywhere first (registry, PATH, tools folder, usual install
+  places), then setup asks one question. `install` downloads Godot, Blender, uv, git-lfs and
+  Ollama from their official sources, checks the published sha256 (nothing is installed on a
+  mismatch), unpacks into the tools folder and verifies the version; Godot AI and the Blender
+  Lab MCP install through uv, their add-ons are fetched, and the MCP registration commands are
+  printed. Unity and Unreal get a short instruction. Every setup run ends with
+  `tools_check.py installed`: what Kiln put on the machine, with version, place, size, checksum,
+  MCP registrations and add-ons.
+- **Generators offered with a comparison.** `tools_check.py offers` compares image-to-3D models
+  (TripoSR, TripoSG, SF3D, SPAR3D, Step1X-3D, TRELLIS.2, Pixal3D) and text-to-music models
+  (ACE-Step 1.5, DiffRhythm) by GPU memory, licence, commercial use and speed, gated by
+  `model_generators` / `audio_generators`; `offer-install` clones a pinned commit into a uv venv
+  after the user's yes. Not offered, with the reason: Hunyuan3D, MusicGen, YuE, Stable Audio
+  Open, Udio.
+- **`llm_npc`** policy (`off` / `local` / `api`): `local` installs Ollama with the user's yes.
+- **Problem reports.** Every role and the main session write problems with Kiln itself into
+  `kiln-report.md` while they work (project rules; `/kiln:update` adds the rule to older
+  projects); `/kiln:report` adds the user's own complaint and can turn it into a GitHub issue
+  with their yes. `pipeline.py row kiln-report.md` creates the file with its header.
+- **Assets without a game.** `kind=assets` (`engine=none`): no engine, no game pipeline, Blender
+  only, gates that judge the asset itself. New commands `/kiln:model` (a 3D model from 1-3
+  images), `/kiln:sprites` (sprite sheets, or a 2D map cut into a deduplicated tileset and a
+  Tiled map by the new `tiles.py`), `/kiln:track` (a song, instrumental or game loop, composed
+  or generated, measured). They also work inside game projects.
+- **Cinematics.** New `cinematic` skill (shot list and animatic, camera grammar with numbers,
+  Godot AnimationPlayer + Movie Maker, Unity Timeline + Cinemachine + Recorder, Unreal Sequencer
+  + Movie Render Queue, Blender 5.x video output, subtitles, pause and skip) with
+  `shot_check.py` (timeline gaps, the 180-degree line, the 30-degree rule, subtitle reading
+  speed, line length, duration and gaps) and the `cinematic` task type; the animator stages
+  cutscenes.

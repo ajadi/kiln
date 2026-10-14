@@ -130,6 +130,60 @@ class Pipeline(unittest.TestCase):
         code, out = run(root, "pipeline.py", "gates", "TASK-011", "--suggest")
         self.assertIn("| qa-audio |", out)
 
+    def test_asset_mode_gates_judge_the_asset_not_a_game(self):
+        # S08: kind=assets (no game, no engine) - the asset is judged by its own acceptors and
+        # experts; nothing that needs a running game (playtester, qa-performance, qa-feel).
+        root = project("none")
+        with open(os.path.join(root, "manifest.md"), "a", encoding="utf-8") as fh:
+            fh.write("kind=assets\n")
+        write(root, "tasks/TASK-001.md", "# TASK-001: knight from photos\n## spec\ntype: art\n"
+              "role: modeler\ntouches: humanoid, movement\n")
+        write(root, "tasks/TASK-002.md", "# TASK-002: calm track\n## spec\ntype: music\n"
+              "role: composer\n")
+        write(root, "tasks/TASK-003.md", "# TASK-003: walk sheet\n## spec\ntype: animation\n"
+              "role: artist-2d\n")
+        code, out = run(root, "pipeline.py", "gates", "TASK-001", "--suggest")
+        self.assertEqual(code, 0, out)
+        for role in ("art-director", "anatomy-expert", "verifier"):
+            self.assertIn(f"| {role} |", out)
+        for role in ("qa-feel", "playtester", "qa-performance", "qa-readability"):
+            self.assertNotIn(f"| {role} |", out)
+        code, out = run(root, "pipeline.py", "gates", "TASK-002", "--suggest")
+        self.assertIn("| qa-audio |", out)
+        code, out = run(root, "pipeline.py", "gates", "TASK-003", "--suggest")
+        self.assertIn("| art-director |", out)
+        self.assertNotIn("qa-locomotion", out)
+
+    def test_cinematic_tasks_get_their_gates(self):
+        # S09: a cutscene is judged for its look, subtitles and frame rate in the game; a
+        # standalone clip in asset mode by its look.
+        root = project()
+        write(root, "tasks/TASK-040.md", "# TASK-040: intro cutscene\n## spec\ntype: cinematic\n"
+              "role: animator\n")
+        code, out = run(root, "pipeline.py", "gates", "TASK-040", "--suggest")
+        for role in ("art-director", "qa-readability", "qa-performance", "verifier"):
+            self.assertIn(f"| {role} |", out)
+        with open(os.path.join(root, "manifest.md"), "a", encoding="utf-8") as fh:
+            fh.write("kind=assets\nengine=none\n")
+        code, out = run(root, "pipeline.py", "gates", "TASK-040", "--suggest")
+        self.assertIn("| art-director |", out)
+        self.assertNotIn("qa-performance", out)
+
+    def test_asset_mode_has_no_game_pipeline(self):
+        # S08: kind=assets - no phases to init; status lists the asset tasks instead of failing.
+        root = project("none")
+        with open(os.path.join(root, "manifest.md"), "a", encoding="utf-8") as fh:
+            fh.write("kind=assets\n")
+        write(root, "backlog.md", "- [ ] TASK-001 knight from photos\n- [x] TASK-002 calm track\n")
+        code, out = run(root, "pipeline.py", "init")
+        self.assertEqual(code, 1, out)
+        self.assertIn("kind=assets", out)
+        self.assertFalse(os.path.exists(os.path.join(root, "production", "PIPELINE.md")))
+        code, out = run(root, "pipeline.py", "status")
+        self.assertEqual(code, 0, out)
+        self.assertIn("asset mode", out)
+        self.assertIn("TASK-001", out)
+
     def test_gates_check_fails_until_every_role_answered(self):
         root = project()
         body = ("# TASK-020: merchants\n## spec\ntype: art\nrole: modeler\n"
@@ -238,6 +292,30 @@ class Pipeline(unittest.TestCase):
         code, again = run(root, "pipeline.py", "migrate")
         self.assertIn("nothing to migrate", again)
 
+    def test_migrate_adds_the_problem_report_rule_to_the_project_rules(self):
+        # S07: projects set up before 0.7.1 get the kiln-report.md rule in whichever file holds
+        # the Kiln rules (CLAUDE.md, or AGENTS.md for Codex), once.
+        for rules_file in ("CLAUDE.md", "AGENTS.md"):
+            root = project()
+            write(root, rules_file, "# Game\n\n## Rules that matter most\n\n- MCP only.\n\n"
+                  "## Kiln settings\n\nIn manifest.md.\n")
+            if rules_file == "AGENTS.md":
+                write(root, "CLAUDE.md", "@AGENTS.md\n")
+            code, out = run(root, "pipeline.py", "migrate")
+            self.assertEqual(code, 0, out)
+            with open(os.path.join(root, rules_file), encoding="utf-8") as fh:
+                text = fh.read()
+            self.assertIn("## Problem reports (kiln-report.md)", text)
+            self.assertLess(text.index("## Problem reports"), text.index("## Kiln settings"))
+            self.assertIn("pipeline.py\" row kiln-report.md", text)
+            self.assertIn(f"{rules_file}: problem report rule added", out)
+            if rules_file == "AGENTS.md":
+                with open(os.path.join(root, "CLAUDE.md"), encoding="utf-8") as fh:
+                    self.assertEqual(fh.read(), "@AGENTS.md\n")
+            run(root, "pipeline.py", "migrate")
+            with open(os.path.join(root, rules_file), encoding="utf-8") as fh:
+                self.assertEqual(fh.read().count("## Problem reports"), 1)
+
     def test_row_appends_with_the_next_free_number(self):
         # g2 row 46: two agents wrote the same kiln_reports row number.
         root = project()
@@ -251,6 +329,18 @@ class Pipeline(unittest.TestCase):
         self.assertIn("| 8 | 2026-10-13 | guard |", text)
         self.assertIn("| 9 | 2026-10-13 | hooks |", text)
         self.assertIn("9", out)
+
+    def test_row_creates_kiln_report_with_its_header(self):
+        # S07: the first problem report creates kiln-report.md with the table header.
+        root = project()
+        code, out = run(root, "pipeline.py", "row", "kiln-report.md",
+                        "2026-10-14 | playtester | guard | write denied | allow tests/ | open")
+        self.assertEqual(code, 0, out)
+        with open(os.path.join(root, "kiln-report.md"), encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+        self.assertEqual(lines[0], "# Kiln problem reports")
+        self.assertIn("| # | date | who | area | what happened | suggestion | status |", lines)
+        self.assertEqual(lines[-1], "| 1 | 2026-10-14 | playtester | guard | write denied | allow tests/ | open |")
 
     def test_status_shows_editor_holders_and_queue(self):
         import time

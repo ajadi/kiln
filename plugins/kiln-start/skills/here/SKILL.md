@@ -17,6 +17,13 @@ the one piece installed for the whole user, so it exists in every folder.
    the Kiln repo — a local checkout (`claude plugin marketplace add <path to the kiln repo>`) or
    GitHub (`claude plugin marketplace add ajadi/kiln`).
    Ask once which, recommending the local checkout when one exists.
+2b. **Tools folder, once per machine.** Read `~/.kiln/machine.json` (the machine config both Kiln
+   plugins share). No `tools_root` in it → ask the user, in their language, where Kiln may install
+   editors, MCP servers, Python environments and downloads: recommend a tools folder they already
+   use if you can see one (a folder named `tools` / `_tools` next to their projects), else
+   `~/kiln-tools`. Create the folder and write `{"tools_root": "<path with forward slashes>"}`
+   into `~/.kiln/machine.json` (merge, keep other keys). It can be changed later in
+   `/kiln:setup`. Kiln installs nothing without a further yes; this only says where.
 3. **Enable for this project only.** In the project root:
    `claude plugin install kiln@kiln --scope project`; if it reports the plugin is already installed,
    `claude plugin enable kiln@kiln --scope project`. Check with `claude plugin list` that

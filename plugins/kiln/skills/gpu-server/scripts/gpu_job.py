@@ -9,7 +9,7 @@ command is a template in the machine's GPU profile, never in the project).
   python gpu_job.py status --profile rented
   python gpu_job.py stop --profile rented
 
-Profile file (default `${CLAUDE_PLUGIN_DATA}/gpu.json`, else `~/.config/kiln/gpu.json`; outside
+Profile file (default `~/.kiln/gpu.json`, KILN_HOME overrides the folder; outside
 every project, so no host, key path or provider id lands in git):
 
   {"rented": {
@@ -44,10 +44,14 @@ import uuid
 
 
 def default_config():
-    data = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if data:
-        return os.path.join(data, "gpu.json")
-    return os.path.join(os.path.expanduser("~"), ".config", "kiln", "gpu.json")
+    """The machine's Kiln folder (~/.kiln, shared by both plugins and Codex); the old locations
+    are read when the file is still there."""
+    home = os.environ.get("KILN_HOME") or os.path.join(os.path.expanduser("~"), ".kiln")
+    for old in (os.path.join(os.environ.get("CLAUDE_PLUGIN_DATA") or "", "gpu.json"),
+                os.path.join(os.path.expanduser("~"), ".config", "kiln", "gpu.json")):
+        if os.path.isfile(old) and not os.path.isfile(os.path.join(home, "gpu.json")):
+            return old
+    return os.path.join(home, "gpu.json")
 
 
 def load_profile(path, name):

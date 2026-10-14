@@ -1,6 +1,6 @@
 {
   "name": "kiln",
-  "description": "Kiln — game development framework for Claude Code (Godot 4 + Blender through MCP)",
+  "description": "Kiln — game development framework for Claude Code: Godot 4, Unity 6 or Unreal 5 plus Blender, everything through MCP; also single models, sprites and music without a game",
   "owner": {
     "name": "David S"
   },
@@ -8,7 +8,7 @@
     {
       "name": "kiln",
       "source": "./plugins/kiln",
-      "description": "Game studio roles, asset/animation/playtest know-how, guards and workflow skills for Godot + Blender projects"
+      "description": "Game studio roles, asset/animation/playtest know-how, guards and workflow skills for Godot, Unity and Unreal + Blender projects"
     },
     {
       "name": "kiln-start",

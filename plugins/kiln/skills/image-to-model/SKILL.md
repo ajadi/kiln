@@ -22,7 +22,8 @@ Modeling itself follows the blender-modeling skill; the output meets the asset-p
 Read `model_generators` in `manifest.md` (`off` | `local` | `remote` | `api`; agents never change
 it — ask the user through the handoff). `remote` = open-weight models (e.g. TRELLIS.2 MIT,
 Step1X-3D Apache) on a rented GPU through the gpu-server skill's `gpu_job.py` — spend cap per
-run, provenance, the server stopped after the job; pick the GPU by the model's VRAM. Then choose
+run, provenance, the server stopped after the job; pick the GPU by the model's VRAM. No generator
+installed yet → `tools_check.py offers` (tools skill): compare, recommend, install on the yes. Then choose
 by asset type:
 
 | Asset | Route |

@@ -8,9 +8,9 @@ allowed-tools: Read, Glob, Grep, Bash, PowerShell, Write, Edit
 
 # /kiln:setup
 
-Templates: `${CLAUDE_SKILL_DIR}/../../templates/project/`. Machine paths cache:
-`${CLAUDE_PLUGIN_DATA}/machine.json` (`godot_exe`, `unity_exe`, `unreal_exe`, `blender_exe`,
-`godot_ai_addon`).
+Templates: `${CLAUDE_SKILL_DIR}/../../templates/project/`. Machine config (shared by both Kiln
+plugins and Codex): `~/.kiln/machine.json` (`tools_root`, the tools found or installed,
+`godot_ai_command`).
 
 Work through the steps in order — step 4 comes before step 5: `manifest.md` switches the guard
 on. Do every step yourself (protocol: "Do it yourself"): install what is missing, write the files,
@@ -47,7 +47,15 @@ will write and write them after the answer (a plain "yes" accepts all recommenda
 3. **Dimension** — 3D / 2D → `dimension=`.
 4. **Agent apps** — Claude Code (default) / OpenAI Codex / both → `runtimes=`.
 5. **Kind** — `game` (recommended: every acceptance gate) or `prototype` (a demo or test of an
-   idea: one acceptance role + verifier, ≤ 2 review rounds; the run skill) → `kind=`.
+   idea: one acceptance role + verifier, ≤ 2 review rounds; the run skill) or `assets` (no game:
+   3D models, sprite sheets, 2D maps or music made on their own, with `/kiln:model`,
+   `/kiln:sprites`, `/kiln:track`) → `kind=`. Ask it first when the folder has no engine project
+   and the user's words are about an asset, not a game ("make a 3D model from this photo", "a
+   track for my video"): then recommend `assets`.
+   `assets` → `engine=none`; skip questions 2 and 3 (dimension is per asset), §4 (no engine
+   project), the Godot `.gdignore` step and the pipeline. Generators (8) matter here: recommend
+   `local` when `tools_check.py offers` finds one that fits this GPU, else `remote` or `api`,
+   else `off` (models then come by hand in Blender, music from the composer's own tools).
 6. **Deciding for you** (`user_gates=`) — explain in two lines: with `proxy` (recommended) the
    agent does not stop for your decisions (scope details, the look, "is it fun"): it takes the
    recommended option, marks it PROXY and lists it in the report so you can say "redo"; with
@@ -58,9 +66,11 @@ will write and write them after the answer (a plain "yes" accepts all recommenda
 8. **Generators** — models: `off` / `local` (open-weight, offline) / `api` (paid services; key in
    an environment variable) → `model_generators=`; sound and music the same → `audio_generators=`.
    Recommend `off` until a task needs one.
-8a. **Tools folder** (once per machine; skip when machine.json has `tools_root`) — where Kiln
-   installs editors, MCP servers, venvs and downloads: ➡️ an existing tools folder you already
-   use (found: <path>) / `~/.local/share/kiln` → machine.json `tools_root`.
+8a. **Tools folder** (`tools_root`) — only when machine.json has none; set earlier → no
+   question, skip this item. Where Kiln installs editors, MCP servers, venvs and downloads:
+   ➡️ an existing tools folder you use (found: <path>) / `~/kiln-tools` →
+   `tools_check.py root --set <folder>`. The user changes it later by asking (setup or
+   `/kiln:settings` runs `root --set`).
 
 9. **Other skill packs** — list the non-Kiln plugins active here (`claude plugin list --json`:
    enabled, user or project scope; Codex: `codex plugin list`). General-purpose packs whose
@@ -79,48 +89,39 @@ project rules (CLAUDE.md template, "Kiln settings"): **`/kiln:settings`** shows 
 and changes one ("/kiln:settings user_gates=ask"), or just say it in words ("ask me before
 decisions", "this is a prototype now", in their own language); the agent changes `kind` and `user_gates` only when you ask.
 
-## 2. Machine paths
+## 2. Tools (the tools skill)
 
-Read `${CLAUDE_PLUGIN_DATA}/machine.json`. For each missing entry, find it, confirm it exists,
-and save it:
-
-- `godot_exe` (engine=godot): `where godot*`, common install folders,
-  `<tools_root>/Godot/*/Godot_*_win64.exe`; if not found, install it yourself: the current
-  stable win64 zip from `https://github.com/godotengine/godot-builds/releases`, unpacked into
-  `<tools_root>/Godot/<version>/`.
-- `unity_exe` (engine=unity): `C:/Program Files/Unity/Hub/Editor/6*/Editor/Unity.exe`.
-- `unreal_exe` (engine=unreal): `C:/Program Files/Epic Games/UE_5.*/Engine/Binaries/Win64/UnrealEditor.exe`.
-- `blender_exe`: the `BLENDER_PATH` of the `blender` MCP server (`claude mcp get blender`), else
-  `C:/Program Files/Blender Foundation/Blender */blender.exe`.
-- `godot_ai_addon`: the folder that contains `addons/godot_ai/plugin.cfg` with
-  `name="Godot AI"`. Not found → download it yourself: the server is PyPI `godot-ai`
-  (`uv tool install godot-ai==<version>`), which ships no addon; the addon is the GitHub release
-  asset `godot-ai-v4-plugin.zip` of `hi-godot/godot-ai` tag `v<same version>` (`gh release download
-  v4.3.0 -R hi-godot/godot-ai -p godot-ai-v4-plugin.zip`). The asset `godot-ai-plugin.zip` is the
-  "Migration" plugin — not that one. Unpack to `<tools_root>/godot-ai/<version>/addons/godot_ai`.
-- `godot_ai_command`: the exact command you registered for the `godot-ai` MCP server
-  (`claude mcp get godot-ai`). The addon's client configurator can rewrite Claude Code's entry
-  to its own `uvx` wrapper (seen: from `<tools_root>/uv/bin/godot-ai.exe attach` to a
-  `pythonw ... uvx --from godot-ai==4.3.0` wrapper in the user profile, silently); the doctor
-  compares against this value.
-- `blender_mcp`: the Blender Lab MCP from `https://projects.blender.org/lab/blender_mcp` (releases
-  page), never PyPI `blender_mcp` — that is a different server with the same name and version
-  number. Server: `uv tool install <checkout>/mcp` (entry point `blender-mcp`); add-on (extension
-  id `mcp`): `<blender_exe> --command extension install-file -r user_default -e <add-on zip>`.
-  Doctor checks the tool names, not just "Connected".
-- `tools_root`: the folder the user keeps tools in, if they have one (ask once in §1b; g2:
-  "every tool under one tools folder"); else none. Downloads, unpacked editors, venvs and caches go
-  under it (`<tools_root>/venvs/<name>`); without it, `~/.local/share/kiln/`.
-
-Then write `production/tools.json` for this project (engine at its exact version, Blender, the
-MCP servers and add-ons, uv, git-lfs, the venvs the roles need) and run the tools skill's
-`tools_check.py detect` / `verify`; install what is missing as that skill says.
+1. `python "${CLAUDE_SKILL_DIR}/../tools/scripts/tools_check.py" root`: the machine's tools folder
+   (`~/.kiln/machine.json`). Not set (kiln-start normally asks) → ask now, §1b item 8a, then
+   `root --set <folder>`. Set → use it, no question.
+2. `tools_check.py plan --project .`: every tool this project needs is searched for first (the
+   machine registry, PATH, the tools root, the usual install folders). Ask the user once, with the
+   plan's `confirm` line and a table: what will be installed (size, licence, into tools_root), what
+   needs them (Unity, Unreal: give the row's short instruction and wait), and, when
+   `model_generators` is `local` or `remote`, the generator comparison from `tools_check.py offers`
+   with your recommendation and why (tools skill §4).
+3. On the yes: `tools_check.py install <tool> --yes` for each (uv first); register every MCP server
+   with the `register` command it prints (Claude Code, and Codex when `runtimes` includes codex),
+   then its `after` step: the Blender add-on with `<blender> --command extension install-file -r
+   user_default -e <add-on zip>`, the Godot addon linked into the project in step 4, Ollama's
+   model pull. After each: `tools_check.py mark <tool> --mcp claude|codex` per registration and
+   `--addon "<what, where>"` per add-on, so §9 can show it. Record the exact command you
+   registered for `godot-ai` as machine.json
+   `godot_ai_command`: the addon's client configurator can rewrite Claude Code's entry to its own
+   `uvx` wrapper (seen: from `<tools_root>/bin/godot-ai.exe attach` to a `pythonw ... uvx --from
+   godot-ai==4.3.0` wrapper in the user profile, silently); the doctor compares against it.
+4. Traps the catalog already avoids, keep them in mind when fixing by hand: the Godot AI addon is
+   the release asset `godot-ai-v4-plugin.zip` (`godot-ai-plugin.zip` is the Migration plugin);
+   the Blender Lab MCP comes from projects.blender.org, never PyPI `blender_mcp` (a different
+   server with the same name and version number); Blender's add-on needs `--online-mode`.
+5. Registering MCP servers changes what the session loads: tell the user to restart the session
+   and run setup again; step 1 skips what exists and comes back to step 8.
 
 ## 3. Repository
 
 - Not a git repo → `git init` (tell the user).
 - Python tool environments (audio, music, image tools) live outside the project in
-  `<tools_root>/venvs/<name>` (machine.json; default `~/.local/share/kiln/venvs/<name>`); roles
+  `<tools_root>/venvs/<name>` (machine.json `tools_root`); roles
   create them when first needed. A project with sound or music roles gets the audio venv now:
   `python -m venv <venvs>/audio` + `pip install numpy scipy soundfile pyloudnorm` (soundfile
   reads Ogg Vorbis; ffmpeg is then optional).
@@ -136,6 +137,8 @@ MCP servers and add-ons, uv, git-lfs, the venvs the roles need) and run the tool
   git and how to enable LFS later.
 
 ## 4. Engine project and its MCP
+
+`engine=none` (`kind=assets`) → skip this step; Blender is the only editor (step 7).
 
 ### Godot
 
@@ -312,5 +315,17 @@ again — step 1 skips what exists and comes back here.
    plan or pipeline work on a project whose MCP check fails.
 
 Ready → run `/kiln:doctor` (Codex: the `doctor` skill) for hooks, addon versions and the repo.
+
+## 9. What Kiln installed
+
+End every setup run (also a re-run that installed nothing) with one table from
+`tools_check.py installed`: tool, version, where (under tools_root), size, how it was checked
+(sha256 / via uv), MCP registrations (Claude Code, Codex), add-ons; generators as their own rows;
+the total size. Then the project-level installs of this run (the Godot AI addon linked into
+`addons/`, a package added to `Packages/manifest.json`, a plugin enabled in the `.uproject`).
+Tools that were found already installed are not Kiln's: list them in one line as "found". Say
+how to remove a Kiln install (tools skill, "Update and remove").
+
+`kind=assets` → no pipeline: tell the user the three commands with one example each and stop.
 If task briefs exist (`task*.md`), suggest `/kiln:concept` next to turn them into `GAME.md` and
 design specs.
