@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__blender",
+      "mcp__godot-ai",
+      "mcp__unity",
+      "mcp__unreal"
+    ],
+    "deny": [
+      "mcp__blender__execute_blender_code_for_cli",
+      "mcp__blender__get_blendfile_summary_datablocks_for_cli",
+      "mcp__blender__get_blendfile_summary_missing_files_for_cli",
+      "mcp__blender__get_blendfile_summary_of_linked_libraries_for_cli",
+      "mcp__blender__get_blendfile_summary_path_info_for_cli",
+      "mcp__blender__get_blendfile_summary_usage_guess_for_cli"
+    ]
+  },
+  "enabledPlugins": {
+    "mattpocock-skills@claude-plugins-official": false
+  }
+}

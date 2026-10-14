@@ -1,0 +1,19 @@
+{
+  "name": "kiln",
+  "description": "Kiln — game development framework for Claude Code (Godot 4 + Blender through MCP)",
+  "owner": {
+    "name": "David S"
+  },
+  "plugins": [
+    {
+      "name": "kiln",
+      "source": "./plugins/kiln",
+      "description": "Game studio roles, asset/animation/playtest know-how, guards and workflow skills for Godot + Blender projects"
+    },
+    {
+      "name": "kiln-start",
+      "source": "./plugins/kiln-start",
+      "description": "Installer: /kiln-start:here connects the current folder to Kiln. Install user-wide."
+    }
+  ]
+}

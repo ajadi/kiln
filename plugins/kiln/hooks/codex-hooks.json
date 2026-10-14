@@ -1,0 +1,83 @@
+{
+  "description": "Kiln hooks for OpenAI Codex (same scripts as hooks.json for Claude Code, run with --runtime codex). No-ops outside projects whose manifest.md says framework=kiln. Codex runs a hook command in the session shell (PowerShell, cmd or bash on Windows; %COMSPEC% /C when there is none), so commandWindows avoids shell variable syntax: Python reads PLUGIN_ROOT itself.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|apply_patch|mcp__(blender|godot-ai|unity|unreal|unreal-mcp|unreal-mcp-proxy)__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/hooks/guard.py\" --runtime codex",
+            "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" guard.py --runtime codex",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/hooks/session.py\" start --runtime codex",
+            "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" session.py start --runtime codex",
+            "timeout": 10,
+            "statusMessage": "Loading Kiln project state"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "^kiln-",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/hooks/session.py\" subagent --runtime codex",
+            "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" session.py subagent --runtime codex",
+            "timeout": 10,
+            "additionalContextLimit": 6000
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/hooks/session.py\" end --runtime codex",
+            "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" session.py end --runtime codex",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/hooks/stop.py\" stop --runtime codex",
+            "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" stop.py stop --runtime codex",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^kiln-",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/hooks/stop.py\" subagent --runtime codex",
+            "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" stop.py subagent --runtime codex",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

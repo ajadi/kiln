@@ -1,0 +1,32 @@
+{
+  "name": "kiln",
+  "interface": {
+    "displayName": "Kiln"
+  },
+  "plugins": [
+    {
+      "name": "kiln",
+      "source": {
+        "source": "local",
+        "path": "./plugins/kiln"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "kiln-start",
+      "source": {
+        "source": "local",
+        "path": "./plugins/kiln-start"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

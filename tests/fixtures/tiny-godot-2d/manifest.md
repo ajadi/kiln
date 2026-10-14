@@ -1,0 +1,15 @@
+project_name=three-coins
+framework=kiln
+framework_version=0.5.0
+repo_access=private-solo
+runtimes=claude
+engine=godot
+dimension=2d
+mcp_only=on
+scene_first=on
+model_generators=off
+audio_generators=off
+godot_files_via_mcp=scenes,resources,scripts
+orchestrator_writes=state
+editor_lock_ttl=600
+autopilot_max_nudges=3

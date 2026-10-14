@@ -1,0 +1,11 @@
+# Kiln music tools — install into ~/.local/share/kiln/venvs/music (Python 3.12+)
+# DawDreamer and pedalboard are GPL-3 tools; the GPL does not cover audio they render.
+numpy>=2.0
+soundfile>=0.12
+dawdreamer>=0.9
+pedalboard>=0.9
+pretty_midi>=0.2.10
+mido>=1.3
+music21>=9.1
+pyloudnorm>=0.1.1
+librosa>=1.0

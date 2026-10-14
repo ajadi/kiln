@@ -1,0 +1,16 @@
+{
+  "name": "kiln-start",
+  "version": "0.7.0",
+  "description": "Installer for Kiln: the here skill connects the current folder to the Kiln game-development framework. Install it user-wide; Kiln itself stays off in folders that are not connected.",
+  "author": {
+    "name": "David S"
+  },
+  "repository": "https://github.com/ajadi/kiln",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Kiln start",
+    "shortDescription": "Connect this folder to Kiln",
+    "developerName": "David S",
+    "category": "Developer Tools"
+  }
+}

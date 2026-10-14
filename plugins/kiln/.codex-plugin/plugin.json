@@ -1,0 +1,34 @@
+{
+  "name": "kiln",
+  "version": "0.7.0",
+  "description": "Game development framework: a studio of design, art, 2D, animation, lighting, level, gameplay, audio and music roles with acceptance and expert roles; Godot, Unity or Unreal plus Blender through MCP; production pipeline with gates; MCP-only and scene-first guards.",
+  "author": {
+    "name": "David S"
+  },
+  "repository": "https://github.com/ajadi/kiln",
+  "keywords": ["gamedev", "godot", "unity", "unreal", "blender", "mcp"],
+  "skills": "./skills/",
+  "hooks": "./hooks/codex-hooks.json",
+  "interface": {
+    "displayName": "Kiln",
+    "shortDescription": "AI game studio framework",
+    "longDescription": "Kiln turns a coding agent into a small game studio. Skills cover the production pipeline (concept, style, tech plan, look-dev, mechanics, vertical slice, content, polish, release) and the craft: Blender modeling through the Blender Lab MCP, models from photos, animation and biomechanics, rigid-body physics, destruction and VFX, lighting, level design, 2D art, procedural sound and music, and engine profiles for Godot, Unity and Unreal. Hooks keep editor work inside the editors' MCP servers, keep scene content out of code and protect git hygiene. Role agents for Codex are generated per project by scripts/codex_agents.py. Limitations: hooks need trust review in /hooks; editor scripts and engine MCP tools need the editors open; role write limits rely on permission profiles.",
+    "developerName": "David S",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Run a game production pipeline with checkable gates",
+      "Model in Blender through the Blender Lab MCP",
+      "Build scenes in Godot, Unity or Unreal through their MCP servers",
+      "Measure game feel, physics, locomotion, audio and performance",
+      "Guard editor files, scene-first scripts and git hygiene"
+    ],
+    "defaultPrompt": [
+      "Use Kiln to set up a new game project here.",
+      "Use Kiln to show the production pipeline status.",
+      "Use Kiln to run the next task in the backlog."
+    ],
+    "brandColor": "#B4441E",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png"
+  }
+}

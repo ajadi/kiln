@@ -1,0 +1,9 @@
+# Kiln procedural-audio tools — install into ~/.local/share/kiln/venvs/audio (Python 3.12-3.13)
+# audio_check.py itself needs only numpy; the generators and analysis use the rest.
+numpy>=2.0
+scipy>=1.13
+soundfile>=0.12
+librosa>=1.0
+pyloudnorm>=0.1.1
+pyroomacoustics>=0.8
+cma>=3.3
