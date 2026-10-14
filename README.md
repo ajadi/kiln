@@ -1,6 +1,6 @@
 # Kiln
 
-Version 0.7.2. A game development framework for Claude Code: Godot 4, Unity 6 or Unreal 5 plus
+Version 0.7.3. A game development framework for Claude Code: Godot 4, Unity 6 or Unreal 5 plus
 Blender, everything through MCP, 3D and 2D.
 
 Kiln is a Claude Code plugin. It is active only in projects where it is installed, so its hooks do

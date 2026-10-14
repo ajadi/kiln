@@ -85,7 +85,7 @@ def manifest(path):
     values = {}
     if os.path.isfile(path):
         for line in open(path, encoding="utf-8", errors="ignore"):
-            m = re.match(r"^([\w.-]+)=(.*)$", line.strip())
+            m = re.match(r"^([\w.-]+)\s*=\s*(.*)$", line.strip())  # as the hooks read it
             if m:
                 values[m.group(1)] = m.group(2).strip()
     return values

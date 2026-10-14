@@ -64,7 +64,7 @@ def from_tasks(project):
     pairs = set()
     for path in glob.glob(os.path.join(project, "tasks", "TASK-*.md")):
         text = open(path, encoding="utf-8").read()
-        role = re.search(r"^role:\s*([a-z0-9-]+)", text, re.M)
+        role = re.search(r"^role:\s*(?:kiln[:-])?([a-z0-9-]+)", text, re.M)
         effort = re.search(r"^effort:\s*([a-z]+)", text, re.M)
         if role and effort:
             pairs.add((role.group(1), effort.group(1)))

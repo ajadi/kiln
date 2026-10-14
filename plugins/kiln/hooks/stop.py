@@ -26,6 +26,22 @@ STATUS_LINE = re.compile(
     r"CHANGES_REQUIRED)\b", re.I)
 
 
+# A gate the user closes ends with "- user", optionally followed by pipeline.py's markers
+# ("REOPENED <date>", "REGRESSED ...").
+USER_GATE = re.compile(r"\u2014 user(\s+(REOPENED|REGRESSED)\b.*)?$")
+
+
+def leave_queues(root, owner, session):
+    """Drop a stopped agent from every editor queue: a finished agent cannot be first in line."""
+    path = os.path.join(k.kiln_dir(root), "queue.json")
+    with k.locked(path):
+        queues = k.load_json(path, {})
+        kept = {res: [w for w in line if w.get("owner") != owner
+                      or w.get("session", session) != session] for res, line in queues.items()}
+        if kept != queues:
+            k.save_json(path, kept)
+
+
 def release_locks(root, owner, session):
     """Free this session's locks of `owner` — every session's main is "main", so a lock taken
     by another session (e.g. a headless autopilot) is never released from here."""
@@ -155,7 +171,8 @@ def stop(data, root, policy):
     if os.path.exists(stop_file):
         started = set(in_progress_ids(root))
         unfinished = [(t["file"], item) for t in tasks for item in t["open"]
-                      if any(tid in t["file"] for tid in started)]
+                      if any(re.search(rf"(?<![\w-]){re.escape(tid)}(?!\d)",
+                                       os.path.basename(t["file"])) for tid in started)]
         if not unfinished:
             k.log(root, "autopilot: stop requested and no task in progress, letting the turn end")
             return
@@ -170,7 +187,7 @@ def stop(data, root, policy):
     open_items = [(task["file"], item) for task in tasks for item in task["open"]]
     backlog = ready_backlog_items(root)
     phase, gates = open_phase_gates(root)
-    agent_gates = [g for g in gates if not g.endswith("— user")]
+    agent_gates = [g for g in gates if not USER_GATE.search(g)]
     if not open_items and not backlog and not agent_gates:
         return
     state_path = os.path.join(k.kiln_dir(root), "autopilot-state.json")
@@ -230,6 +247,7 @@ def delegated_task(data):
 
 def subagent(data, root, policy):
     release_locks(root, k.actor_id(data), data.get("session_id") or "")
+    leave_queues(root, k.actor_id(data), data.get("session_id") or "")
     k.agent_stopped(root, data)
     role = k.role_of(data)
     if role not in k.KILN_ROLES or data.get("stop_hook_active") or not delegated_task(data):

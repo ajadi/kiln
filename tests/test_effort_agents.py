@@ -38,6 +38,15 @@ class EffortAgents(unittest.TestCase):
         self.assertIn("  - kiln:protocol", text)
         self.assertIn("  - kiln:blender-modeling", text)
 
+    def test_role_with_the_kiln_prefix(self):
+        # Review 2026-10-14: "role: kiln:animator" (the hooks accept the prefix) aborted the run.
+        root = self.project()
+        with open(os.path.join(root, "tasks", "TASK-020.md"), "w", encoding="utf-8") as fh:
+            fh.write("# TASK-020\n\n## spec\ntype: animation\nrole: kiln:animator\neffort: high\n")
+        code, res = run("--project", root, "--from-tasks")
+        self.assertEqual(code, 0, res)
+        self.assertEqual(sorted(res["delegate_as"]), ["animator-high", "modeler-medium"])
+
     def test_clean_removes_only_generated_copies(self):
         root = self.project()
         run("--project", root, "--role", "animator", "--effort", "low")

@@ -432,3 +432,23 @@ a real `claude -p --plugin-dir` session).
   before the full render, MP4 with sound; gates: `shot_check.py`, exact frame count, A/V offset,
   loudness for online video, art-director on frame grabs. The `cinematic` skill is now both the
   command and the knowledge roles load.
+
+## 0.7.3 — 2026-10-14
+
+Fixes from a code review of the whole project, each with a test:
+
+- **Guard.** A `.env` file is refused at `git add`, and `git commit -a` / `git commit <paths>`
+  are checked too (before, only files already staged were). "import bpy" counts only in a
+  pipeline that starts Python, so `rg "import bpy" && python -m pytest` runs. Generator names
+  in git and gh text (commit messages, issue titles) are not runs; `git clone` of a generator
+  still is.
+- **Stop hook.** A reopened user gate ("- user REOPENED <date>") stays the user's, so the
+  autopilot is not pushed to close it. A stopped agent leaves the editor queue at once instead
+  of blocking a free editor for 5 minutes. With stop-after-task, TASK-1 no longer matches
+  TASK-12.
+- **Scripts.** `pipeline.py decide` numbers decisions under the row lock (parallel deciders got
+  the same number). `pipeline.py`, `migrate` and `mcp_check.py` read `key = value` manifests
+  the way the hooks do (migrate appended `engine=godot` under `engine = unity`).
+  `codex_agents.py` picks the newest cached plugin by version number (0.10.0 after 0.9.0).
+  `effort_agents.py --from-tasks` accepts `role: kiln:<role>`.
+

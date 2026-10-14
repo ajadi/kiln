@@ -135,6 +135,17 @@ class StopAfterTask(unittest.TestCase):
         self.assertIn("Stop requested", res["reason"])
         self.assertIn("TASK-001", res["reason"])
 
+    def test_task_1_in_progress_is_not_task_12(self):
+        # Review 2026-10-14: ids matched by substring, so TASK-1 pulled in TASK-12's items.
+        root = self.project_with("- [~] TASK-1 crate\n- [ ] TASK-12 door\n")
+        os.remove(os.path.join(root, "tasks", "TASK-001.md"))
+        with open(os.path.join(root, "tasks", "TASK-12-door.md"), "w", encoding="utf-8") as fh:
+            fh.write("# TASK-12: door\n\n- [ ] hinge\n")
+        with open(os.path.join(root, "tasks", "TASK-1.md"), "w", encoding="utf-8") as fh:
+            fh.write("# TASK-1: crate\n\n- [x] model\n")
+        self.assertIsNone(stop(root, "pilot",
+                               transcript(root, "pilot", [typed("2026-10-11T07:48:00Z")])))
+
     def test_lets_the_run_end_between_tasks(self):
         # TASK-001 has open items but is not started ([ ]); nothing is in progress
         root = self.project_with("- [ ] TASK-001 helmet\n- [ ] TASK-002 kit\n")
@@ -192,6 +203,20 @@ class InFlightAgents(unittest.TestCase):
                        timeout=30)
         with open(os.path.join(root, ".kiln", "agents.json"), encoding="utf-8") as fh:
             self.assertEqual(json.load(fh)["m1"]["last_tool"], "Bash")
+
+    def test_a_stopped_agent_leaves_the_editor_queue(self):
+        # Review 2026-10-14: SubagentStop freed the lock but kept the queue entry, so a free
+        # editor stayed "asked first" by a finished agent for 5 minutes.
+        import time
+        root = make_project()
+        with open(os.path.join(root, ".kiln", "queue.json"), "w", encoding="utf-8") as fh:
+            json.dump({"blender": [{"owner": "a1", "role": "animator", "session": "pilot",
+                                    "since": time.time(), "ts": time.time()},
+                                   {"owner": "m2", "role": "modeler", "session": "pilot",
+                                    "since": time.time(), "ts": time.time()}]}, fh)
+        agent_event(STOP, "subagent", root, "pilot", "a1", "animator", "SubagentStop")
+        with open(os.path.join(root, ".kiln", "queue.json"), encoding="utf-8") as fh:
+            self.assertEqual([w["owner"] for w in json.load(fh)["blender"]], ["m2"])
 
     def test_another_sessions_agents_do_not_count(self):
         root = make_project()
@@ -262,6 +287,21 @@ class ClosedTaskGates(unittest.TestCase):
         self.assertEqual(res["decision"], "block")
         self.assertIn("anatomy-expert", res["reason"])
         self.assertIsNone(stop(root, "s", session))
+
+
+class PhaseGates(unittest.TestCase):
+    # Review 2026-10-14: `pipeline.py reopen` appends " REOPENED <date>" to every gate, and the
+    # user gates stopped matching "ends with '- user'", so the autopilot was pushed to close them.
+    def test_reopened_user_gates_are_still_the_users(self):
+        root = make_project()
+        with open(os.path.join(root, "tasks", "TASK-001.md"), "w", encoding="utf-8") as fh:
+            fh.write("# TASK-001: helmet\n\n- [x] model\n")
+        os.makedirs(os.path.join(root, "production"))
+        with open(os.path.join(root, "production", "PIPELINE.md"), "w", encoding="utf-8") as fh:
+            fh.write("## Phase 3 look-dev\n- [ ] User approved the look-dev frame \u2014 user "
+                     "REOPENED 2026-10-14\n")
+        self.assertIsNone(stop(root, "pilot",
+                               transcript(root, "pilot", [typed("2026-10-11T07:48:00Z")])))
 
 
 class Handoff(unittest.TestCase):

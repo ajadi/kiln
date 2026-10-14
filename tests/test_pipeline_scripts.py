@@ -3,6 +3,7 @@ ab.py. Stdlib + Pillow; each test runs in a throwaway project folder."""
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -153,6 +154,30 @@ class Pipeline(unittest.TestCase):
         code, out = run(root, "pipeline.py", "gates", "TASK-003", "--suggest")
         self.assertIn("| art-director |", out)
         self.assertNotIn("qa-locomotion", out)
+
+    def test_parallel_decisions_get_distinct_numbers(self):
+        # Review 2026-10-14: decide counted rows and wrote without the row lock.
+        root = project()
+        procs = [subprocess.Popen([sys.executable, "-B", os.path.join(SCRIPTS, "pipeline.py"),
+                                   "decide", f"choice {i}"], cwd=root, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL) for i in range(8)]
+        for p in procs:
+            p.wait(timeout=60)
+        with open(os.path.join(root, "memory", "decisions.md"), encoding="utf-8") as fh:
+            rows = re.findall(r"^\|\s*(\d+)\s*\|", fh.read(), re.M)
+        self.assertEqual(sorted(map(int, rows)), list(range(1, 9)))
+
+    def test_manifest_with_spaces_around_equals(self):
+        # Review 2026-10-14: the hooks read "engine = unity", migrate appended engine=godot.
+        root = tempfile.mkdtemp(prefix="kiln-pipe-")
+        write(root, "manifest.md", "framework = kiln\nengine = unity\nkind = assets\n")
+        code, out = run(root, "pipeline.py", "migrate")
+        with open(os.path.join(root, "manifest.md"), encoding="utf-8") as fh:
+            manifest = fh.read()
+        self.assertNotIn("engine=godot", manifest)
+        self.assertNotIn("kind=game", manifest)
+        code, out = run(root, "pipeline.py", "init")
+        self.assertIn("kind=assets", out)   # kind read with spaces too
 
     def test_cinematic_tasks_get_their_gates(self):
         # S09: a cutscene is judged for its look, subtitles and frame rate in the game; a

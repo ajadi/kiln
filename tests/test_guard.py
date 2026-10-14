@@ -328,6 +328,41 @@ class GodotTests(GuardCase):
                     "cat > a.md <<EOF\nx\nEOF\npython -c 'from bpy import ops'"):
             self.check(shell(cmd), "DENY", root)
 
+    def test_bpy_named_in_another_command_is_not_run(self):
+        # Review 2026-10-14: any python in the command made a searched or quoted "import bpy"
+        # elsewhere a denial.
+        root = make_project(self.engine)
+        for cmd in ('rg "import bpy" scripts/ && python -m pytest tests',
+                    'git commit -m "drop import bpy" && python x.py'):
+            self.check(shell(cmd), "ALLOW", root)
+
+    def test_generator_words_in_git_and_gh_text_are_not_runs(self):
+        # Review 2026-10-14: commit messages and issue titles naming a generator were denied.
+        for cmd in ('git commit -m "note: comfyui not used, sdxl refs removed"',
+                    'gh issue create --title "try musicgen?" --body x'):
+            self.check(shell(cmd), "ALLOW")
+        self.check(shell("git clone https://github.com/comfyanonymous/ComfyUI"), "DENY")
+
+    def test_secrets_staged_by_the_same_command(self):
+        # Review 2026-10-14: the staged check ran before `git add .env && git commit`, and
+        # `commit -a` / `commit <paths>` never staged anything first.
+        root = make_project(self.engine)
+        import subprocess as sp
+        for args in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"]):
+            sp.run(["git", *args], cwd=root, capture_output=True)
+        with open(os.path.join(root, ".env"), "w", encoding="utf-8") as fh:
+            fh.write("KEY=1\n")
+        with open(os.path.join(root, ".env.example"), "w", encoding="utf-8") as fh:
+            fh.write("KEY=\n")
+        self.check(shell("git add .env && git commit -m wip"), "DENY", root)
+        self.check(shell("git commit -m wip .env"), "DENY", root)
+        self.check(shell("git add .env.example && git commit -m example"), "ALLOW", root)
+        sp.run(["git", "add", "-f", ".env"], cwd=root, capture_output=True)
+        sp.run(["git", "commit", "-qm", "old leak"], cwd=root, capture_output=True)
+        with open(os.path.join(root, ".env"), "w", encoding="utf-8") as fh:
+            fh.write("KEY=2\n")
+        self.check(shell("git commit -am update"), "DENY", root)
+
     def test_generator_words_in_reads_are_not_runs(self):
         # g2 row 33: reading the image-to-model skill and a hardware check were denied as
         # generator runs while model_generators=off.

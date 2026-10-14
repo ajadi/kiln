@@ -379,7 +379,20 @@ READERS = {"ls", "dir", "cat", "type", "head", "tail", "less", "more", "grep", "
 def executed_text(command):
     """The words of every simple command that is not a reader, joined: what may start a tool."""
     return "\n".join(" ".join(words) for words in shell_segments(command)
-                     if program(words).removesuffix(".exe") not in READERS)
+                     if program(words).removesuffix(".exe") not in READERS
+                     and not vcs_text(words))
+
+
+def vcs_text(words):
+    """git / gh words are messages, titles and refs, not programs to start - except a git that
+    fetches code (clone, submodule, fetch, pull), which installs what it names."""
+    prog = program(words).removesuffix(".exe")
+    if prog == "gh":
+        return True
+    if prog == "git":
+        sub = next((w for w in words[1:] if not w.startswith("-")), "")
+        return sub not in ("clone", "submodule", "fetch", "pull")
+    return False
 
 
 def runs_gpu_job(command):
@@ -483,6 +496,19 @@ def shell_segments(command):
 
 def program(words):
     return os.path.basename(words[0]).lower()
+
+
+def python_pipelines(command):
+    """Pipelines (a | b | c) of the command that start a Python interpreter: text in them is its
+    code or its stdin; text in other pipelines (a search, a commit message) is not."""
+    out = []
+    for pipe in re.split(r"&&|\|\||;|\n", command):
+        for part in pipe.split("|"):
+            first = part.strip().split(None, 1)
+            if first and PYTHON_EXE.match(first[0].strip("'\"")):
+                out.append(pipe)
+                break
+    return out
 
 
 def python_runs(command, root):
@@ -683,7 +709,8 @@ def check_shell(data, root, policy):
         # Text written to a file through a here-document is data; a body fed to python is code
         # when a line of it imports bpy (a string that mentions bpy is not).
         outside, python_bodies = split_heredocs(command)
-        if invoked and (re.search(r"\b(import\s+bpy|from\s+bpy\b)", outside) or any(
+        if invoked and (any(re.search(r"\b(import\s+bpy|from\s+bpy\b)", pipe)
+                            for pipe in python_pipelines(outside)) or any(
                 re.search(r"^\s*(import\s+bpy|from\s+bpy\b)", body, re.M)
                 for body in python_bodies)):
             k.deny("bpy code must run inside the user's Blender through the Blender Lab MCP "
@@ -742,17 +769,68 @@ def check_shell(data, root, policy):
             k.deny("Force push is not allowed. Use --force-with-lease only if the user asked.")
         if re.match(r"git\s+commit\b", seg) and "--no-verify" in seg:
             k.deny("Do not skip git hooks (--no-verify).")
+        if re.match(r"git\s+add\b", seg):
+            for name in git_words(seg)[2:]:
+                if is_secret_file(name):
+                    k.deny(f"{name} is a secrets file: never stage it. Make sure it is "
+                           "git-ignored.")
         if re.match(r"git\s+commit\b", seg):
-            try:
-                staged = subprocess.run(["git", "diff", "--cached", "--name-only"], cwd=root,
-                                        capture_output=True, text=True, timeout=5).stdout
-            except (OSError, subprocess.SubprocessError):
-                staged = ""
-            for name in staged.splitlines():
-                base = name.rsplit("/", 1)[-1]
-                if re.fullmatch(r"\.env(\..+)?", base) and base != ".env.example":
-                    k.deny(f"{name} is staged; secrets files must not be committed. Unstage it "
-                           "(git restore --staged) and make sure it is git-ignored.")
+            paths, everything = commit_paths(git_words(seg))
+            names = git_names(root, "diff", "--cached", "--name-only") + paths
+            if everything:  # -a commits every modified tracked file
+                names += git_names(root, "diff", "--name-only")
+            for name in names:
+                if is_secret_file(name):
+                    k.deny(f"{name} would be committed; secrets files must not be committed. "
+                           "Unstage it (git restore --staged), leave it out of the commit and "
+                           "make sure it is git-ignored.")
+
+
+def is_secret_file(name):
+    base = name.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    return bool(re.fullmatch(r"\.env(\..+)?", base)) and base != ".env.example"
+
+
+def git_words(segment):
+    try:
+        return shlex.split(segment)
+    except ValueError:
+        return segment.split()
+
+
+def git_names(root, *args):
+    try:
+        return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True,
+                              timeout=5).stdout.splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+
+COMMIT_VALUE_OPTS = {"-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c",
+                     "--reedit-message", "--author", "--date", "--fixup", "--squash", "-t",
+                     "--template", "--cleanup", "--trailer", "--pathspec-from-file"}
+
+
+def commit_paths(words):
+    """(paths named on a `git commit` line, whether -a/--all commits every tracked change)."""
+    paths, everything, skip, literal = [], False, False, False
+    for w in words[2:]:
+        if skip:
+            skip = False
+        elif literal or not w.startswith("-"):
+            paths.append(w)
+        elif w == "--":
+            literal = True
+        elif w.startswith("--"):
+            everything |= w == "--all"
+            skip = w in COMMIT_VALUE_OPTS
+        else:  # a short cluster such as -am: a value-taking letter ends it
+            for i, ch in enumerate(w[1:]):
+                everything |= ch == "a"
+                if "-" + ch in COMMIT_VALUE_OPTS:
+                    skip = i == len(w) - 2
+                    break
+    return paths, everything
 
 
 def editor_lock(data, root, policy, resource):

@@ -290,5 +290,20 @@ class CodexAgents(unittest.TestCase):
         self.assertNotIn("default_permissions", composer)  # builders inherit the session's
 
 
+class InstalledRoot(unittest.TestCase):
+    def test_newest_cached_version_by_number(self):
+        # Review 2026-10-14: a string sort put 0.9.0 after 0.10.0.
+        import importlib.util
+        path = os.path.join(os.path.dirname(__file__), "..", "plugins", "kiln", "scripts",
+                            "codex_agents.py")
+        spec = importlib.util.spec_from_file_location("kiln_codex_agents", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        home = tempfile.mkdtemp(prefix="kiln-codex-home-")
+        for v in ("0.9.0", "0.10.0", "0.7.2"):
+            os.makedirs(os.path.join(home, "plugins", "cache", "kiln", "kiln", v))
+        self.assertTrue(mod.installed_root(home).endswith("0.10.0"))
+
+
 if __name__ == "__main__":
     unittest.main()

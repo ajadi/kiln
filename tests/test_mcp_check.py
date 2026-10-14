@@ -48,6 +48,14 @@ class McpCheck(unittest.TestCase):
             self.assertEqual([r["server"] for r in reqs], ["blender"])
             self.assertTrue(reqs[0]["required"])
 
+    def test_manifest_with_spaces_around_equals(self):
+        # Review 2026-10-14: the hooks read "engine = unreal"; mcp_check fell back to Godot.
+        root = tempfile.mkdtemp(prefix="kiln-mcp-")
+        with open(os.path.join(root, "manifest.md"), "w", encoding="utf-8") as fh:
+            fh.write("framework = kiln\nengine = unreal\n")
+        code, reqs = run(root, "required")
+        self.assertEqual([r["server"] for r in reqs], ["blender", "unreal"])
+
     def test_verify(self):
         root = project("godot", "3d")
         _, reqs = run(root, "required")

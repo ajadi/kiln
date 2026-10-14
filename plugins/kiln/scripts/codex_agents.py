@@ -80,7 +80,9 @@ def zone_paths(patterns):
 def installed_root(codex_home):
     cache = os.path.join(codex_home, "plugins", "cache", "kiln", "kiln")
     if os.path.isdir(cache):
-        versions = sorted(os.listdir(cache))
+        # by number: a string sort puts 0.9.0 after 0.10.0
+        versions = sorted(os.listdir(cache), key=lambda v: [int(x) if x.isdigit() else -1
+                                                            for x in re.split(r"[.+-]", v)])
         if versions:
             return os.path.join(cache, versions[-1])
     return PLUGIN

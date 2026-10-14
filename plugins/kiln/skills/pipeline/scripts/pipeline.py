@@ -140,8 +140,8 @@ ENGINE_GATES = {
 
 
 def engine():
-    m = re.search(r"^engine=(\w+)", read("manifest.md") or "", re.M)
-    return m.group(1) if m and m.group(1) in CODE_EXT else "godot"
+    value = manifest_value("engine", "godot")
+    return value if value in CODE_EXT else "godot"
 
 
 def project_files(exts):
@@ -345,8 +345,8 @@ def status(full):
 
 
 def manifest_value(key, default):
-    m = re.search(rf"^{key}=(\w+)", read("manifest.md") or "", re.M)
-    return m.group(1) if m else default
+    """A manifest key as the hooks read it (k.read_manifest: `key = value` works, last wins)."""
+    return (k.read_manifest(".") or {}).get(key) or default
 
 
 def kind():
@@ -531,16 +531,17 @@ def migrate():
     except (OSError, ValueError, KeyError):
         version = None
     if manifest and version and f"framework_version={version}" not in manifest:
-        if re.search(r"^framework_version=", manifest, re.M):
-            manifest = re.sub(r"^framework_version=.*$", f"framework_version={version}",
+        if re.search(r"^\s*framework_version\s*=", manifest, re.M):
+            manifest = re.sub(r"^\s*framework_version\s*=.*$", f"framework_version={version}",
                               manifest, flags=re.M)
         else:
-            manifest = manifest.replace("framework=kiln", f"framework=kiln\nframework_version="
-                                        f"{version}", 1)
+            manifest = re.sub(r"^(\s*framework\s*=\s*kiln\s*)$",
+                              lambda m: f"{m.group(1)}\nframework_version={version}", manifest,
+                              count=1, flags=re.M)
         write("manifest.md", manifest)
         changed.append(f"manifest.md: framework_version={version}")
-    missing = [f"{key}={value}" for key, value in k.DEFAULT_POLICY.items()
-               if not re.search(rf"^{re.escape(key)}=", manifest, re.M)]
+    have = k.read_manifest(".") or {}
+    missing = [f"{key}={value}" for key, value in k.DEFAULT_POLICY.items() if key not in have]
     if missing and manifest:
         write("manifest.md", manifest.rstrip("\n") + "\n" + "\n".join(missing) + "\n")
         changed.append("manifest.md: added " + ", ".join(m.split("=")[0] for m in missing))
@@ -571,9 +572,14 @@ REPORT_HEADER = ("# Kiln problem reports\n\n"
                  "|---|---|---|---|---|---|---|\n")
 
 
-def append_row(path, cells):
+DECISIONS_HEADER = ("# Decisions\n\n| # | date | phase | decision | options | by | why |\n"
+                    "|---|---|---|---|---|---|---|\n")
+
+
+def append_row(path, cells, header=None, label=None):
     """Append `| <next number> | <cells> |` to a numbered markdown table, under a lock file so two
     agents never take the same number (g2: two agents wrote the same report row number)."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     lock = path + ".lock"
     for _ in range(100):
         try:
@@ -590,6 +596,9 @@ def append_row(path, cells):
         text = read(path) or ""
         if not text and os.path.basename(path) == "kiln-report.md":
             text = REPORT_HEADER
+        if header and "| # |" not in text:
+            table = header[header.index("| # |"):]
+            text = text.rstrip("\n") + "\n\n" + table if text.strip() else header
         numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)\s*\|", text, re.M)]
         n = max(numbers, default=0) + 1
         text = text.rstrip("\n") + f"\n| {n} | {cells.strip().strip('|').strip()} |\n"
@@ -597,7 +606,7 @@ def append_row(path, cells):
     finally:
         os.close(fd)
         os.remove(lock)
-    print(f"row {n} appended to {path}")
+    print(label.format(n=n) if label else f"row {n} appended to {path}")
     return 0
 
 
@@ -668,17 +677,12 @@ def main():
         print("reopened phase", a.phase)
     elif a.cmd == "decide":
         by = a.by  # kept as given (g2: real user decisions on autopilot were marked proxy)
-        text = read(DECISIONS) or "# Decisions\n"
-        if "| # |" not in text:
-            text += "\n| # | date | phase | decision | options | by | why |\n|---|---|---|---|---|---|---|\n"
-        n = len([l for l in text.splitlines() if re.match(r"^\|\s*\d+\s*\|", l)]) + 1
         phases = parse(read(PIPELINE) or "")
         phase = next((f"P{p['num']}" for p in phases
                       if any(not g["done"] and not g["skip"] for g in p["gates"])), "-")
-        text = text.rstrip("\n") + f"\n| {n} | {TODAY} | {phase} | {a.decision} | " \
-            f"{a.options} | {by} | {a.why} |\n"
-        write(DECISIONS, text)
-        print(f"decision #{n} recorded ({by})")
+        # numbered under the row lock: parallel deciders never share a number
+        sys.exit(append_row(DECISIONS, f"{TODAY} | {phase} | {a.decision} | {a.options} | {by} | "
+                            f"{a.why}", header=DECISIONS_HEADER, label="decision #{n} recorded (" + by + ")"))
 
 
 if __name__ == "__main__":
