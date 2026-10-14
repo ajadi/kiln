@@ -89,6 +89,14 @@ MCP, never by writing `.tres`, `.mat` or `.uasset` text.
    transparents are missing from it.
 10. Materials created or changed in render state at runtime compile mid-game: prewarm (destruction-vfx
     skill, shader stutter).
+11. Phase = rate x absolute time is a bug whenever the rate can change. `offset = speed * TIME`
+    is right only while speed is constant: when the weather thickens or the wind picks up,
+    `speed * TIME` jumps by `delta_speed * TIME`, which after ten minutes of play is thousands
+    of units, so the texture sweeps or flickers through the whole transition. Integrate instead:
+    keep `phase += speed * delta` on the CPU (wrap it to the texture period) and pass `phase` as
+    the uniform; the same for oscillators (`sin(freq * TIME)` with a changing `freq`). Caught by
+    `frames.py ramp` (acceptance skill); a phase that never advances is caught by `frames.py
+    anim`.
 
 ## 6. Checks before handoff
 

@@ -216,9 +216,9 @@ in the traversal skill, `traversal_check.py jumps`):
 ## Acceptance thresholds (also used by qa-locomotion)
 
 Players notice certain failures at once — the catalogue
-`${CLAUDE_SKILL_DIR}/references/reads-wrong.md` lists each with its check; run every row that
-applies to the clips you touched before handing off, and add a row whenever the user spots a new
-one.
+`${CLAUDE_SKILL_DIR}/references/reads-wrong.md` lists each as a pitfall with its check; run every entry that
+applies to the clips you touched before handing off, and add an entry whenever the user spots a
+new one.
 
 | Check | Pass | Fail / note |
 |---|---|---|
@@ -231,13 +231,14 @@ one.
 | Play rate | 0.85–1.15 | outside → new blend point |
 | Phase | L 0.00 ± 0.02, R 0.50 ± 0.02 in all synced clips; contacts alternate through blends | double step |
 | Loop seam | first vs last ≤ 0.5°/bone, ≤ 1 mm | — |
-| Pops (working) | ≤ 25°/frame at 30 fps; not > 4× the clip's p95 unless a tagged impact | Euler flips |
+| Pops (working) | ≤ 25°/frame at 30 fps; not > 4× the clip's p95 unless a tagged impact; across transitions `analyze.py pops`: no isolated one-frame step ≥ 3× its neighbours and ≥ 2 % of the height | Euler flips |
 | Joint limits (working) | knee 0–150°, hyperextension ≤ 5°, elbow 0–145°; mech hinges off-axis ≤ 0.5°; pistons within stroke | — |
 | Self-intersection (working) | ≤ 5 mm; arms vs weapon ≤ 2 mm | — |
 | Transition slip | ≤ 2 cm | — |
 | Prop in free flight (tossed, dropped), from the keyed prop bone | vertical acceleration g ± 10 %; horizontal velocity keeps its sign and size (no mid-air reversal, no speed jumps) | live: a back unit fell at 4.4 g and flew forward, then 1.1 m backward ("telekinesis") |
 | Catch or set-down of a load | the hand meets the load at ≤ 1.5 m/s; deceleration ≤ 2 g spread over ≥ 6 frames at 30 fps; elbow, knees and trunk yield (dip 3–5 cm, trunk 4–6°) | a dead stop on a straight arm (12 kg in one frame ≈ 950 N) reads weightless |
 | Lift of a load ≥ 5 kg | hips and knees extend 2–4 frames before the arm pulls; the trunk leans away from a one-sided load (5–8°) and back at release | an all-arm heave with the trunk still reads weightless |
+| Real animation, not a moved pose (every loop and cycle: player, NPC idle and work loops, animals) | `analyze.py rigid --joints <>= 3 joints> --root <root>`: joints move ≥ 0.2 % of the height against the root and the similarity-fit residual stays ≥ 0.02 % of the height | "nothing moves" (a frozen pose, or a pose only slid); "moves rigidly" (a sprite or mesh bobbed, tilted or scaled as one piece) |
 | Hip sway in walk/run (`analyze.py gait` over 10 cycles) | pelvis obliquity ≤ ±5°, rotation ≤ ±5°, lateral shift ≤ ±2.5 cm, step width 8–12 cm, feet never cross the midline (human-biomechanics) | a catwalk or drunk walk: big lateral sway, crossing steps |
 | Idle alive but calm (≥ 60 s recording) | `analyze.py idle --pos pelvis --chest chest --bones <limbs, head>`: sway RMS AP 1–8 mm, ML 0.5–4 mm, ≥ 80% of sway power below 0.5 Hz, breathing 12–20/min, no part frozen (< 0.5° in 10 s) | symmetric base pose; weight never shifts in 60 s; plates interpenetrate |
 | Direction changes (zig-zag course: 45/90/135/180° left and right at 1.5/3/5 m/s, turn at a random step phase; slalom r 2/3/5 m) | `analyze.py stance --root`: turning stances ≤ 10 mm typical, ≤ 20 mm worst | heading change > the per-step limit without a pivot clip; lean off atan(a/g) by > 5° |

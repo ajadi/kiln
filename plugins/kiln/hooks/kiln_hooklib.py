@@ -28,7 +28,7 @@ DEFAULT_POLICY = {
     "dimension": "3d",                                 # 3d | 2d
     "model_generators": "off",                         # off | local | remote | api — image-to-3D/2D generators
     "audio_generators": "off",                         # off | local | remote | api — music/sound models
-    "runtimes": "claude",                              # claude | codex | gemini, comma-separated
+    "runtimes": "claude",                              # claude | codex | gemini | copilot | opencode
     "mcp_only": "on",                                  # Blender/Godot only through MCP
     "godot_files_via_mcp": "scenes,resources,scripts", # what may not be hand-edited
     "orchestrator_writes": "state",                    # main session: state | any
@@ -209,6 +209,107 @@ def from_gemini(data, root):
     return out
 
 
+# GitHub Copilot CLI (recorded live from 1.0.97): camelCase payloads, built-in tools by these
+# names, MCP tools as <server>-<tool>. A subagent's calls carry their own sessionId.
+COPILOT_TOOLS = {"powershell": "Bash", "bash": "Bash", "create": "Write", "edit": "Edit",
+                 "task": "Agent"}
+
+
+def copilot_state_path(root):
+    return os.path.join(kiln_dir(root), "copilot-agents.json")
+
+
+def from_copilot(data, root):
+    """A Copilot CLI hook payload in the shape the Kiln hooks read. Copilot names no agent on a
+    tool call; a subagent runs in its own session: subagentStart (in the parent session) queues
+    the role, the first call from a new session takes it, subagentStop (agentId = that session)
+    ends it. Parallel subagents bind in start order."""
+    out = {"session_id": data.get("sessionId") or "", "cwd": data.get("cwd"),
+           "transcript_path": data.get("transcriptPath") or "",
+           "stop_hook_active": data.get("stop_hook_active", False)}
+    sid = out["session_id"]
+    path = copilot_state_path(root)
+    with locked(path):
+        state = load_json(path, {})
+        state.setdefault("pending", [])
+        state.setdefault("bound", {})
+        if "source" in data and "toolName" not in data:            # sessionStart: the producer
+            state.update(main=sid, pending=[], bound={})
+        main = state.setdefault("main", sid)
+        if "toolName" in data:
+            name = data.get("toolName") or ""
+            args = data.get("toolArgs")
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except ValueError:
+                    args = {"command": args}
+            args = dict(args or {})
+            tool = COPILOT_TOOLS.get(name, name)
+            for server in MCP_SERVER_NAMES:
+                if name.startswith(server + "-"):
+                    tool = f"mcp__{server}__{name[len(server) + 1:]}"
+                    break
+            if tool == "Write":
+                args = {"file_path": args.get("path"), "content": args.get("file_text", "")}
+            elif tool == "Edit":
+                args = {"file_path": args.get("path"), "old_string": args.get("old_str", ""),
+                        "new_string": args.get("new_str", "")}
+            elif tool == "Agent":
+                args = dict(args, subagent_type=args.get("agent_type", ""))
+            out.update(tool_name=tool, tool_input=args, hook_event_name="PreToolUse")
+            if sid != main:
+                if sid not in state["bound"] and state["pending"]:
+                    state["bound"][sid] = state["pending"].pop(0)
+                agent = state["bound"].get(sid)
+                if agent:
+                    out.update(agent_type=agent["agent_type"], agent_id=agent["key"])
+        elif "agentId" in data:                                     # subagentStop
+            agent = state["bound"].pop(data["agentId"], None)
+            if agent is None:
+                agent = next((p for p in state["pending"]
+                              if p["agent_type"] == data.get("agentName")), None)
+                if agent:
+                    state["pending"].remove(agent)
+            out.update(agent_type=data.get("agentName") or "",
+                       agent_id=(agent or {}).get("key", data["agentId"]),
+                       last_assistant_message=data.get("response") or "",
+                       hook_event_name="SubagentStop")
+        elif "agentName" in data:                                   # subagentStart
+            state["seq"] = state.get("seq", 0) + 1
+            key = f"copilot-{state['seq']}"
+            state["pending"].append({"agent_type": data["agentName"], "key": key})
+            out.update(agent_type=data["agentName"], agent_id=key,
+                       hook_event_name="SubagentStart")
+        elif "stopReason" in data:                                  # agentStop
+            out["hook_event_name"] = "Stop"
+            out["subagent_turn"] = sid != main
+        else:
+            out["hook_event_name"] = "SessionStart" if "source" in data else "SessionEnd"
+            out["source"] = {"new": "startup"}.get(data.get("source"), data.get("source"))
+        save_json(path, state)
+    return out
+
+
+def to_copilot(obj):
+    """Claude Code hook output -> Copilot CLI's contract (docs: hooks-configuration)."""
+    spec = obj.get("hookSpecificOutput") or {}
+    decision = spec.get("permissionDecision")
+    if decision == "deny":
+        return {"permissionDecision": "deny",
+                "permissionDecisionReason": spec.get("permissionDecisionReason", "")}
+    if decision == "allow":
+        args = dict(spec.get("updatedInput") or {})
+        if not args:
+            return None
+        if "subagent_type" in args:
+            args["agent_type"] = args.pop("subagent_type")
+        return {"permissionDecision": "allow", "modifiedArgs": args}
+    if spec.get("additionalContext") is not None:
+        return {"additionalContext": spec["additionalContext"]}
+    return obj  # decision/reason (agentStop, subagentStop) has the same shape
+
+
 def runtime():
     """'codex' when the hook command passes --runtime codex (hooks/codex-hooks.json), 'gemini'
     with --runtime gemini (the Gemini extension's hooks/hooks.json), else 'claude'. Codex hook input differs: file edits arrive as apply_patch, and its documented
@@ -366,8 +467,8 @@ def locked(path, timeout=5.0):
 
 
 def emit(obj):
-    if runtime() == "gemini":
-        obj = to_gemini(obj)
+    if runtime() in ("gemini", "copilot"):
+        obj = (to_gemini if runtime() == "gemini" else to_copilot)(obj)
         if obj is None:
             return
     sys.stdout.write(json.dumps(obj))
@@ -439,6 +540,8 @@ def run_safely(main):
         data = read_input()
         if runtime() == "gemini":
             data = from_gemini(data, project_dir(data))
+        elif runtime() == "copilot":
+            data = from_copilot(data, project_dir(data))
         _CURRENT.clear()
         _CURRENT.update(data)
         if os.environ.get("KILN_HOOK_TRACE"):  # diagnostics: /kiln:doctor checks hooks really run

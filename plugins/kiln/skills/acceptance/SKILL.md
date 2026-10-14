@@ -15,7 +15,9 @@ Scripts in `${CLAUDE_SKILL_DIR}/scripts/`:
 |---|---|
 | `probe_base.gd` | Godot headless probes: copy to `tests/probes/probe_base.gd` once, `extends` it, override `_run()`; ticks / press / `check()` rows, JSON per task, watchdog, exit 0/1/2 |
 | `mesh_fit.gd` | Godot headless: CPU skinning of a MeshInstance3D on its skeleton (the dummy renderer does not skin), vertices by bone, lowest point, capsule clearance — garment hems vs legs, seats, rails, corpses vs the floor (lowest vertex per body part) |
-| `frames.py` | visual regression: `baseline` frames per scene from fixed cameras, `compare` after a task (SSIM + changed regions with boxes and a diff image), `accept --why` for an intended change (HISTORY.md) |
+| `frames.py` | visual regression: `baseline` frames per scene from fixed cameras, `compare` after a task (SSIM + changed regions with boxes and a diff image), `accept --why` for an intended change (HISTORY.md); `anim` (an effect drawn but frozen: ON vs OFF frame-to-frame change) and `ramp` (a state change that sweeps instead of easing: consecutive frames as unrelated as frames far apart) - recipes in §4 |
+| `ref_compare.py` | fidelity to a reference image in numbers: `side` (regions magnified side by side with rulers), `lowfreq` (brightness ratio per grid cell: values and light pools), `tones` (colours at points, delta E), `palette` (near share, missing and foreign colours), `report` (all, regions ranked by mismatch) |
+| `qa_contract.gd` + `qa_contract.py` | the scene QA contract (§2a): a scene's named QA states, recorded and judged by one command into `report.json` |
 | `accepted.py` | `snapshot` at the end of a round (acceptor probe hashes + row counts, scene fingerprints), `check` at the start of the next |
 | `recorder.gd` | Godot: copy to `tests/probes/recorder.gd` once; attach at runtime through game eval; samples values every physics tick, frame time every frame, dumps JSON |
 | `unity/KilnProbe.cs` | Unity 6: MonoBehaviour (+ `IKilnProbeSource`), samples every FixedUpdate or LateUpdate, frame timing every Update, writes JSON Lines |
@@ -44,6 +46,26 @@ could not have failed is not a check — for every probe, state what result woul
   `execute_code`; Unreal Kiln toolset `inject_input` (Enhanced Input action).
 - Fixed physics rate (Godot 60 Hz, Unity 50 Hz defaults; Unreal steps with the frame); note the
   frame rate.
+
+## 2a. The scene QA contract
+
+A scene that has been accepted keeps a contract: `tests/qa/<scene>_qa.gd` lists its QA states,
+and one command re-checks all of them after any change.
+
+- Copy `qa_contract.gd` to `tests/qa/` and `probe_base.gd` to `tests/probes/` once; the
+  contract `extends "res://tests/qa/qa_contract.gd"`, names the scene (`scene_path()`) and
+  returns its states (`states()`), each with a name, a kind and an `apply(scene)` that sets it
+  up (the format is in the header of `qa_contract.gd`).
+- States to list, per scene: the worst UI strings (`ui`: the longest translation of every label,
+  the largest numbers, the longest player name), every facing x action that matters (`loop`,
+  `transition`, `attack` with targets all round), every emitter and what carries it (`anchor`:
+  where the effect is emitted vs where its holder is drawn), the loops and cycles (`loop`, K01),
+  effects and state changes (`frames`: `anim` with the OFF state, `ramp` with the held state).
+- `python qa_contract.py run --contract res://tests/qa/<scene>_qa.gd` records them (headless;
+  `--windowed` when there are `frames` states) and judges each: UI overflow out of a control or
+  its container plus `ui_check.py layout`, anchor distance, `analyze.py rigid` / `pops` / `hits`,
+  `frames.py anim` / `ramp`. One `report.json` in `production/qa/<contract>/`; exit 1 when a
+  state fails. Add a state whenever a defect is found that it would have caught.
 
 ## 3. Sample inside the game, not through MCP
 
@@ -120,6 +142,17 @@ or pure getter), `SampleHz` (0 = every frame), SceneTools `save_actor`. Loop: `I
   the gameplay contrast. Saliency needs clean game captures (no gizmos, navmesh overlays or
   editor grid). Judge figures by `--parts` and the silhouette edge, not only the whole-mask mean
   (a dark vest on a dark wall averages out with a light face).
+- Effects in motion (`frames.py anim` / `ramp`): capture frame sequences one fixed step apart
+  from a fixed camera, nothing else moving. Godot first: run the scene with Movie Maker,
+  `--write-movie <folder>/f.png --fixed-fps 60 --quit-after <frames>` (a PNG per frame, fixed
+  time step, from the docs' "Creating movies"); one run with the effect ON and one with it OFF
+  (`anim`), or one run while the state changes (weather fading in over its real duration, the
+  clock crossing dusk) and one with the state held at the start value (`ramp`). Use the
+  effect's box (`--box`) so a moving HUD or character does not count. Unity: Recorder image
+  sequence at a fixed frame rate; Unreal: Movie Render Queue PNG sequence (both UNVERIFIED for
+  this use). A frozen effect (`anim` FAIL) is usually a time / phase input never advanced; a
+  sweep (`ramp` FAIL) is a phase computed from the current rate times absolute time (shaders
+  skill, §5 item 11).
 - Image models detect gross glitches reasonably (~80% on benchmarks) but miss clipping, pose
   errors and small UI changes, and they cannot judge fun. A visual finding becomes FAIL only when
   engine data confirms it (an overlap query, a bone angle, a measured contrast, a position).

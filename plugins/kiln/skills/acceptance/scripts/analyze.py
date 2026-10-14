@@ -43,6 +43,33 @@ thresholds below are in metres and seconds for every engine.
       distance, which must move >= --min-breath-mm (2) peak to peak - below that the report
       says "breathing invisible" instead of a rate (the loop length dominates the spectrum);
       with --bones, no part frozen (< --min-deg peak-to-peak in a 10 s window).
+  python analyze.py rigid <dump> --joints hips,chest,head,hand_l,hand_r,foot_l,foot_r
+         [--root hips] [--height 1.8] [--dims 3|2] [--min-motion 0.002] [--max-rigid 0.0002]
+         [--unit-noise 0]
+      is the animation more than a whole-object transform? Per frame the best similarity
+      transform (rotation + uniform scale + translation, Umeyama 1991) of frame 0's joints onto
+      frame k's; the RMS residual and each joint's motion relative to the root (default: the
+      joints' centroid) are divided by the character height (--height, else the joints' vertical
+      span at frame 0). FAIL "nothing moves" if no joint moves >= --min-motion against the root
+      (a frozen pose, or a pose only slid around); FAIL "moves rigidly" if the residual stays
+      below --max-rigid (a sprite or mesh bobbed, tilted or scaled as one piece). --dims 2 reads
+      screen-space traces (2 values per joint, any unit; height then in the same unit);
+      --unit-noise is the trace's step (1 for whole-pixel traces): rounding to it leaves a
+      residual of its own, so the rigid threshold is at least unit-noise / height. Needs
+      >= 3 joints. Record one loop or cycle; works for NPC and animal loops as for the player.
+  python analyze.py pops <dump> --joints hand_r,foot_l,... [--height 1.8] [--dims 3|2]
+         [--ratio 3] [--min-jump 0.02]
+      pops on a transition: per joint the frame-to-frame step (first difference) and its change
+      (second difference). A pop is an isolated step: >= --ratio x the larger of its neighbours
+      and >= --min-jump of the height in one frame - the second difference spikes and flips
+      sign. A fast but eased move (steps rising and falling over a few frames) passes. Record the
+      transition at the game's frame rate; the worst joint and frame are named.
+  python analyze.py hits <dump> --segment hilt,tip --targets target_0@12,target_1@19,...
+         [--radius 0.3] [--window 1] [--dims 3|2]
+      does an attack connect? At each target's impact frame (name@frame; +- --window frames)
+      the distance from the target to the weapon segment (two probes) must be <= --radius
+      (the target's hit radius, metres). Place targets all round the character and give each
+      its own impact frame; a miss names the target and its distance.
   python analyze.py frames <dump> [--budget-ms 16.67] [--skip 0]
       frame-time mean, p95, p99, 1% low fps, hitches (> 2x rolling median or > 50 ms);
       GPU/CPU render times when recorded. --skip drops the first N frames (loading).
@@ -462,6 +489,126 @@ def idle(d, a):
                   frozen=frozen, seconds=round(float(t[-1] - t[0]), 1), **out)
 
 
+def similarity_residual(src, dst):
+    """RMS distance between dst and the best similarity transform of src (rotation, uniform
+    scale, translation; S. Umeyama, IEEE TPAMI 13(4):376-380, 1991)."""
+    ms, md = src.mean(axis=0), dst.mean(axis=0)
+    a, b = src - ms, dst - md
+    var = float((a ** 2).sum()) / len(src)
+    if var <= 0:
+        return float(np.sqrt(((b ** 2).sum(axis=1)).mean()))
+    u, sv, vt = np.linalg.svd(b.T @ a / len(src))
+    signs = np.ones(len(sv))
+    if np.linalg.det(u) * np.linalg.det(vt) < 0:
+        signs[-1] = -1.0
+    rot = u @ np.diag(signs) @ vt
+    scale = float((sv * signs).sum()) / var
+    fit = scale * a @ rot.T + md
+    return float(np.sqrt(((fit - dst) ** 2).sum(axis=1).mean()))
+
+
+def rigid(d, a):
+    """Animation, or one whole-object transform? (K01)"""
+    names = [n.strip() for n in a.joints.split(",") if n.strip()]
+    if len(names) < 3:
+        raise NotAssessed("needs >= 3 joints: with fewer, any motion fits a similarity transform")
+    tracks = []
+    for name in names:
+        raw = series(d, name, vector=True)
+        tracks.append(raw[:, :2] if a.dims == 2 else to_metres_y_up(d, raw)[:, :3])
+    pos = np.stack(tracks, axis=1)                          # (frames, joints, dims)
+    pos = pos[np.isfinite(pos).all(axis=(1, 2))]
+    if len(pos) < 2:
+        raise NotAssessed("needs >= 2 frames with every joint recorded")
+    height = a.height or float(np.ptp(pos[0][:, 1]))
+    if height <= 0:
+        raise NotAssessed("character height is 0: give --height")
+    if a.root:
+        rp = series(d, a.root, vector=True)
+        rp = rp[:, :2] if a.dims == 2 else to_metres_y_up(d, rp)[:, :3]
+        rp = rp[np.isfinite(rp).all(axis=1)][:len(pos)]
+        root = rp[:, None, :]
+    else:
+        root = pos.mean(axis=1, keepdims=True)
+    rel = pos - root
+    motion = float(np.linalg.norm(rel - rel[0], axis=2).max()) / height
+    residual = max(similarity_residual(pos[0], pos[k]) for k in range(1, len(pos))) / height
+    out = {"motion_max": round(motion, 6), "residual_max": round(residual, 6),
+           "height": round(height, 4), "joints": len(names), "frames": len(pos)}
+    rigid_floor = max(a.max_rigid, a.unit_noise / height)  # rounding leaves its own residual
+    threshold = {"motion": a.min_motion, "rigid": round(rigid_floor, 6)}
+    if motion < a.min_motion:
+        return result("rigid_motion", out["residual_max"], threshold, False,
+                      problem=f"nothing moves: joints move at most {motion:.4%} of the height "
+                              f"against the root (< {a.min_motion:.2%})", **out)
+    if residual < rigid_floor:
+        return result("rigid_motion", out["residual_max"], threshold, False,
+                      problem=f"moves rigidly: every frame is frame 0 rotated, scaled and moved "
+                              f"(residual {residual:.4%} of the height < {rigid_floor:.4%}); "
+                              "a whole-object transform, not animation", **out)
+    return result("rigid_motion", out["residual_max"], threshold, True, problem=None, **out)
+
+
+def _tracks(d, names, dims):
+    out = []
+    for name in names:
+        raw = series(d, name, vector=True)
+        out.append(raw[:, :2] if dims == 2 else to_metres_y_up(d, raw)[:, :3])
+    return out
+
+
+def pops(d, a):
+    """A break in motion on a transition (K04): an isolated one-frame step."""
+    names = [n.strip() for n in a.joints.split(",") if n.strip()]
+    tracks = _tracks(d, names, a.dims)
+    height = a.height or float(np.ptp(np.stack([t[0] for t in tracks])[:, 1]))
+    if height <= 0 or len(tracks[0]) < 4:
+        raise NotAssessed("needs --height (or >= 2 joints at different heights) and >= 4 frames")
+    worst, found = None, []
+    for name, pos in zip(names, tracks):
+        step = np.linalg.norm(np.diff(pos, axis=0), axis=1) / height
+        accel = np.linalg.norm(np.diff(pos, n=2, axis=0), axis=1) / height
+        for k in range(1, len(step) - 1):
+            around = max(step[k - 1], step[k + 1], 1e-9)
+            ratio = step[k] / around
+            row = {"joint": name, "frame": k, "step": round(float(step[k]), 5),
+                   "neighbours": round(float(around), 5), "ratio": round(float(ratio), 2),
+                   "second_difference": round(float(max(accel[k - 1], accel[min(k, len(accel) - 1)])), 5)}
+            if step[k] >= a.min_jump and ratio >= a.ratio:
+                found.append(row)
+            if worst is None or ratio * step[k] > worst["ratio"] * worst["step"]:
+                worst = row
+    return result("pops", len(found), {"ratio": a.ratio, "min_jump": a.min_jump}, not found,
+                  pops=found[:10], worst=found[0] if found else worst, height=round(height, 4))
+
+
+def _segment_distance(p, a0, a1):
+    ab = a1 - a0
+    t = float(np.clip(np.dot(p - a0, ab) / max(float(np.dot(ab, ab)), 1e-12), 0.0, 1.0))
+    return float(np.linalg.norm(p - (a0 + t * ab)))
+
+
+def hits(d, a):
+    """Does the attack connect with every target at its impact frame? (K04)"""
+    seg = [s.strip() for s in a.segment.split(",")]
+    if len(seg) != 2:
+        raise NotAssessed("--segment needs two probes: hilt,tip")
+    hilt, tip = _tracks(d, seg, a.dims)
+    misses, rows = [], []
+    for spec in [t.strip() for t in a.targets.split(",") if t.strip()]:
+        name, _, frame = spec.partition("@")
+        target = _tracks(d, [name], a.dims)[0]
+        k = int(frame)
+        lo, hi = max(0, k - a.window), min(len(hilt) - 1, k + a.window)
+        dist = min(_segment_distance(target[j], hilt[j], tip[j]) for j in range(lo, hi + 1))
+        row = {"target": name, "frame": k, "distance": round(dist, 4)}
+        rows.append(row)
+        if dist > a.radius:
+            misses.append(row)
+    return result("hits", len(rows) - len(misses), a.radius, not misses, hits=len(rows) - len(misses),
+                  misses=misses, targets=rows)
+
+
 def _stats(values):
     v = np.asarray(values, dtype=float)
     v = v[np.isfinite(v) & (v > 0)]
@@ -536,7 +683,8 @@ def reaction(d, a):
 
 
 COMMANDS = {"skating": skating, "stance": stance, "idle": idle, "gait": gait, "frames": frames,
-            "settle": settle, "reaction": reaction}
+            "settle": settle, "reaction": reaction, "rigid": rigid, "pops": pops,
+            "hits": hits}
 
 
 def expand(pattern):
@@ -625,6 +773,30 @@ def main(argv=None):
     i.add_argument("--min-deg", type=float, default=0.5, help="frozen below this p2p in 10 s")
     i.add_argument("--min-breath-mm", type=float, default=2.0,
                    help="chest-pelvis peak-to-peak below which breathing is invisible")
+    rg = sub.add_parser("rigid")
+    rg.add_argument("dump")
+    rg.add_argument("--joints", required=True, help=">= 3 joint position probes")
+    rg.add_argument("--root", help="root position probe (default: the joints' centroid)")
+    rg.add_argument("--height", type=float, help="character height, m (2D: trace units)")
+    rg.add_argument("--dims", type=int, choices=[2, 3], default=3)
+    rg.add_argument("--min-motion", type=float, default=0.002, help="fraction of height")
+    rg.add_argument("--max-rigid", type=float, default=0.0002, help="fraction of height")
+    rg.add_argument("--unit-noise", type=float, default=0.0,
+                    help="trace step in trace units (1 = whole pixels)")
+    po = sub.add_parser("pops")
+    po.add_argument("dump")
+    po.add_argument("--joints", required=True)
+    po.add_argument("--height", type=float, help="character height, m (2D: trace units)")
+    po.add_argument("--dims", type=int, choices=[2, 3], default=3)
+    po.add_argument("--ratio", type=float, default=3.0, help="step vs its neighbours")
+    po.add_argument("--min-jump", type=float, default=0.02, help="fraction of height per frame")
+    hi = sub.add_parser("hits")
+    hi.add_argument("dump")
+    hi.add_argument("--segment", required=True, help="hilt,tip probes of the weapon")
+    hi.add_argument("--targets", required=True, help="name@impact_frame,...")
+    hi.add_argument("--radius", type=float, default=0.3, help="target hit radius, m")
+    hi.add_argument("--window", type=int, default=1, help="+- frames around the impact frame")
+    hi.add_argument("--dims", type=int, choices=[2, 3], default=3)
     f = sub.add_parser("frames")
     f.add_argument("dump")
     f.add_argument("--budget-ms", type=float, default=16.67)

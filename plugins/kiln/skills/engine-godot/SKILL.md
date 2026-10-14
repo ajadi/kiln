@@ -204,6 +204,11 @@ for sequences.
 
 ## Tests
 
+Scene QA contracts (acceptance skill §2a): `tests/qa/<scene>_qa.gd` extends the acceptance
+skill's `qa_contract.gd`, lists the scene's QA states and is run by `qa_contract.py run`
+(headless Godot with `--fixed-fps 60`; windowed for frame captures). Track specs: a node path
+(Node3D / Node2D global position, a Control's centre) or `Skeleton3D path:bone`.
+
 GDScript test suites in `tests/` run inside the editor with `test_run` (GUT 9.7.x for 4.7, or
 gdUnit4 6.2.x). Write them for logic that is easy to break and hard to see: damage routing and
 part-detach rules, fire rate and ammo, state-machine transitions, save round-trips and

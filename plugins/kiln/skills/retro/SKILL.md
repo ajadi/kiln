@@ -53,6 +53,15 @@ MCP tool (the engine skill lacks a working call); a task with three or more CHAN
 user lines after a task started (a question the grilling should have asked); PROXY decisions the
 user later redid; non-Kiln agents; editor locks or hook crashes.
 
+Defects in the pitfall format (animation `references/reads-wrong.md` is the model): write each
+defect finding as class -> what it looks like (the user's words) -> why it happens -> the
+principle of the fix (for the whole class, not this one clip) -> how to catch it. When the user
+reported a defect that no check caught (`retro_scan.py` `pitfalls.user_reported`, and every
+catalogue entry with `Caught by: no check yet`), propose the check as a follow-up task: a new
+check, or an extension of an existing one (`analyze.py rigid` / `pops` / `hits`, `frames.py
+anim` / `ramp`, `ref_compare.py`, a scene QA contract state); add the catalogue entry with `no
+check yet` until the check exists.
+
 ## 3. Report
 
 Write `production/retro/<YYYY-MM-DD>.md`: a table of findings, most costly first — evidence, cost,

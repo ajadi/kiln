@@ -392,5 +392,174 @@ class Gait(unittest.TestCase):
         self.assertIn("stride", " ".join(moved["problems"]))
         self.assertNotIn("cadence", " ".join(moved["problems"]))
 
+
+# K01: animation that is only a whole-object transform. Skeleton: a 1.8 m figure, joints at
+# hip, chest, head, both hands and both feet (metres, Y up).
+REST = {"hips": (0.0, 1.0, 0.0), "chest": (0.0, 1.4, 0.0), "head": (0.0, 1.75, 0.0),
+        "hand_l": (-0.4, 1.0, 0.0), "hand_r": (0.4, 1.0, 0.0),
+        "foot_l": (-0.12, 0.05, 0.0), "foot_r": (0.12, 0.05, 0.0)}
+
+
+def rigid_track(mode, seconds=2.0, joints=REST):
+    import math
+    n = int(seconds * HZ)
+    out = {name: [] for name in joints}
+    for i in range(n):
+        t = i / HZ
+        ph = 2 * math.pi * t / 1.0          # one cycle per second
+        for name, (x, y, z) in joints.items():
+            if mode == "alive":             # limbs swing against each other
+                swing = 0.15 * math.sin(ph) * (1 if name.endswith("_l") else -1)
+                if name.startswith("hand"):
+                    z += swing
+                elif name.startswith("foot"):
+                    z -= swing
+                    y += 0.05 * max(0.0, math.sin(ph + (0 if name.endswith("_l") else math.pi)))
+                elif name == "chest":
+                    y += 0.004 * math.sin(2 * ph)
+            elif mode == "rigid":           # the whole sprite bobs, tilts and breathes in scale
+                a = 0.15 * math.sin(ph)
+                k = 1.0 + 0.03 * math.sin(2 * ph)
+                cx, cy = x * k, (y - 1.0) * k
+                x, y = cx * math.cos(a) - cy * math.sin(a), 1.0 + cx * math.sin(a) + cy * math.cos(a)
+                x += 0.3 * t
+                y += 0.05 * math.sin(2 * ph)
+            elif mode == "slide":           # translated only
+                x += 0.5 * t
+            out[name].append([x, y, z])
+    return out
+
+
+class Rigid(unittest.TestCase):
+    def check(self, samples, *extra):
+        path = write_json(os.path.join(tmpdir(), "loop.json"), samples)
+        return run("rigid", path, "--joints", ",".join(samples), "--root", "hips", *extra)[1]
+
+    def test_a_living_cycle_passes(self):
+        res = self.check(rigid_track("alive"), "--height", "1.8")
+        self.assertEqual(res["verdict"], "PASS", res)
+        self.assertGreater(res["residual_max"], res["threshold"]["rigid"])
+
+    def test_a_whole_object_transform_fails(self):
+        res = self.check(rigid_track("rigid"), "--height", "1.8")
+        self.assertEqual(res["verdict"], "FAIL", res)
+        self.assertIn("rigid", res["problem"])
+        self.assertLess(res["residual_max"], 1e-6)
+        self.assertGreater(res["motion_max"], 0.01)
+
+    def test_nothing_moving_fails(self):
+        for mode in ("still", "slide"):          # a pure translation moves no joint vs the root
+            res = self.check(rigid_track(mode), "--height", "1.8")
+            self.assertEqual(res["verdict"], "FAIL", (mode, res))
+            self.assertIn("nothing moves", res["problem"])
+
+    def test_screen_space_traces_and_height_from_the_skeleton(self):
+        flat = {k: [[p[0], p[1]] for p in v] for k, v in rigid_track("rigid").items()}
+        res = self.check(flat, "--dims", "2")
+        self.assertEqual(res["verdict"], "FAIL", res)
+        alive = {k: [[p[2], p[1]] for p in v] for k, v in rigid_track("alive").items()}
+        res = self.check(alive, "--dims", "2")
+        self.assertEqual(res["verdict"], "PASS", res)
+        self.assertGreater(res["height"], 1.5)       # head-to-foot span when --height is not given
+
+    def test_pixel_snapped_sprites_with_unit_noise(self):
+        # a 64 px sprite moved as one piece but snapped to whole pixels: rounding alone leaves a
+        # residual, so --unit-noise 1 (one pixel) is the floor; a moving limb still passes
+        def px(mode):
+            return {k: [[round(p[0] * 36), round(p[1] * 36)] for p in v]
+                    for k, v in rigid_track(mode).items()}
+        res = self.check(px("rigid"), "--dims", "2", "--unit-noise", "1")
+        self.assertEqual(res["verdict"], "FAIL", res)
+        alive = {k: [[round(p[2] * 36), round(p[1] * 36)] for p in v]
+                 for k, v in rigid_track("alive").items()}
+        res = self.check(alive, "--dims", "2", "--unit-noise", "1")
+        self.assertEqual(res["verdict"], "PASS", res)
+
+    def test_fewer_than_three_joints_is_not_assessed(self):
+        two = {k: v for k, v in rigid_track("alive").items() if k in ("hips", "head")}
+        res = self.check(two, "--height", "1.8")
+        self.assertEqual(res["verdict"], "NOT ASSESSED", res)
+
+
+# K04: pops on transitions and attacks that miss.
+def transition_track(pop=False, fast=False, seconds=1.0):
+    """Hips stay; a hand moves from rest to a guard pose over the transition. `fast`: an eased
+    move in 4 frames (quick but smooth). `pop`: the hand teleports 12 cm in one frame."""
+    import math
+    n = int(seconds * HZ)
+    hips, hand, head = [], [], []
+    for i in range(n):
+        t = i / HZ
+        if fast:
+            u = min(1.0, max(0.0, (t - 0.4) / (4 / HZ)))
+        else:
+            u = min(1.0, max(0.0, (t - 0.3) / 0.3))
+        e = u * u * (3 - 2 * u)                      # smoothstep: eased in and out
+        x = 0.4 - 0.25 * e
+        if pop and i >= int(0.5 * HZ):
+            x -= 0.12                                # a break in the motion
+        hips.append([0.0, 1.0, 0.0])
+        head.append([0.0, 1.7, 0.01 * math.sin(2 * math.pi * t)])
+        hand.append([x, 1.1 + 0.2 * e, 0.1])
+    return {"hips": hips, "hand_r": hand, "head": head}
+
+
+class Pops(unittest.TestCase):
+    def check(self, samples, *extra):
+        path = write_json(os.path.join(tmpdir(), "t.json"), samples)
+        return run("pops", path, "--joints", ",".join(samples), "--height", "1.8", *extra)[1]
+
+    def test_smooth_and_fast_eased_transitions_pass(self):
+        for fast in (False, True):
+            res = self.check(transition_track(fast=fast))
+            self.assertEqual(res["verdict"], "PASS", (fast, res))
+
+    def test_a_break_in_motion_fails_and_names_the_joint_and_frame(self):
+        res = self.check(transition_track(pop=True))
+        self.assertEqual(res["verdict"], "FAIL", res)
+        self.assertEqual(res["worst"]["joint"], "hand_r")
+        self.assertIn(res["worst"]["frame"], (int(0.5 * HZ) - 1, int(0.5 * HZ)))
+
+
+def swing_track(miss_dir=None):
+    """A sword swept round 360 degrees in 1 s; eight targets at 1.2 m in all directions. The
+    impact frame of each direction is when the blade points at it. `miss_dir`: that target sits
+    at 2.5 m, out of reach."""
+    import math
+    n = HZ
+    hilt, tip = [], []
+    for i in range(n):
+        ang = 2 * math.pi * i / n
+        hilt.append([0.3 * math.cos(ang), 1.2, 0.3 * math.sin(ang)])
+        tip.append([1.4 * math.cos(ang), 1.2, 1.4 * math.sin(ang)])
+    samples = {"hilt": hilt, "tip": tip}
+    targets = []
+    for k in range(8):
+        ang = 2 * math.pi * k / 8
+        r = 2.5 if k == miss_dir else 1.2
+        name = f"target_{k}"
+        samples[name] = [[r * math.cos(ang), 1.2, r * math.sin(ang)]] * n
+        targets.append(f"{name}@{round(k * n / 8)}")
+    return samples, targets
+
+
+class Hits(unittest.TestCase):
+    def check(self, samples, targets, *extra):
+        path = write_json(os.path.join(tmpdir(), "a.json"), samples)
+        return run("hits", path, "--segment", "hilt,tip", "--targets", ",".join(targets),
+                   "--radius", "0.3", *extra)[1]
+
+    def test_every_target_round_the_character_is_hit(self):
+        res = self.check(*swing_track())
+        self.assertEqual(res["verdict"], "PASS", res)
+        self.assertEqual(res["hits"], 8)
+
+    def test_a_target_out_of_reach_at_its_impact_frame_fails(self):
+        res = self.check(*swing_track(miss_dir=3))
+        self.assertEqual(res["verdict"], "FAIL", res)
+        self.assertEqual([m["target"] for m in res["misses"]], ["target_3"])
+        self.assertGreater(res["misses"][0]["distance"], 0.3)
+
+
 if __name__ == "__main__":
     unittest.main()

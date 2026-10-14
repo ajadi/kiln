@@ -21,6 +21,18 @@ claude plugin install kiln-start@kiln --scope user
 The first line tells Claude Code where Kiln lives (the public GitHub repository). The second
 installs a tiny helper that gives you one command, `/kiln-start:here`, in every folder.
 
+### GitHub Copilot CLI
+
+Copilot CLI runs the whole framework from the same plugin: `copilot plugin marketplace add
+ajadi/kiln`, `copilot plugin install kiln@kiln`, `copilot plugin disable kiln@kiln`, and in the
+project `.github/copilot/settings.json` with `{"enabledPlugins": {"kiln@kiln": true}}`.
+
+### OpenCode
+
+Clone Kiln once (`git clone https://github.com/ajadi/kiln`), then in the project
+`python <kiln>/plugins/kiln/scripts/opencode_setup.py --project .`: Kiln becomes a plugin of that
+project only, with its roles as subagents and its skills linked in.
+
 ### Gemini CLI and other agents
 
 Gemini CLI runs the whole framework too, as an extension:
@@ -29,10 +41,10 @@ Gemini CLI runs the whole framework too, as an extension:
 `gemini extensions enable kiln --scope workspace` (Kiln on in that project only).
 
 Kiln's skills are plain `SKILL.md` files, so any other agent that reads the Agent Skills format
-(GitHub Copilot, Cursor, OpenCode, Windsurf, Amp, ...) can use them:
+(Windsurf, Amp, Cursor, ...) can use them:
 `npx skills@latest add ajadi/kiln -a <agent>` in the project folder. You get the knowledge and the
-commands as skills, but not the safety hooks and not the 31 roles; Claude Code, Codex and Gemini
-CLI run the whole framework.
+commands as skills, but not the safety hooks and not the 31 roles; Claude Code, Codex, Gemini
+CLI, Copilot CLI and OpenCode run the whole framework.
 
 ### In each project folder
 

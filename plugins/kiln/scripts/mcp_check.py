@@ -1,8 +1,8 @@
 """What a Kiln project needs from MCP, and whether it is really there.
 
-  python mcp_check.py required [--manifest manifest.md] [--runtime claude|codex|gemini]
+  python mcp_check.py required [--manifest manifest.md] [--runtime claude|codex|gemini|copilot|opencode]
   python mcp_check.py verify --available .kiln/mcp-tools.txt --probe blender=ok \
-      --probe godot-ai=ok [--manifest manifest.md] [--runtime claude|codex|gemini]
+      --probe godot-ai=ok [--manifest manifest.md] [--runtime claude|codex|gemini|copilot|opencode]
 
 required  servers this project needs (from engine= and dimension= in the manifest), how to
           register each one, the tools Kiln uses from it (curated list + every tool named in a
@@ -32,6 +32,8 @@ SERVERS = {
         "claude": "claude mcp add --scope user blender -- <path to blender-mcp executable>",
         "codex": "codex mcp add blender -- <path to blender-mcp executable>",
         "gemini": "gemini mcp add -s user blender <path to blender-mcp executable>",
+        "copilot": "copilot mcp add blender -- <path to blender-mcp executable>",
+        "opencode": '{"blender": {"type": "local", "command": ["<path to blender-mcp executable>"]}}',
         "tools": ["execute_blender_code", "get_blendfile_summary_path_info", "get_python_api_docs",
                   "search_api_docs", "get_screenshot_of_area_as_image"],
         "probe": {"tool": "get_blendfile_summary_path_info", "args": {}},
@@ -42,6 +44,8 @@ SERVERS = {
         "claude": "claude mcp add --scope user godot-ai -- godot-ai attach",
         "codex": "codex mcp add godot-ai -- godot-ai attach",
         "gemini": "gemini mcp add -s user godot-ai godot-ai attach",
+        "copilot": "copilot mcp add godot-ai -- godot-ai attach",
+        "opencode": '{"godot-ai": {"type": "local", "command": ["godot-ai", "attach"]}}',
         "tools": ["session_manage", "session_activate", "editor_state", "editor_manage",
                   "editor_screenshot", "logs_read", "scene_open", "scene_save", "scene_manage",
                   "scene_get_hierarchy", "node_create", "node_manage", "node_find",
@@ -59,6 +63,8 @@ SERVERS = {
         "claude": "claude mcp add --scope user --transport http unity http://localhost:8080/mcp",
         "codex": "codex mcp add unity --url http://localhost:8080/mcp",
         "gemini": "gemini mcp add -s user -t http unity http://localhost:8080/mcp",
+        "copilot": "copilot mcp add --transport http unity http://localhost:8080/mcp",
+        "opencode": '{"unity": {"type": "remote", "url": "http://localhost:8080/mcp"}}',
         "tools": ["manage_scene", "find_gameobjects", "manage_gameobject", "manage_components",
                   "manage_prefabs", "manage_asset", "manage_material", "manage_editor",
                   "manage_camera", "create_script", "script_apply_edits", "validate_script",
@@ -74,6 +80,8 @@ SERVERS = {
         "claude": "claude mcp add --scope user --transport http unreal http://127.0.0.1:8000/mcp",
         "codex": "codex mcp add unreal --url http://127.0.0.1:8000/mcp",
         "gemini": "gemini mcp add -s user -t http unreal http://127.0.0.1:8000/mcp",
+        "copilot": "copilot mcp add --transport http unreal http://127.0.0.1:8000/mcp",
+        "opencode": '{"unreal": {"type": "remote", "url": "http://127.0.0.1:8000/mcp"}}',
         "tools": ["list_toolsets", "describe_toolset", "call_tool"],
         "toolsets": ["SceneTools", "ActorTools", "ObjectTools", "AssetTools", "StaticMeshTools",
                      "SkeletalMeshTools", "EditorAppToolset", "LogsToolset",
@@ -129,7 +137,7 @@ def requirements(policy, runtime):
             "required": not (sid == "blender" and optional_blender),
             "why": spec["why"] + ("" if sid != "blender" or not optional_blender
                                   else " (2D: only for pre-rendered sprites)"),
-            "register": spec[runtime if runtime in ("codex", "gemini") else "claude"],
+            "register": spec[runtime if runtime in ("codex", "gemini", "copilot", "opencode") else "claude"],
             "tools": tools,
             "toolsets": spec.get("toolsets", []),
             "groups": spec.get("groups", ""),
@@ -188,7 +196,7 @@ def main(argv=None):
     for name in ("required", "verify"):
         p = sub.add_parser(name)
         p.add_argument("--manifest", default="manifest.md")
-        p.add_argument("--runtime", default="claude", choices=["claude", "codex", "gemini"])
+        p.add_argument("--runtime", default="claude", choices=["claude", "codex", "gemini", "copilot", "opencode"])
         if name == "verify":
             p.add_argument("--available", required=True)
             p.add_argument("--probe", action="append", default=[],

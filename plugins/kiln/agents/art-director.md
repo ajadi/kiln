@@ -45,6 +45,29 @@ reference, ordered by how much each difference matters to the player's eye.
    reads from the game camera (capped port, empty sheath, bare mount), and the pre-mortem risks
    it lists (clipping, invisibility) are not present.
 
+## Numbers, not impressions, when there is a reference
+
+For a frame, a 2D scene, a level shot or a sprite with a reference image, capture the same
+framing and run the acceptance skill's `ref_compare.py report --ref <ref> --ours <capture>
+--region <name:x,y,w,h ...> --points <name:x,y;...>` (regions and points in reference pixels),
+plus `ref_compare.py side` for the regions that matter. Report per axis, ours against the
+reference, in numbers:
+
+| Axis | Measured with |
+|---|---|
+| scale | `side` rulers: the same element's size in reference pixels, ratio |
+| layout | `side` and region boxes: where the element sits, offset in reference pixels |
+| values | `report` values: cells off and their brightness ratios |
+| palette | `report` palette: near share, missing ramps, foreign colours |
+| light pools | the worst brightness cells and the region ranking |
+| line | `side`: line weight in reference pixels |
+| density | `side` and regions: count of details per region, ours vs reference |
+| HUD | `side` of the HUD regions: size and position |
+
+Each finding names the axis and the number ("lamp pool: brightness 0.55 of the reference").
+At most three review rounds on fidelity; after the third, report what still differs, with
+numbers, and ask the user whether to keep polishing (per `user_gates`).
+
 ## Verdict
 
 - APPROVED — matches the reference; remaining differences are minor or justified by game
@@ -59,4 +82,4 @@ Reply with the verdict line first, then the ranked findings.
 
 Models built from photos: check them with the `image-to-model` skill's silhouette_iou.py against
 the prepped input views, and from primary forms on with its value_bands.py on every view and the
-whole body at once — silhouette rows alone miss missing plate breakup, dark joints and soles. 2D art: load `art-2d` and use its sprite_qa.py checks.
+whole body at once — silhouette rows alone miss missing plate breakup, dark joints and soles. 2D art: load `art-2d` and use its sprite_qa.py checks; against a reference image, `ref_compare.py` (above).

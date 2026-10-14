@@ -85,5 +85,88 @@ class Frames(unittest.TestCase):
         self.assertIn("size", res["results"][0]["problems"][0])
 
 
+# K02: frozen effects and sweeps on a state change. A rain-like streak field scrolls down by
+# `phase` pixels; frames are 1/60 s apart.
+def streaks(phase, base=None, box_only=True):
+    a = np.full((120, 160, 3), 70.0, np.float32) if base is None else base.copy()
+    y = (np.arange(120)[:, None] + phase) % 24
+    stripe = (y < 3) & (np.arange(160)[None, :] % 9 == 0)
+    a[stripe] = (190, 200, 210)
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+
+
+class Motion(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="kiln-motion-")
+
+    def seq(self, name, phases):
+        folder = os.path.join(self.root, name)
+        os.makedirs(folder)
+        for i, ph in enumerate(phases):
+            streaks(ph).save(os.path.join(folder, f"f{i:03d}.png"))
+        return os.path.join(folder, "*.png")
+
+    def still(self, name, n=30):
+        folder = os.path.join(self.root, name)
+        os.makedirs(folder)
+        for i in range(n):
+            Image.fromarray(np.full((120, 160, 3), 70, np.uint8)).save(
+                os.path.join(folder, f"f{i:03d}.png"))
+        return os.path.join(folder, "*.png")
+
+    def test_anim_passes_a_moving_effect_and_fails_a_frozen_one(self):
+        off = self.still("off")
+        moving = self.seq("on", [i * 4 for i in range(30)])           # 240 px/s of fall
+        code, res = run(self.root, "anim", "--on", moving, "--off", off)
+        self.assertEqual((code, res["verdict"]), (0, "PASS"), res)
+        frozen = self.seq("frozen", [7] * 30)                          # drawn, never advanced
+        code, res = run(self.root, "anim", "--on", frozen, "--off", off)
+        self.assertEqual((code, res["verdict"]), (1, "FAIL"), res)
+        self.assertIn("frozen", res["problem"])
+        code, res = run(self.root, "anim", "--on", frozen, "--off", off, "--box", "0,0,10,10")
+        self.assertEqual(res["box"], [0, 0, 10, 10])
+
+    def noise_seq(self, name, phases):
+        """A rain/fog-like noise texture (512 px period) scrolled down by `phase` pixels."""
+        tex = np.random.default_rng(3).uniform(0, 255, (512, 160))
+        for _ in range(3):                                     # smooth it into blobs
+            tex = (np.roll(tex, 1, 0) + tex + np.roll(tex, -1, 0)) / 3
+            tex = (np.roll(tex, 1, 1) + tex + np.roll(tex, -1, 1)) / 3
+        tex = (tex - tex.min()) / (tex.max() - tex.min()) * 200 + 30
+        folder = os.path.join(self.root, name)
+        os.makedirs(folder)
+        for i, ph in enumerate(phases):
+            ip, fr = int(np.floor(ph)), ph - np.floor(ph)
+            a = np.roll(tex, -ip, 0) * (1 - fr) + np.roll(tex, -(ip + 1), 0) * fr
+            img = np.repeat(np.round(a[:120])[..., None], 3, axis=2).astype(np.uint8)
+            Image.fromarray(img).save(os.path.join(folder, f"f{i:03d}.png"))
+        return os.path.join(folder, "*.png")
+
+    def test_ramp_fails_a_phase_from_rate_times_absolute_time(self):
+        steady = self.noise_seq("steady", [i * 1 for i in range(30)])  # 60 px/s
+        # the rain picks up over the 30 frames: speed 60 -> 90 px/s
+        speeds = [60 + 30 * i / 29 for i in range(30)]
+        good, phase = [], 0.0
+        for v in speeds:                       # integrated: phase += speed * dt
+            good.append(phase)
+            phase += v / 60
+        ok = self.noise_seq("good", good)
+        code, res = run(self.root, "ramp", "--change", ok, "--steady", steady)
+        self.assertEqual((code, res["verdict"]), (0, "PASS"), res)
+        t0 = 600.0                              # ten minutes into the session
+        bad = self.noise_seq("bad", [v * (t0 + i / 60) for i, v in enumerate(speeds)])
+        code, res = run(self.root, "ramp", "--change", bad, "--steady", steady)
+        self.assertEqual((code, res["verdict"]), (1, "FAIL"), res)
+        self.assertIn("rate", res["problem"])
+        flat = self.still("held_still")                       # nothing to judge against
+        code, res = run(self.root, "ramp", "--change", ok, "--steady", flat)
+        self.assertEqual(res["verdict"], "NOT ASSESSED", res)
+
+    def test_missing_frames_are_not_assessed(self):
+        code, res = run(self.root, "anim", "--on", os.path.join(self.root, "none*.png"),
+                        "--off", os.path.join(self.root, "none*.png"))
+        self.assertEqual(res["verdict"], "NOT ASSESSED", res)
+
+
 if __name__ == "__main__":
     unittest.main()

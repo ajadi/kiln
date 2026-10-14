@@ -59,14 +59,45 @@ has not been run yet.
 </details>
 
 <details>
-<summary><b>Any other agent</b> (Cursor, GitHub Copilot, OpenCode, Windsurf, Amp, ...: the skills only)</summary>
+<summary><b>GitHub Copilot CLI</b> (the full framework)</summary>
 
 ```bash
-npx skills@latest add ajadi/kiln -a <agent>      # cursor, github-copilot, opencode, ...; omit -a to choose
+copilot plugin marketplace add ajadi/kiln
+copilot plugin install kiln@kiln
+copilot plugin disable kiln@kiln                    # off everywhere ...
+```
+
+... and on in your project: `.github/copilot/settings.json` with
+`{"enabledPlugins": {"kiln@kiln": true}}` (`/kiln:setup` writes it). The roles are Copilot agents
+`kiln:<role>`, and the same safety hooks run. Python must be on PATH. Checked with Copilot CLI
+1.0.97 against a local test model. A session with a real Copilot model has not been run yet.
+</details>
+
+<details>
+<summary><b>OpenCode</b> (the full framework)</summary>
+
+```bash
+git clone https://github.com/ajadi/kiln ~/kiln                   # once per computer
+python ~/kiln/plugins/kiln/scripts/opencode_setup.py --project .  # in your project
+```
+
+Kiln runs as a plugin of this project only: the roles are subagents `kiln-<role>`, the skills are
+linked in, and the same safety hooks run (Python must be on PATH). The autopilot keeps going in
+a running OpenCode; a one-shot `opencode run` stops after its answer. Checked with OpenCode
+1.19.0 against a local test model. A session with a real model has not been run yet.
+</details>
+
+<details>
+<summary><b>Any other agent</b> (Windsurf, Amp, ...: the skills only)</summary>
+
+```bash
+npx skills@latest add ajadi/kiln -a <agent>      # windsurf, amp, cursor, ...; omit -a to choose
 ```
 
 You get the knowledge and the commands as skills. There are no safety hooks and no specialist
-roles, so the agent does the work itself. Update with `npx skills@latest update`.
+roles, so the agent does the work itself. Update with `npx skills@latest update`. Cursor is
+here too: its CLI needs a Cursor account and routes every call through Cursor's servers, so
+Kiln's hooks could not be checked against a test model, and Kiln does not ship them for it.
 </details>
 
 ### 2. Open your project folder
@@ -138,7 +169,7 @@ and the decisions taken for you.
 | 49 knowledge skills | engines (Godot / Unity / Unreal), Blender modelling, a model from 1-3 photos, assets, animation, human biomechanics, creature locomotion, rigid-body physics, destruction and effects (3D and 2D), shaders, optimisation, lighting, level design, procedural generation, 2D art and sprite sheets, UI, accessibility, localisation, controls and camera, game AI, saving, balance, narrative, LLM NPCs (opt-in), procedural audio, music, release and builds, tech design, playtest, acceptance, protocol; also doors and vehicles, fields and forces, fluids and granular matter, flight, riding, hands and grips, soft bodies, elements and materials, sky and weather, traversal, the implications of a new thing; project tools (find, install, verify), rented GPU servers |
 | 18 process commands | `/kiln:setup`, `/kiln:update`, `/kiln:settings`, `/kiln:doctor`, `/kiln:pipeline`, `/kiln:concept`, `/kiln:plan`, `/kiln:run`, `/kiln:autopilot`, `/kiln:stop`, `/kiln:status`, `/kiln:gym`, `/kiln:model`, `/kiln:sprites`, `/kiln:track`, `/kiln:cinematic`, `/kiln:report`, `/kiln:retro` |
 | Hooks (Python) | "MCP only", "scenes are built in the editor", write zones per role (also for shell writes), read-only acceptors in all three engines, one driver per editor with a queue and a lease, required roles per task (`touches:` + gates), git hygiene, state at session start, the engine profile in every agent, autopilot continuation, model and effort per project, new-version notice, problem reports |
-| Check scripts | meshes, contacts, back faces and gaps in Blender; silhouettes; model-vs-photo silhouettes; hair card atlases; sprites and sprite-sheet packing; 2D maps into a deduplicated tileset and Tiled map; readability; UI and focus; subtitles; cinematic continuity (180-degree line, 30-degree rule); localisation; audio (loudness, true peak, loop seams, stems, RT60); motion, camera and AI probes for Godot / Unity / Unreal; dialogue; saves; balance; procgen; performance; build audit and smoke; licences; pipeline gates; rented GPU jobs; project tools; visual regression; asset budgets |
+| Check scripts | meshes, contacts, back faces and gaps in Blender; silhouettes; model-vs-photo silhouettes; hair card atlases; sprites and sprite-sheet packing; 2D maps into a deduplicated tileset and Tiled map; readability; UI and focus; subtitles; cinematic continuity (180-degree line, 30-degree rule); localisation; audio (loudness, true peak, loop seams, stems, RT60); motion, camera and AI probes for Godot / Unity / Unreal; animation that is only the whole character moved (a similarity fit per frame); pops on transitions; attacks that miss their targets; a scene QA contract (named states re-checked by one command into one report); dialogue; saves; balance; procgen; performance; build audit and smoke; licences; pipeline gates; rented GPU jobs; project tools; visual regression; frozen effects and sweeps on a state change; fidelity to a reference image in numbers (values, light pools, tones, palette, per region); asset budgets |
 </details>
 
 <details>
@@ -178,7 +209,7 @@ checkers a task needs follows from its `touches:` line (humanoid, creature, phys
 | `user_gates` | `proxy` | `proxy`: small decisions are taken for you, marked and listed; `ask`: it asks and waits |
 | `engine` | `godot` | `godot` / `unity` / `unreal` / `none` (asset mode) |
 | `dimension` | `3d` | `3d` / `2d` |
-| `runtimes` | `claude` | the agent apps: `claude`, `codex`, `gemini`, comma-separated |
+| `runtimes` | `claude` | the agent apps: `claude`, `codex`, `gemini`, `copilot`, `opencode`, comma-separated |
 | `model_generators` | `off` | 3D and image generators: `off` / `local` / `remote` (a rented GPU) / `api`; only commercially safe licences |
 | `audio_generators` | `off` | music and sound generators: `off` / `local` / `remote` / `api` |
 | `llm_npc` | `off` | NPCs that talk through a language model: `off` / `local` (Ollama) / `api` |
@@ -217,25 +248,26 @@ The same plugin works in Codex; `/kiln:setup` step 6 does this for you:
 <details>
 <summary>What differs from Claude Code</summary>
 
-| Part | Claude Code | Codex 0.160 | Gemini CLI 0.64 |
-|---|---|---|---|
-| Commands | `/kiln:<name>` | `kiln:<skill>` through `$` or `/skills` | `/kiln:<name>` |
-| Roles | subagents `kiln:<role>` | agents `kiln-<role>`, made by the generator | subagents `kiln-<role>`, built into the extension |
-| Preloaded role skills | yes | no: the role's instructions say to read them first | no: the role activates them first |
-| Safety hooks | guard hook | the same guard; `apply_patch` checked per file | the same guard (`run_shell_command`, `write_file`, `replace`, MCP tools) |
-| Write zones per role | the agent's `tools` + guard | guard (Codex passes `agent_type`) | guard; the role is known from the `invoke_agent` call that runs it |
-| The producer does not write game content | guard | a rule in AGENTS.md (Codex does not tell the main thread apart) | guard |
+| Part | Claude Code | Codex 0.160 | Gemini CLI 0.64 | Copilot CLI 1.0.97 |
+|---|---|---|---|---|
+| Commands | `/kiln:<name>` | `kiln:<skill>` through `$` or `/skills` | `/kiln:<name>` | `/<skill>` |
+| Roles | subagents `kiln:<role>` | agents `kiln-<role>`, made by the generator | subagents `kiln-<role>`, built into the extension | agents `kiln:<role>` (`copilot/agents/`, generated) |
+| Preloaded role skills | yes | no: the role's instructions say to read them first | no: the role activates them first | yes |
+| Safety hooks | guard hook | the same guard; `apply_patch` checked per file | the same guard (`run_shell_command`, `write_file`, `replace`, MCP tools) | the same guard (`powershell`/`bash`, `create`, `edit`, `task`, MCP tools) |
+| Write zones per role | the agent's `tools` + guard | guard (Codex passes `agent_type`) | guard; the role is known from the `invoke_agent` call that runs it | guard; a subagent runs in its own session, which its start names |
+| The producer does not write game content | guard | a rule in AGENTS.md (Codex does not tell the main thread apart) | guard | guard |
 
-Project rules for Codex and Gemini live in `AGENTS.md`; `CLAUDE.md` and `GEMINI.md` just import it.
+Project rules for Codex and Gemini live in `AGENTS.md`; `CLAUDE.md` and `GEMINI.md` just import it. Copilot reads `CLAUDE.md` and `AGENTS.md` itself.
 </details>
 
 ## Developing Kiln
 
 ```bash
-python -m unittest discover -s tests        # hooks (3 engines), scripts, Codex and Gemini adapters
+python -m unittest discover -s tests        # hooks (3 engines), scripts, Codex, Gemini, Copilot and OpenCode adapters
 KILN_LIVE=1 python -m unittest tests.test_live -v   # real claude -p sessions (costs a few cents)
 claude plugin validate plugins/kiln --strict
 python plugins/kiln/scripts/gemini_extension.py --out dist/gemini/kiln   # the Gemini extension
+python plugins/kiln/scripts/copilot_agents.py   # after changing a role: the Copilot agents
 ```
 
 The repository is English only (`tests/test_english.py` fails on Cyrillic); the agents still talk

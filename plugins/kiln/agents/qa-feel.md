@@ -24,6 +24,7 @@ flash, sound start, hit marker and target reaction change (`analyze.py reaction`
 |---|---|---|
 | Input → response | movement/camera on the next physics tick; visible/audible feedback within ≤ 2 rendered frames (working) | Swink: real-time control ≤ 100 ms; aiming degrades from ~41 ms added latency; target ≤ 60 ms end to end at 60 fps (working) |
 | Coyote time / jump buffer | 0.10–0.15 s if the game has jumps | Celeste, GDQuest |
+| Attacks connect (`analyze.py hits --segment hilt,tip --targets <name@impact_frame,...> --radius <hit radius>`; QA contract state `attack`) | targets placed all round the character (8 directions) and the character facing each: at every impact frame the weapon segment passes within the target's hit radius | geometry; UNVERIFIED radius per game (reasoning in the acceptance research notes) |
 | Hit feedback sync | marker, sound and VFX start on the tick the hit registers | juice practice |
 | Hit-stop | heavy melee/critical hits 0.1–0.2 s scaled to strength; none on rapid fire | Sakurai; IEICE study |
 | Screen shake | trauma-based, decays to 0 within ~0.5 s (working); a setting disables it | Eiserloh; Xbox accessibility guideline 117 |

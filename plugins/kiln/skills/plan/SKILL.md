@@ -51,7 +51,7 @@ argument-hint: "[phase or feature]"
    consumable, prop, ability) also gets an `## implications` section — call the Skill tool with
    "kiln:implications"; `implications_check.py <task> --require` must pass, and the host-side
    assets it names become checklist steps or tasks of their own. Animation and locomotion tasks
-   copy the applicable rows of the animation skill's `references/reads-wrong.md` into their
+   copy the applicable entries of the animation skill's `references/reads-wrong.md` into their
    acceptance.
    Every task declares what it touches — `touches: humanoid, physics, audio, ...` or
    `touches: none` — from what it builds or changes, not from words in its acceptance (a facade

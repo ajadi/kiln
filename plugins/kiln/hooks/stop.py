@@ -152,6 +152,8 @@ def check_closed_tasks_gated(root, policy):
 
 
 def stop(data, root, policy):
+    if data.get("subagent_turn"):
+        return  # Copilot fires agentStop in a subagent's own session too: not the producer's turn
     session = data.get("session_id") or ""
     release_locks(root, "main", session)
     if check_closed_tasks_committed(root, session) or check_closed_tasks_gated(root, policy):
@@ -159,8 +161,8 @@ def stop(data, root, policy):
     if not os.path.exists(os.path.join(root, ".kiln", "autopilot")):
         return
     who = k.autopilot_session(data, root)
-    if who == "other" or (who is None and k.runtime() not in ("codex", "gemini")):
-        return  # only the session that typed /kiln:autopilot is kept going (Codex, Gemini: unknown)
+    if who == "other" or (who is None and k.runtime() not in ("codex", "gemini", "copilot", "opencode")):
+        return  # only the session that typed /kiln:autopilot is kept going (Codex, Gemini, Copilot, OpenCode: unknown)
     running = k.running_agents(root, session)
     if running:
         # Their notifications wake this session; a nudge now only buys busy-work (g2 row 125).

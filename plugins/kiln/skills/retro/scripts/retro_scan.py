@@ -19,6 +19,10 @@ Sources (each optional; missing ones are reported as absent, not errors):
   --transcript          Claude Code stream-json (claude -p --output-format stream-json) or session
                         transcript lines: tool calls per tool, tool errors per tool, agents started
                         per type (non-Kiln agents flagged), result cost and turns
+  --pitfalls            defect catalogues in the pitfall format (default: the animation skill's
+                        references/reads-wrong.md): entries whose "Caught by" is "no check yet",
+                        and the user's defect reports in the task logs - each defect no check
+                        caught is a candidate for a new check
   --subagents           a session's subagents folder: per role run the effort it ran at, responses,
                         output and thinking tokens (measured, from usage), wall / tool-wait / model
                         minutes — the numbers an effort or model change is judged by
@@ -129,6 +133,29 @@ def scan_tasks(root, since):
             "most_rounds": sorted(({"task": t["task"], "changes_required": t["changes_required"]}
                                    for t in tasks if t["changes_required"]),
                                   key=lambda x: -x["changes_required"])[:5]}
+
+
+PITFALLS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "animation",
+                        "references", "reads-wrong.md")
+
+
+def scan_pitfalls(root, since, catalogues):
+    """Entries no check catches, and the user's defect reports in the task logs (K05)."""
+    no_check = []
+    for path in catalogues or [PITFALLS]:
+        text = read(path) or ""
+        for block in re.split(r"^### ", text, flags=re.M)[1:]:
+            title = block.splitlines()[0].strip()
+            caught = re.search(r"\*\*Caught by:\*\*\s*(.+)", block)
+            looks = re.search(r"\*\*Looks like:\*\*\s*(.+)", block)
+            if caught and caught.group(1).strip().lower().startswith("no check yet"):
+                no_check.append({"catalogue": os.path.basename(path), "title": title,
+                                 "looks_like": looks.group(1).strip() if looks else ""})
+    reported = []
+    for t in scan_tasks(root, since)["tasks"]:
+        for line in t["user_lines"]:
+            reported.append({"task": t["task"], "date": line["date"], "text": line["text"]})
+    return {"no_check_yet": no_check, "user_reported": reported}
 
 
 def scan_proxy(root):
@@ -279,6 +306,8 @@ def main(argv=None):
     ap.add_argument("--root", default=".")
     ap.add_argument("--since", default="")
     ap.add_argument("--transcript", action="append", default=[])
+    ap.add_argument("--pitfalls", action="append", default=[],
+                    help="pitfall catalogue (default: animation references/reads-wrong.md)")
     ap.add_argument("--subagents", action="append", default=[],
                     help="a session's subagents folder (~/.claude/projects/<project>/<session>/subagents)")
     args = ap.parse_args(argv)
@@ -290,6 +319,7 @@ def main(argv=None):
         "tasks": scan_tasks(root, args.since),
         "decisions": scan_proxy(root),
         "roles": scan_roles(root),
+        "pitfalls": scan_pitfalls(root, args.since, args.pitfalls),
         "transcripts": scan_transcripts(args.transcript) if args.transcript else {"present": False},
         "subagents": scan_subagents(args.subagents) if args.subagents else {"present": False},
     }

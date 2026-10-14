@@ -4,6 +4,10 @@ numpy + Pillow.
   python frames.py baseline cap/plaza_ref.png cap/plaza_gate.png --scene plaza
   python frames.py compare cap/*.png --scene plaza [--min-ssim 0.97] [--min-share 0.002] [--out diff/]
   python frames.py accept cap/plaza_ref.png --scene plaza --why "TASK-034 adds the bank sign"
+  python frames.py anim --on "cap/rain_on/*.png" --off "cap/rain_off/*.png" [--box x,y,w,h]
+         [--tol 4] [--min-add 0.001]
+  python frames.py ramp --change "cap/fade/*.png" --steady "cap/held/*.png" [--box x,y,w,h]
+         [--decorrelated 0.5]
 
 Baselines live in production/baselines/<scene>/ (committed): one PNG per fixed camera, named by
 the camera. Capture them from the same placed cameras every time (Godot: a Camera3D per view,
@@ -16,6 +20,20 @@ compare  per image: SSIM of the luminance (7x7 windows) and the changed regions 
 accept   makes the new capture the baseline and appends the reason to HISTORY.md: an intended
          change is accepted on purpose, never by re-running baseline over it silently.
 A capture without a baseline is NOT ASSESSED. Output: JSON; exit 1 if any image fails.
+
+anim     is an effect moving at all? Two sequences of the same frames, consecutive frames one
+         step apart (1/60 s or the engine's fixed step): effect ON and effect OFF. Per frame pair
+         the share of (box) pixels whose luminance changes by more than --tol; FAIL when ON adds
+         less than --min-add over OFF: the effect is drawn but frozen (its time is never set).
+ramp     does a state change sweep instead of easing? Frames during a state change (weather
+         fading in, day to night) and the same frames with the state held. Per frame pair the
+         mean luminance change (3x3 blur against capture noise). The held run gives two marks:
+         consecutive frames (p95) and unrelated frames a third of the run apart (median). FAIL
+         when the change's consecutive frames (p95) are past --decorrelated of the way from the
+         first mark to the second: they differ like unrelated frames, so the effect jumps -
+         typically a phase computed as rate(state) x absolute time instead of integrated over
+         time. NOT ASSESSED when the held frames barely change across the run.
+Sequences are globs sorted by name; fewer than 2 frames is NOT ASSESSED.
 """
 
 import argparse
@@ -119,6 +137,69 @@ def compare_one(path, scene, a):
     return res
 
 
+def _sequence(pattern, crop):
+    paths = expand([pattern])
+    if len(paths) < 2:
+        return None
+    frames = [gray(p) for p in paths]
+    if crop:
+        x, y, w, h = crop
+        frames = [f[y:y + h, x:x + w] for f in frames]
+    return frames
+
+
+def _pairs(frames, fn):
+    return np.array([fn(a, b) for a, b in zip(frames, frames[1:])])
+
+
+def anim(a):
+    crop = [int(v) for v in a.box.split(",")] if a.box else None
+    on, off = _sequence(a.on, crop), _sequence(a.off, crop)
+    if on is None or off is None:
+        return {"check": "anim", "verdict": "NOT ASSESSED", "box": crop,
+                "note": "needs >= 2 frames in both --on and --off"}, 0
+    changed = lambda x, y: float((np.abs(x - y) > a.tol).mean())  # noqa: E731
+    share_on, share_off = float(_pairs(on, changed).mean()), float(_pairs(off, changed).mean())
+    added = share_on - share_off
+    ok = added >= a.min_add
+    return {"check": "anim", "verdict": "PASS" if ok else "FAIL", "box": crop,
+            "changed_share_on": round(share_on, 5), "changed_share_off": round(share_off, 5),
+            "added": round(added, 5), "threshold": a.min_add, "frames": [len(on), len(off)],
+            "problem": None if ok else
+            f"frozen: the effect adds {added:.4%} changed pixels per frame (< {a.min_add:.2%}); "
+            "it is drawn but does not move - is its time / phase input ever advanced?"}, \
+        0 if ok else 1
+
+
+def ramp(a):
+    crop = [int(v) for v in a.box.split(",")] if a.box else None
+    change, steady = _sequence(a.change, crop), _sequence(a.steady, crop)
+    if change is None or steady is None:
+        return {"check": "ramp", "verdict": "NOT ASSESSED", "box": crop,
+                "note": "needs >= 2 frames in both --change and --steady"}, 0
+    moved = lambda x, y: float(np.abs(box(x, 1) - box(y, 1)).mean())  # noqa: E731
+    p_change = float(np.percentile(_pairs(change, moved), 95))
+    near = float(np.percentile(_pairs(steady, moved), 95))
+    gap = max(2, len(steady) // 3)
+    far = float(np.median([moved(steady[i], steady[i + gap]) for i in range(len(steady) - gap)]
+                          or [near]))
+    out = {"check": "ramp", "box": crop, "change_p95": round(p_change, 3),
+           "held_consecutive_p95": round(near, 3), "held_unrelated": round(far, 3),
+           "threshold": a.decorrelated, "frames": [len(change), len(steady)]}
+    if far < 1.2 * near + 0.25:
+        return dict(out, verdict="NOT ASSESSED", note="the held frames barely change across the "
+                    "run: record a longer held run, or a moving part of the effect"), 0
+    limit = near + a.decorrelated * (far - near)
+    ok = p_change <= limit
+    out.update(verdict="PASS" if ok else "FAIL", limit=round(limit, 3),
+               problem=None if ok else
+               f"sweeps: during the state change consecutive frames differ by {p_change:.2f} "
+               f"(held: {near:.2f} between neighbours, {far:.2f} between unrelated frames) - "
+               "they are as unrelated as frames far apart; a phase computed as rate(state) x "
+               "absolute time jumps when the rate changes: integrate it (phase += rate * dt)")
+    return out, 0 if ok else 1
+
+
 def expand(patterns):
     out = []
     for p in patterns:
@@ -141,7 +222,23 @@ def main():
             s.add_argument("--out")
         if name == "accept":
             s.add_argument("--why", required=True)
+    m = sub.add_parser("anim")
+    m.add_argument("--on", required=True)
+    m.add_argument("--off", required=True)
+    m.add_argument("--box", help="x,y,w,h in pixels")
+    m.add_argument("--tol", type=float, default=4.0, help="luminance step 0..255")
+    m.add_argument("--min-add", type=float, default=0.001, help="share of box pixels")
+    r = sub.add_parser("ramp")
+    r.add_argument("--change", required=True)
+    r.add_argument("--steady", required=True)
+    r.add_argument("--box", help="x,y,w,h in pixels")
+    r.add_argument("--decorrelated", type=float, default=0.5,
+                   help="0..1: how far toward unrelated frames a consecutive pair may go")
     a = ap.parse_args()
+    if a.cmd in ("anim", "ramp"):
+        res, code = (anim if a.cmd == "anim" else ramp)(a)
+        print(json.dumps(res, indent=1))
+        sys.exit(code)
     images = expand(a.images)
     folder = os.path.join(BASE, a.scene)
     if a.cmd in ("baseline", "accept"):

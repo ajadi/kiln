@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "description": "Kiln hooks for GitHub Copilot CLI (the Claude Code hooks, --runtime copilot). No-ops outside projects whose manifest.md says framework=kiln. Payload shapes recorded live from Copilot CLI 1.0.97.",
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "powershell": "python \"$env:PLUGIN_ROOT\\hooks\\session.py\" start --runtime copilot",
+        "bash": "python3 \"$PLUGIN_ROOT/hooks/session.py\" start --runtime copilot",
+        "timeoutSec": 30
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "powershell": "python \"$env:PLUGIN_ROOT\\hooks\\guard.py\" --runtime copilot",
+        "bash": "python3 \"$PLUGIN_ROOT/hooks/guard.py\" --runtime copilot",
+        "timeoutSec": 30,
+        "matcher": "powershell|bash|create|edit|task|(blender|godot-ai|unity|unreal|unreal-mcp|unreal-mcp-proxy)-.*"
+      }
+    ],
+    "subagentStart": [
+      {
+        "type": "command",
+        "powershell": "python \"$env:PLUGIN_ROOT\\hooks\\session.py\" subagent --runtime copilot",
+        "bash": "python3 \"$PLUGIN_ROOT/hooks/session.py\" subagent --runtime copilot",
+        "timeoutSec": 30
+      }
+    ],
+    "subagentStop": [
+      {
+        "type": "command",
+        "powershell": "python \"$env:PLUGIN_ROOT\\hooks\\stop.py\" subagent --runtime copilot",
+        "bash": "python3 \"$PLUGIN_ROOT/hooks/stop.py\" subagent --runtime copilot",
+        "timeoutSec": 30
+      }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "powershell": "python \"$env:PLUGIN_ROOT\\hooks\\stop.py\" stop --runtime copilot",
+        "bash": "python3 \"$PLUGIN_ROOT/hooks/stop.py\" stop --runtime copilot",
+        "timeoutSec": 30
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "powershell": "python \"$env:PLUGIN_ROOT\\hooks\\session.py\" end --runtime copilot",
+        "bash": "python3 \"$PLUGIN_ROOT/hooks/session.py\" end --runtime copilot",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}

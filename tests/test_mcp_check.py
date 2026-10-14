@@ -48,6 +48,27 @@ class McpCheck(unittest.TestCase):
             self.assertEqual([r["server"] for r in reqs], ["blender"])
             self.assertTrue(reqs[0]["required"])
 
+    def test_opencode_register_entries(self):
+        # OpenCode has no `mcp add`: the register line is the opencode.json "mcp" entry
+        # (type local + command list, or type remote + url), checked live with OpenCode 1.19.0
+        code, reqs = run(project("godot", "3d"), "required", "--runtime", "opencode")
+        cmds = {r["server"]: r["register"] for r in reqs}
+        self.assertEqual(json.loads(cmds["godot-ai"]),
+                         {"godot-ai": {"type": "local", "command": ["godot-ai", "attach"]}})
+        code, reqs = run(project("unity", "3d"), "required", "--runtime", "opencode")
+        self.assertEqual(json.loads(reqs[1]["register"]),
+                         {"unity": {"type": "remote", "url": "http://localhost:8080/mcp"}})
+
+    def test_copilot_register_commands(self):
+        # Copilot CLI 1.0.97 `copilot mcp add <name> -- <command> [args]`,
+        # `copilot mcp add --transport http <name> <url>` (checked with the installed CLI)
+        code, reqs = run(project("godot", "3d"), "required", "--runtime", "copilot")
+        cmds = {r["server"]: r["register"] for r in reqs}
+        self.assertEqual(cmds["godot-ai"], "copilot mcp add godot-ai -- godot-ai attach")
+        code, reqs = run(project("unreal", "3d"), "required", "--runtime", "copilot")
+        self.assertEqual(reqs[1]["register"],
+                         "copilot mcp add --transport http unreal http://127.0.0.1:8000/mcp")
+
     def test_gemini_register_commands(self):
         # G03: gemini-cli 0.64.0 `gemini mcp add [-s user] [-t http] <name> <commandOrUrl> [args]`
         # (checked with the installed CLI: stdio command + args, http url)

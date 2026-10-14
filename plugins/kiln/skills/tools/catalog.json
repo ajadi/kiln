@@ -227,6 +227,15 @@
      "godot-ai",
      "{path}",
      "attach"
+    ],
+    "copilot": [
+     "copilot",
+     "mcp",
+     "add",
+     "godot-ai",
+     "--",
+     "{path}",
+     "attach"
     ]
    }
   },
@@ -304,6 +313,14 @@
      "user",
      "blender",
      "{path}"
+    ],
+    "copilot": [
+     "copilot",
+     "mcp",
+     "add",
+     "blender",
+     "--",
+     "{path}"
     ]
    }
   },
@@ -378,6 +395,15 @@
      "http",
      "unity",
      "http://localhost:8080/mcp"
+    ],
+    "copilot": [
+     "copilot",
+     "mcp",
+     "add",
+     "--transport",
+     "http",
+     "unity",
+     "http://localhost:8080/mcp"
     ]
    },
    "find": [],
@@ -425,6 +451,15 @@
      "-s",
      "user",
      "-t",
+     "http",
+     "unreal",
+     "http://127.0.0.1:8000/mcp"
+    ],
+    "copilot": [
+     "copilot",
+     "mcp",
+     "add",
+     "--transport",
      "http",
      "unreal",
      "http://127.0.0.1:8000/mcp"

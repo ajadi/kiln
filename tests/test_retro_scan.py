@@ -131,5 +131,36 @@ class RetroScan(unittest.TestCase):
         self.assertEqual(rep["tasks"]["count"], 0)
 
 
+class Pitfalls(unittest.TestCase):
+    # K05: defect knowledge in one format, and the retro proposes a check where none exists.
+    CATALOGUE = os.path.join(os.path.dirname(__file__), "..", "plugins", "kiln", "skills",
+                             "animation", "references", "reads-wrong.md")
+
+    def test_every_entry_has_the_five_parts(self):
+        import re
+        text = open(self.CATALOGUE, encoding="utf-8").read()
+        entries = re.split(r"^### ", text, flags=re.M)[1:]
+        self.assertGreaterEqual(len(entries), 14)             # nothing lost in the reformat
+        for entry in entries:
+            for part in ("**Looks like:**", "**Why:**", "**Fix principle:**", "**Caught by:**"):
+                self.assertIn(part, entry, entry[:60])
+
+    def test_scan_lists_entries_without_a_check_and_the_user_s_defects(self):
+        root = tempfile.mkdtemp(prefix="kiln-retro-pit-")
+        write(root, "manifest.md", "framework=kiln\nengine=godot\n")
+        catalogue = os.path.join(root, "pitfalls.md")
+        with open(catalogue, "w", encoding="utf-8") as fh:
+            fh.write("# x\n\n### 1. Caught one\n- **Looks like:** a\n- **Why:** b\n"
+                     "- **Fix principle:** c\n- **Caught by:** `analyze.py idle`\n\n"
+                     "### 2. Not caught\n- **Looks like:** the cape clips the sword\n- **Why:** d\n"
+                     "- **Fix principle:** e\n- **Caught by:** no check yet\n")
+        write(root, "tasks/TASK-007.md", "# TASK-007: cape\n## log\n"
+              "- 2026-10-14 user: the cape goes through the sword when he turns\n")
+        res = scan(root, "--pitfalls", catalogue)
+        self.assertEqual([e["title"] for e in res["pitfalls"]["no_check_yet"]], ["2. Not caught"])
+        self.assertEqual(res["pitfalls"]["user_reported"][0]["task"], "TASK-007")
+        self.assertIn("cape", res["pitfalls"]["user_reported"][0]["text"])
+
+
 if __name__ == "__main__":
     unittest.main()
