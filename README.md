@@ -1,6 +1,6 @@
 # Kiln
 
-Version 0.7.4. A game development framework for Claude Code: Godot 4, Unity 6 or Unreal 5 plus
+Version 0.7.5. A game development framework for Claude Code: Godot 4, Unity 6 or Unreal 5 plus
 Blender, everything through MCP, 3D and 2D.
 
 Kiln is a Claude Code plugin. It is active only in projects where it is installed, so its hooks do
@@ -21,20 +21,30 @@ and who calls whom.
 
 ## Roles
 
-| Group | Roles | Model · effort |
+| Group | Roles | Model tier · effort |
 |---|---|---|
-| Design | game-designer, tech-designer | Opus 5.5 · medium / high |
-| Art | modeler, artist-2d, animator, lighting-artist, fx-artist | Opus 5.5 · high (fx: Sonnet 5.5) |
-| World and code | level-designer, gameplay-dev, ai-programmer (classic game AI) | Opus 5.5 · medium / Sonnet 5.5 · high / Opus 5.5 · high |
-| UI and text | ui-designer, writer | Opus 5.5 · high / medium |
-| Release | release-engineer | Sonnet 5.5 · high |
-| Audio | sound-designer, composer, music-producer | Opus 5.5 · medium / high |
-| Acceptance (read-only) | qa-physics, qa-locomotion, qa-feel, qa-damage, qa-ai, qa-audio, qa-performance, qa-readability | Sonnet 5.5 · high (readability: Opus) |
-| Review (read-only) | playtester, autoplayer (plays the game while you are away), art-director, verifier | Sonnet 5.5 · high (playtester, autoplayer) / Opus 5.5 · high / Opus 5.5 · medium |
-| Experts (write notes only) | physics-expert, anatomy-expert, creature-expert | Opus 5.5 · high |
+| Design | game-designer, tech-designer | strong · medium / high |
+| Art | modeler, artist-2d, animator, lighting-artist, fx-artist | strong · high (fx: balanced) |
+| World and code | level-designer, gameplay-dev, ai-programmer (classic game AI) | strong · medium / balanced · high / strong · high |
+| UI and text | ui-designer, writer | strong · high / medium |
+| Release | release-engineer | balanced · high |
+| Audio | sound-designer, composer, music-producer | strong · medium / high |
+| Acceptance (read-only) | qa-physics, qa-locomotion, qa-feel, qa-damage, qa-ai, qa-audio, qa-performance, qa-readability | balanced · high (readability: strong) |
+| Review (read-only) | playtester, autoplayer (plays the game while you are away), art-director, verifier | balanced · high (playtester, autoplayer) / strong · high / strong · medium |
+| Experts (write notes only) | physics-expert, anatomy-expert, creature-expert | strong · high |
+
+Tiers, not vendors: each role file names a tier, and the app running Kiln picks the model.
+
+| Tier | Claude Code | OpenAI Codex (`codex_agents.py`, change with `--model-map`) |
+|---|---|---|
+| strong | Opus | `gpt-6.1-sol` |
+| balanced | Sonnet | `gpt-6.1-sol` |
+| fast | Haiku | `gpt-6-luna` |
 
 The main session is the producer: it plans, delegates, checks and talks to the user. Model and
-effort can be set per project (`agent_model` / `agent_effort` in manifest.md). A builder never
+effort can be set per project (`agent_model` / `agent_effort` in manifest.md): a tier alias
+(`opus`, `sonnet`, `haiku`) works in both apps; a Codex model name (`gpt-6.1-sol`) applies only in
+Codex, and Claude Code then keeps each role's own model. A builder never
 accepts its own work: acceptors measure, the verifier closes, the user decides whether it is fun.
 Which consultants and acceptors a task needs follows from its `touches:` line (humanoid, creature,
 physics, audio, ...) and is checked before the task closes.
@@ -93,7 +103,10 @@ After pulling a new Kiln: `/kiln:update` in a project (refreshes the installed c
 files and the manifest, lists what changed), or `/kiln:update all` from any of them: Kiln knows
 every project on this machine that uses it (each session records its project in
 `~/.kiln/projects.json`; `--scan <folder>` finds older ones), shows their versions and updates
-all of them after one yes. A session also says when other projects are behind.
+all of them after one yes. A session also says when other projects are behind, and when a
+newer Kiln is out: once a day a background check reads the latest release on GitHub (the session
+never waits for it; offline it stays quiet; `"update_check": "off"` in `~/.kiln/machine.json`
+turns it off).
 
 The "the agent does it" principle: Kiln installs, starts and uses the tools itself (editors, MCP
 servers, add-ons, the engine project and its settings, the embedded game run) and hands the user
@@ -161,7 +174,7 @@ is in `/kiln:setup`, step 6:
 | Skills | `/kiln:<skill>` | `kiln:<skill>` through `$` or `/skills` |
 | Roles | subagents `kiln:<role>` | agents `kiln-<role>`, made by the generator |
 | Preloaded role skills | yes | no: the role's instructions say to read the skills first |
-| Models | Opus / Sonnet / Haiku | `gpt-6.1-sol` / `gpt-6-luna` (`--model-map`) |
+| Models | strong / balanced / fast = Opus / Sonnet / Haiku | the same tiers through `--model-map` (default `gpt-6.1-sol` / `gpt-6.1-sol` / `gpt-6-luna`) |
 | MCP only, scenes in the editor, git hygiene | guard hook | the same guard; `apply_patch` edits are checked per file |
 | Write zones and read-only roles | the agent's `tools` + guard | guard (Codex passes `agent_type` to subagent hooks) |
 | The main session does not write game content | guard | only a rule in AGENTS.md: Codex does not tell the main thread apart |

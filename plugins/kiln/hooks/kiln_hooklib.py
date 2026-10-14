@@ -112,12 +112,20 @@ def projects_path():
     return os.path.join(kiln_home(), "projects.json")
 
 
+def throwaway(root):
+    """A project under the system temp dir (test runs): not remembered, no network checks,
+    unless KILN_REGISTER_TEMP is set."""
+    if os.environ.get("KILN_REGISTER_TEMP"):
+        return False
+    temp = os.path.normcase(os.path.realpath(tempfile.gettempdir())) + os.sep
+    return os.path.normcase(os.path.realpath(root)).startswith(temp)  # 8.3 names, symlinks
+
+
 def register_project(root, policy):
     """Remember this project for /kiln:update all. Throwaway folders under the system temp dir
     (test runs) are not remembered unless KILN_REGISTER_TEMP is set."""
     path = os.path.abspath(root)
-    temp = os.path.normcase(os.path.abspath(tempfile.gettempdir())) + os.sep
-    if not os.environ.get("KILN_REGISTER_TEMP") and os.path.normcase(path).startswith(temp):
+    if throwaway(path):
         return
     try:
         os.makedirs(kiln_home(), exist_ok=True)

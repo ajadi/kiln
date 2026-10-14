@@ -37,6 +37,8 @@ sys.path.insert(0, os.path.join(PLUGIN, "hooks"))
 import guard  # noqa: E402  (role zones: single source of truth)
 import kiln_hooklib as k  # noqa: E402
 
+CLAUDE_ONLY = re.compile(r"^(opus|sonnet|haiku|fable|opusplan|inherit)(\[[\w.]+\])?$|claude",
+                         re.I)
 MODEL_MAP = {"opus": "gpt-6.1-sol", "sonnet": "gpt-6.1-sol", "haiku": "gpt-6-luna"}
 SERVERS = ("blender", "godot-ai", "unity", "unreal")
 
@@ -162,8 +164,13 @@ def build(path, model_map, plugin_root, version, profiles=False, override=None):
              "# Re-run the script after updating Kiln; edits here are overwritten.",
              f"name = {toml_str('kiln-' + role)}",
              f"description = {toml_str(fm['description'])}"]
-    if fm.get("model") in model_map:
-        parts.append(f"model = {toml_str(model_map[fm['model']])}")
+    model = fm.get("model")
+    if model in model_map:
+        parts.append(f"model = {toml_str(model_map[model])}")
+    elif model and not CLAUDE_ONLY.search(model):  # a Codex model name stays as given
+        parts.append(f"model = {toml_str(model)}")
+    # a Claude-only name Codex does not know (fable, inherit, claude-...) is left out: Codex then
+    # uses its default model
     if fm.get("effort"):
         parts.append(f"model_reasoning_effort = {toml_str(fm['effort'])}")
     parts.append("developer_instructions = "

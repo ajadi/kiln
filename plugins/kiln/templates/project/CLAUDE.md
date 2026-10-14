@@ -17,6 +17,8 @@ and talks to the user. Roles do the hands-on work; acceptance roles judge it.
   into `.codex/agents/` by the kiln plugin's `scripts/codex_agents.py`). In Kiln skill files
   `${CLAUDE_SKILL_DIR}` is the folder of that SKILL.md and `${CLAUDE_PLUGIN_ROOT}` the kiln plugin
   folder (Codex shows each skill's path).
+- New Kiln versions: when the session start says a newer Kiln is out, tell the user once, with
+  the two update commands it gives; update only after their yes.
 - Before any game work, `.kiln/mcp-check.json` must say `"ready": true` (setup step 8): every
   MCP server, tool and probe the project needs is really available.
 - `GAME.md` says what the game is; `backlog.md` lists tasks; each task lives in

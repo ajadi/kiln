@@ -67,6 +67,10 @@ OpenAI Codex works the same way with its own switches: the plugin stays off in y
   `~/.kiln/projects.json`; `/kiln:update all --scan <folder>` also finds old projects that were
   not opened since). It shows one table of projects and versions, asks once, and updates all of
   them. A session also tells you when other projects are behind.
+- Kiln notices new versions by itself: once a day, in the background, it looks at the latest
+  release on GitHub, and the next session tells you "Kiln X is out" with the two commands above.
+  It never updates without your yes, stays quiet offline, and `"update_check": "off"` in
+  `~/.kiln/machine.json` turns it off.
 
 ## 2. Commands (18)
 
@@ -251,3 +255,4 @@ cutscene task.
 | `kiln-report.md` | problems with Kiln, written by agents and by `/kiln:report` |
 | `~/.kiln/machine.json` | this computer's tools folder and the programs Kiln found or installed |
 | `~/.kiln/projects.json` | every Kiln project on this computer, for `/kiln:update all` |
+| `~/.kiln/update-check.json` | the latest Kiln release seen by the daily check |

@@ -15,6 +15,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kiln_hooklib as k  # noqa: E402
+import update_check  # noqa: E402
 
 AUTO_MARK = "<!-- kiln-auto-handoff: SessionEnd rewrites this file; delete this line to keep it -->"
 NO_ENGINE_PROFILE = {"game-designer", "composer", "anatomy-expert"}
@@ -69,19 +70,8 @@ def start(data, root, policy):
         lines.append(f"Kiln {version} is installed, the project was set up with "
                      f"{policy['framework_version']}: run /kiln:update (migrates task files and "
                      "the manifest, shows what changed).")
-    k.register_project(root, policy)
-    if version:
-        here = os.path.abspath(root).replace("\\", "/")
-        behind = [v.get("name", os.path.basename(p)) for p, v in
-                  sorted(k.load_json(k.projects_path(), {}).items())
-                  if os.path.normcase(p) != os.path.normcase(here)
-                  and (k.manifest_version(p) or version) != version
-                  and k_version(k.manifest_version(p) or version) < k_version(version)]
-        if behind:
-            lines.append(f"{len(behind)} other Kiln project{'s' if len(behind) > 1 else ''} on "
-                         f"this machine {'are' if len(behind) > 1 else 'is'} older than Kiln "
-                         f"{version} ({', '.join(behind[:5])}): /kiln:update all updates them "
-                         "from here (the user confirms once).")
+    if not k.throwaway(root):  # test projects never read or write this machine's state
+        lines += machine_lines(root, policy, version)
     if policy.get("kind") == "prototype":
         lines.append("Project kind: PROTOTYPE (manifest kind=prototype, set by the user) — light "
                      "review per the run skill: one acceptance role + verifier, no risk review, no "
@@ -113,6 +103,57 @@ def start(data, root, policy):
             lines.append("State at the end of the last session: memory/session-handoff.auto.md "
                          "(auto summary; the written handoff above stays the plan).")
     k.add_context("SessionStart", "\n".join(lines))
+
+
+def machine_lines(root, policy, version):
+    """This machine's view: record the project, a newer Kiln release, other projects behind."""
+    lines = []
+    k.register_project(root, policy)
+    newer = update_check.notice(version, k_version, k.runtime())
+    if newer:
+        lines.append(newer)
+    if update_check.due():
+        update_check.mark_started()
+        spawn_update_check()
+    if not version:
+        return lines
+    here = os.path.normcase(os.path.abspath(root).replace("\\", "/"))
+    behind = []
+    for path, entry in sorted(k.load_json(k.projects_path(), {}).items()):
+        other = k.manifest_version(path)
+        if os.path.normcase(path) != here and other and k_version(other) < k_version(version):
+            behind.append(entry.get("name") or os.path.basename(path))
+    if behind:
+        lines.append(f"{len(behind)} other Kiln project{'s' if len(behind) > 1 else ''} on "
+                     f"this machine {'are' if len(behind) > 1 else 'is'} older than Kiln "
+                     f"{version} ({', '.join(behind[:5])}): /kiln:update all updates them "
+                     "from here (the user confirms once).")
+    return lines
+
+
+def spawn_update_check():
+    """Look up the latest release in a detached process: the session never waits for it; its
+    answer is shown at the next session start."""
+    kwargs = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+              "stderr": subprocess.DEVNULL, "close_fds": True}
+    argv = [sys.executable, "-B", os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                               "update_check.py")]
+    if os.name != "nt":
+        kwargs["start_new_session"] = True
+        flag_sets = [0]
+    else:
+        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, plus CREATE_BREAKAWAY_FROM_JOB so a short
+        # headless session closing its job object does not kill the check (refused when the job
+        # forbids breakaway: then without it)
+        flag_sets = [0x00000008 | 0x00000200 | 0x01000000, 0x00000008 | 0x00000200]
+    for flags in flag_sets:
+        try:
+            if flags:
+                kwargs["creationflags"] = flags
+            subprocess.Popen(argv, **kwargs)
+            return
+        except OSError:
+            continue
 
 
 def plugin_version():

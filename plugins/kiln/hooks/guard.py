@@ -1153,6 +1153,8 @@ def check_agent(data, root, policy):
     it (`model:` / `effort:` line, or `complexity: high` for a stronger model)."""
     want = {"model": policy.get("agent_model", "").strip(),
             "effort": policy.get("agent_effort", "").strip()}
+    if want["model"] and not CLAUDE_MODEL.search(want["model"]):
+        want["model"] = ""  # a Codex model name: codex_agents.py applies it, Claude Code cannot
     if not any(want.values()):
         return
     tool_input = dict(data.get("tool_input") or {})
@@ -1163,7 +1165,9 @@ def check_agent(data, root, policy):
         if not wanted:
             continue
         task_value = next((m.group(1) for t in texts
-                           for m in [re.search(rf"^{key}:\s*([\w.-]+)", t, re.M)] if m), None)
+                           for m in [re.search(rf"^{key}:\s*([\w.:\[\]-]+)", t, re.M)] if m), None)
+        if key == "model" and task_value and not CLAUDE_MODEL.search(task_value):
+            task_value = None  # a Codex model line is for codex_agents.py
         given = tool_input.get(key)
         if given in (None, ""):
             tool_input[key] = task_value or wanted
@@ -1180,6 +1184,12 @@ def check_agent(data, root, policy):
                                        "permissionDecisionReason": "[kiln] model/effort from "
                                        "manifest.md / the task file",
                                        "updatedInput": tool_input}})
+
+
+# Claude Code's model values: aliases (with a context suffix such as [1m]), opusplan, inherit,
+# and full ids including cloud ones (us.anthropic.claude-...). Anything else is for Codex.
+CLAUDE_MODEL = re.compile(r"^(opus|sonnet|haiku|fable|opusplan|inherit)(\[[\w.]+\])?$|claude",
+                          re.I)
 
 
 def main(data):

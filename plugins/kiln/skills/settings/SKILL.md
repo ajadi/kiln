@@ -30,7 +30,7 @@ does in one line, how to change it. Mark values that differ from the default.
 | `editor_lease_s` | seconds (900) | how long a role may hold an editor while another waits in the queue before it must hand over |
 | `perf_gate` | `on` (default) / `informational` / `off` | whether qa-performance blocks a task's gates (`informational`: it runs and reports, the gate is advisory) |
 | `on_screen` | `anytime` (default) / `slot` | `slot`: agents never take the screen; on-screen checks queue in `production/MEASUREMENT_SLOT.md` for one batched session (playtest skill) |
-| `agent_model`, `agent_effort` | empty (default) / `sonnet`, `opus`, `haiku`, `fable` / `low` … `max` | model and effort of every delegated agent: the guard fills them into Agent calls and denies other values unless the task file names them (`model:` / `effort:`, or `complexity: high` for a stronger model). Seen working live in 0.7.0 (`tests/test_live.py`). `agent_effort` needs a Claude Code whose Agent tool has `effort` (2.1.296 has it, 2.1.281 lacked it; doctor 8a checks the headless CLI) |
+| `agent_model`, `agent_effort` | empty (default) / `sonnet`, `opus`, `haiku`, `fable` (both apps), or a Codex model name such as `gpt-6.1-sol` (Codex only; Claude Code keeps each role's model) / `low` … `max` | model and effort of every delegated agent: the guard fills them into Agent calls and denies other values unless the task file names them (`model:` / `effort:`, or `complexity: high` for a stronger model). Seen working live in 0.7.0 (`tests/test_live.py`). `agent_effort` needs a Claude Code whose Agent tool has `effort` (2.1.296 has it, 2.1.281 lacked it; doctor 8a checks the headless CLI) |
 
 ## Change
 

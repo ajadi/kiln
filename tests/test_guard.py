@@ -154,6 +154,41 @@ class GodotTests(GuardCase):
         # no manifest keys: nothing enforced
         self.check(agent(model="opus"), "ALLOW")
 
+    def test_a_codex_model_in_the_manifest_is_not_forced_on_claude(self):
+        # Review 2026-10-14: agent_model=gpt-6.1-sol (for Codex) was filled into Claude Code's
+        # Agent calls, which only take Claude models; effort still applies.
+        root = make_project("godot", "agent_model=gpt-6.1-sol\nagent_effort=medium\n")
+        call = {"tool_name": "Agent", "tool_input": {"subagent_type": "kiln:modeler",
+                                                     "description": "d", "prompt": "p"}}
+        env = dict(os.environ, CLAUDE_PROJECT_DIR=root)
+        out = subprocess.run([sys.executable, "-B", GUARD], input=json.dumps(call), env=env,
+                             capture_output=True, text=True, timeout=20).stdout
+        spec = json.loads(out)["hookSpecificOutput"]
+        self.assertNotIn("model", spec["updatedInput"])
+        self.assertEqual(spec["updatedInput"]["effort"], "medium")
+        call["tool_input"]["model"] = "opus"
+        self.check(call, "ALLOW", root)
+        # Claude names with a suffix or a cloud prefix are still Claude models and enforced
+        for name in ("sonnet[1m]", "opusplan", "us.anthropic.claude-sonnet-5-5-v1:0"):
+            r = make_project("godot", f"agent_model={name}\n")
+            out = subprocess.run([sys.executable, "-B", GUARD], input=json.dumps(
+                {"tool_name": "Agent", "tool_input": {"subagent_type": "kiln:modeler",
+                                                      "description": "d", "prompt": "p"}}),
+                env=dict(os.environ, CLAUDE_PROJECT_DIR=r), capture_output=True, text=True,
+                timeout=20).stdout
+            self.assertEqual(json.loads(out)["hookSpecificOutput"]["updatedInput"]["model"], name)
+        # a task file's Codex model line is not put into a Claude Agent call either
+        r = make_project("godot", "agent_model=opus\n")
+        os.makedirs(os.path.join(r, "tasks"))
+        with open(os.path.join(r, "tasks", "TASK-031.md"), "w", encoding="utf-8") as fh:
+            fh.write("# TASK-031\n## spec\nmodel: gpt-6.1-sol\n")
+        out = subprocess.run([sys.executable, "-B", GUARD], input=json.dumps(
+            {"tool_name": "Agent", "tool_input": {"subagent_type": "kiln:modeler",
+                                                  "description": "d", "prompt": "TASK-031"}}),
+            env=dict(os.environ, CLAUDE_PROJECT_DIR=r), capture_output=True, text=True,
+            timeout=20).stdout
+        self.assertEqual(json.loads(out)["hookSpecificOutput"]["updatedInput"]["model"], "opus")
+
     def test_shared_memory_files_are_every_roles(self):
         # g2 rows 3/65/79/96: the protocol says anyone appends decisions/known issues and
         # whoever changes them writes registries/pipeline, but zones denied it.

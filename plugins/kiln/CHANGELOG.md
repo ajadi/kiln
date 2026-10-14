@@ -462,3 +462,25 @@ Fixes from a code review of the whole project, each with a test:
 - **GUIDE.md**: Kiln in plain words - install, install scopes, updating, every command, every
   knowledge skill and who uses it, who calls whom. A test keeps it naming every skill.
 
+## 0.7.5 — 2026-10-14
+
+- **New versions noticed by themselves.** Once a day the session-start hook starts a background
+  check of the latest release on GitHub (`hooks/update_check.py`, repository from the plugin
+  manifest); the session never waits for the network, and an offline check is recorded and not
+  retried until the next day. The next session start says "Kiln X is out (installed: Y)" with
+  `claude plugin marketplace update kiln` and `/kiln:update all`; the project rules tell the
+  producer to say it once and update only after the user's yes. `"update_check": "off"` in
+  `~/.kiln/machine.json` turns it off.
+- Test projects under the system temp dir neither read nor write this machine's Kiln state
+  (projects registry, update check); a test had read the real registry.
+- **Model tiers for both apps.** The README describes roles by tier (strong, balanced, fast), with
+  what each tier is in Claude Code and in Codex. `agent_model` may be a Codex model name: the
+  Codex generator writes it as given (it was dropped), and the guard no longer forces it on Claude
+  Code's Agent calls.
+- Review of the change: the check records every failure (a cut connection or an odd answer no
+  longer leaves it retrying at each start), keeps a release already seen through an offline day,
+  marks itself started so parallel sessions do not start more, survives a short headless session
+  on Windows (breaks away from its job), and gives Codex its own commands. The guard knows Claude
+  names with suffixes and cloud ids (`sonnet[1m]`, `us.anthropic.claude-...`) and ignores a
+  task's Codex `model:` line; the Codex generator leaves out Claude-only names (`fable`).
+

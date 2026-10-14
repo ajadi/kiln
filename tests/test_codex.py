@@ -249,6 +249,26 @@ class CodexAgents(unittest.TestCase):
             self.assertEqual(agent["model"], "gpt-6-luna", name)
             self.assertEqual(agent["model_reasoning_effort"], "low", name)
 
+    def test_a_codex_model_name_in_the_manifest_is_kept(self):
+        # Review 2026-10-14: agent_model=gpt-6.1-sol (not a Claude alias) was silently dropped.
+        proj = tempfile.mkdtemp(prefix="kiln-cx-")
+        with open(os.path.join(proj, "manifest.md"), "w", encoding="utf-8") as fh:
+            fh.write("framework=kiln\nengine=godot\nagent_model=gpt-6.1-sol\n")
+        out = os.path.join(proj, ".codex", "agents")
+        subprocess.run([sys.executable, "-B", os.path.join(PLUGIN, "scripts", "codex_agents.py"),
+                        "--out", out, "--user-config", os.path.join(proj, "none.toml")],
+                       cwd=proj, check=True, capture_output=True, timeout=60)
+        with open(os.path.join(out, "kiln-modeler.toml"), "rb") as fh:
+            self.assertEqual(tomllib.load(fh)["model"], "gpt-6.1-sol")
+        # Review: a Claude-only name Codex does not know (fable) is left out, not written
+        with open(os.path.join(proj, "manifest.md"), "w", encoding="utf-8") as fh:
+            fh.write("framework=kiln\nengine=godot\nagent_model=fable\n")
+        subprocess.run([sys.executable, "-B", os.path.join(PLUGIN, "scripts", "codex_agents.py"),
+                        "--out", out, "--user-config", os.path.join(proj, "none.toml")],
+                       cwd=proj, check=True, capture_output=True, timeout=60)
+        with open(os.path.join(out, "kiln-modeler.toml"), "rb") as fh:
+            self.assertNotIn("model", tomllib.load(fh))
+
     def test_generated_agents(self):
         out = tempfile.mkdtemp(prefix="kiln-agents-")
         cfg = os.path.join(out, "config.toml")
