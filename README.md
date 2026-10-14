@@ -55,7 +55,7 @@ In the game folder:
    rules do not reach other projects. In other projects the installer costs almost nothing
    (~70 tokens: one command, invoked only by hand).
 2. Restart Claude Code in this folder: plugin commands load at session start.
-3. `/kiln:setup`: a one-round questionnaire (engine, 2D/3D, game or prototype, whether to decide
+3. `/kiln:setup`: a one-round questionnaire (engine, 2D/3D, game, prototype or assets only, whether to decide
    for you, repository access, generators, tools folder) with recommended answers, then the project
    files, the engine project and its MCP, the Blender check. Change the answers later with
    `/kiln:settings`.
