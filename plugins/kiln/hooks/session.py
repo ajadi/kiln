@@ -78,7 +78,7 @@ def start(data, root, policy):
         lines.append("Project kind: ASSETS (manifest kind=assets, set by the user) - assets made on "
                      "their own, no game: /kiln:model (a 3D model from 1-3 images), /kiln:sprites "
                      "(a sprite sheet or 2D map from an image), /kiln:track (a track from a "
-                     "description). No game pipeline, no engine; Blender through its MCP; deliver "
+                     "description), /kiln:cinematic (a video clip). No game pipeline, no engine; Blender through its MCP; deliver "
                      "into out/<asset>/ with the numbers and licences. Never change kind yourself.")
     lines += state_lines(root)
     if os.path.exists(os.path.join(root, ".kiln", "autopilot")):

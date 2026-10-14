@@ -1,6 +1,6 @@
 # Kiln
 
-Version 0.7.1. A game development framework for Claude Code: Godot 4, Unity 6 or Unreal 5 plus
+Version 0.7.2. A game development framework for Claude Code: Godot 4, Unity 6 or Unreal 5 plus
 Blender, everything through MCP, 3D and 2D.
 
 Kiln is a Claude Code plugin. It is active only in projects where it is installed, so its hooks do
@@ -11,8 +11,8 @@ not get in the way of other projects.
 | Part | What it does |
 |---|---|
 | 31 roles (`kiln:<role>`) | 2 designers, 14 builders, 8 acceptors, 4 reviewers, 3 experts (consultants) (below) |
-| 50 knowledge skills | engines (Godot / Unity / Unreal), Blender modelling, a model from 1-3 photos, assets, animation, human biomechanics, creature locomotion, rigid-body physics, destruction and effects (3D and 2D), shaders, optimisation, lighting, level design, procedural generation, 2D art and sprite sheets, UI, accessibility, localisation, controls and camera, game AI, saving, balance, narrative, cinematics and cutscenes, LLM NPCs (opt-in), procedural audio, music, release and builds, tech design, playtest, acceptance, protocol; also doors and vehicles, fields and forces, fluids and granular matter, flight, riding, hands and grips, soft bodies, elements and materials, sky and weather, traversal, the implications of a new thing; project tools (find, install, verify), rented GPU servers |
-| 17 process commands | `/kiln:setup` (questionnaire), `/kiln:update` (update Kiln in a project and show what changed), `/kiln:settings`, `/kiln:doctor`, `/kiln:pipeline`, `/kiln:concept`, `/kiln:plan`, `/kiln:run`, `/kiln:autopilot`, `/kiln:stop` (finish the task and stop the autopilot), `/kiln:status`, `/kiln:gym`, `/kiln:model` (a 3D model from 1-3 images), `/kiln:sprites` (a sprite sheet or a 2D map), `/kiln:track` (a music track), `/kiln:report` (your complaint about Kiln, into `kiln-report.md`), `/kiln:retro` (session review → fixes to Kiln and the project, incl. roles never used and required roles that never ran) |
+| 49 knowledge skills | engines (Godot / Unity / Unreal), Blender modelling, a model from 1-3 photos, assets, animation, human biomechanics, creature locomotion, rigid-body physics, destruction and effects (3D and 2D), shaders, optimisation, lighting, level design, procedural generation, 2D art and sprite sheets, UI, accessibility, localisation, controls and camera, game AI, saving, balance, narrative, LLM NPCs (opt-in), procedural audio, music, release and builds, tech design, playtest, acceptance, protocol; also doors and vehicles, fields and forces, fluids and granular matter, flight, riding, hands and grips, soft bodies, elements and materials, sky and weather, traversal, the implications of a new thing; project tools (find, install, verify), rented GPU servers |
+| 18 process commands | `/kiln:setup` (questionnaire), `/kiln:update` (update Kiln in a project and show what changed), `/kiln:settings`, `/kiln:doctor`, `/kiln:pipeline`, `/kiln:concept`, `/kiln:plan`, `/kiln:run`, `/kiln:autopilot`, `/kiln:stop` (finish the task and stop the autopilot), `/kiln:status`, `/kiln:gym`, `/kiln:model` (a 3D model from 1-3 images), `/kiln:sprites` (a sprite sheet or a 2D map), `/kiln:track` (a music track), `/kiln:cinematic` (a clip or cutscene), `/kiln:report` (your complaint about Kiln, into `kiln-report.md`), `/kiln:retro` (session review → fixes to Kiln and the project, incl. roles never used and required roles that never ran) |
 | Hooks (Python) | "MCP only", "scenes are built in the editor", write zones per role (also for shell writes), read-only acceptors in all three engines, one driver per editor with a queue and a lease, required roles per task (`touches:` + gates), git hygiene, state at session start, the engine profile in every agent, autopilot continuation, model and effort per project |
 | Check scripts | meshes, contacts, back faces and gaps in Blender; silhouette measurements of characters; reference preparation and model-vs-photo silhouettes; hair card atlases; sprites (palette, mixels, silhouettes, contrast, clusters) and sprite-sheet packing; readability (contrast, colour vision, squint, saliency); UI and focus visibility; subtitles; cinematic continuity (180-degree line, 30-degree rule) and subtitle timing; 2D maps into a deduplicated tileset and Tiled map; localisation; audio (BS.1770 loudness, true peak, loop seams, stems, RT60); motion, camera and AI probes for Godot / Unity / Unreal; headless probe base, CPU skinning and autoplay for Godot; dialogue; saves; balance; procgen; performance comparison; build audit and smoke; licence registry; pipeline gates; scope contract; import options; rented GPU jobs; project tools; visual regression against baseline frames per scene; asset budgets (triangles, draw calls, bones, textures, VRAM per glb) |
 
@@ -67,12 +67,13 @@ In the game folder:
 
 Kiln also makes single assets for people who are not making a game. `/kiln-start:here`, then
 `/kiln:setup` with kind **assets** (it offers it when the folder has no engine project and you ask
-for an asset): no engine, no game pipeline, Blender only.
+for an asset): no engine, no game pipeline, Blender only. Cutscenes inside a game come from the same `/kiln:cinematic`.
 
 | Command | Makes | How |
 |---|---|---|
 | `/kiln:model <images>` | a 3D model from 1-3 photos, concept art or sketches | modelled by hand in Blender, generated (TRELLIS.2, Pixal3D, SPAR3D, TripoSG ... when `model_generators` allows), or both; checked against every view (silhouette IoU), mesh and budget checks; `.blend` + `.glb` + previews |
 | `/kiln:sprites <image>` | a sprite sheet with animations and directions, or a 2D map | pre-rendered from a Blender model with orthographic cameras, or drawn; maps cut from a reference into a deduplicated tileset + Tiled `.tmj` (`tiles.py`); PNG + Aseprite-compatible JSON |
+| `/kiln:cinematic <description>` | a short video clip, or a cutscene in a game | shot list and animatic first, then built and rendered in Blender (MP4 with sound); camera continuity and subtitles checked by `shot_check.py`, exact length, loudness for online video; the render time is told before the full render |
 | `/kiln:track <description>` | a song, an instrumental or a game loop | composed (MIDI + synthesis) or generated (ACE-Step 1.5, DiffRhythm when `audio_generators` allows; paid services with their terms named first); loudness, true peak, tempo, key and loop seams measured; WAV 48 kHz/24-bit + OGG or MP3 |
 
 Everything lands in `out/<asset>/` with a README of its numbers and how it was made, and a
@@ -124,7 +125,7 @@ installed (version, place, size, checksum, MCP registrations, add-ons).
 | `editor_lock_other_session_ttl` | `120` | the same for a lock left by another session (killed, hit a limit) |
 | `editor_lease_s` | `900` | how long a role may hold an editor while another waits in the queue |
 | `user_gates` | `proxy` | the agent decides for the user (the recommended option, marked PROXY, listed in the report: "say so and I will redo it"); `ask` is the strict mode: ask and wait. Publishing, money, deleting work and overriding the user's own decisions never happen without the user |
-| `kind` | `game` | `assets`: no game, no engine: models, sprite sheets, maps and music on their own (`/kiln:model`, `/kiln:sprites`, `/kiln:track`). `prototype`: light checks (one acceptor + verifier, ≤ 2 rounds, no risk review or separate playtest). Set only by the user; every report starts with the mode; switching to `game` plans a full re-acceptance task |
+| `kind` | `game` | `assets`: no game, no engine: models, sprite sheets, maps and music on their own (`/kiln:model`, `/kiln:sprites`, `/kiln:track`, `/kiln:cinematic`). `prototype`: light checks (one acceptor + verifier, ≤ 2 rounds, no risk review or separate playtest). Set only by the user; every report starts with the mode; switching to `game` plans a full re-acceptance task |
 | `autopilot_max_nudges` | `3` | how many times in a row the autopilot continues without progress |
 | `runtimes` | `claude` | agent apps: `claude` / `codex` / `claude,codex` |
 | `state_paths` | empty | extra paths (comma-separated globs) the main session writes itself under `orchestrator_writes=state` |

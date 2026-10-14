@@ -1,7 +1,7 @@
 ---
 name: cinematic
-description: "Cutscenes, in-game cinematics, trailer shots and standalone clips made by agents - in-engine vs pre-rendered, script to shot list to animatic, camera grammar with numbers (180-degree line, 30-degree rule, cutting on action, shot lengths, lenses per shot size), building them in the open editor (Godot AnimationPlayer + Camera3D + Movie Maker, Unity Timeline + Cinemachine 3 + Recorder, Unreal Level Sequence + Cine Camera + Camera Cuts + Movie Render Queue, Blender cameras bound to markers + FFmpeg output in 5.x), subtitles and pause/skip, and measured acceptance (shot_check.py continuity and subtitle timing, frame rate, camera clipping, A/V sync). Use for any cutscene, cinematic, camera sequence, trailer or rendered clip."
-user-invocable: false
+description: "Cutscenes, in-game cinematics, trailer shots and standalone clips made by agents; /kiln:cinematic <description> makes one end to end (a clip rendered in Blender in asset mode, a cutscene in the engine in a game) - in-engine vs pre-rendered, script to shot list to animatic, camera grammar with numbers (180-degree line, 30-degree rule, cutting on action, shot lengths, lenses per shot size), building them in the open editor (Godot AnimationPlayer + Camera3D + Movie Maker, Unity Timeline + Cinemachine 3 + Recorder, Unreal Level Sequence + Cine Camera + Camera Cuts + Movie Render Queue, Blender cameras bound to markers + FFmpeg output in 5.x), subtitles and pause/skip, and measured acceptance (shot_check.py continuity and subtitle timing, frame rate, camera clipping, A/V sync). Use for any cutscene, cinematic, camera sequence, trailer or rendered clip."
+argument-hint: "[what the clip or cutscene should show]"
 ---
 
 # Cinematic
@@ -14,6 +14,39 @@ trigger it.
 |---|---|
 | `${CLAUDE_SKILL_DIR}/scripts/shot_check.py shots <shots.json>` | timeline gaps, the 180-degree line, the 30-degree rule; mean/min/max shot length |
 | `shot_check.py subs <file.srt> --fps 24` | reading speed, line length and count, minimum duration, gaps |
+
+## /kiln:cinematic <description>
+
+When the user runs the command (`$ARGUMENTS` = what the clip shows), run the job end to end;
+roles that load this skill for a task skip to §1.
+
+1. **Brief, one question**, with recommended answers: what happens and who is in it; length
+   (➡️ 15-30 s); format (➡️ 1920×1080 16:9; 1080×1920 for vertical shorts; 1080×1080);
+   frame rate (➡️ 24 for a film look, 30 or 60 for gameplay-like); style and mood; sound (music
+   through the `/kiln:track` steps, effects, voice); on-screen text and subtitles; where it goes
+   (video site, trailer, a game). Models and scenes it needs: existing ones in `out/` or the
+   project, else the `/kiln:model` steps first. Images into `ref/<clip>/` with manifest rows.
+2. **Task.** `tasks/TASK-NNN.md`: `type: cinematic`, `role: animator` (plus modeler,
+   lighting-artist, composer as the brief needs), paths `out/<clip>/` in asset mode; backlog
+   line; gates from `pipeline.py gates --suggest`.
+3. **Shot list and animatic** (§2): `design/cinematics/<clip>.md` + `shots.json`, then a
+   low-resolution viewport render with temporary sound for the timing. The user approves the
+   animatic per `user_gates` (proxy: take it, mark PROXY, list it).
+4. **Build.** Asset mode (`kind=assets`): in Blender through its MCP (§4 Blender); a game
+   project: in the engine's sequencer (§4) as a real cutscene, or in Blender when the user wants
+   only a video.
+5. **Render.** Measure 3 frames first and tell the user the full render time before starting
+   it (EEVEE for most clips; Cycles only when the look needs it and the time is accepted).
+   Blender: MP4, H.264, AAC audio set explicitly; engines: §4 recorders.
+6. **Gates.** `shot_check.py shots` and `subs`; frame count = length × fps exactly; A/V offset
+   within 45 ms early / 125 ms late; loudness -14 LUFS ±1 integrated, true peak ≤ -1 dBTP for
+   online video (`audio_check.py`); frame grabs of every shot to `kiln:art-director`;
+   `kiln:verifier` closes.
+7. **Deliver** into `out/<clip>/` (or the task's paths): the video, the `.blend` or the engine
+   sequence, `shots.json`, the shot list, frame grabs, subtitles, and `README.md` (length,
+   resolution, fps, codec, loudness, render time, what was generated with which model and
+   licence). Licence rows in `production/LICENSES.md`.
+8. **Report** in the user's language: the numbers, where the video is, decisions to redo.
 
 ## 1. In-engine or pre-rendered
 

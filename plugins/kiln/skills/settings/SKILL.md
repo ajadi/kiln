@@ -16,7 +16,7 @@ does in one line, how to change it. Mark values that differ from the default.
 
 | Setting | Values | What it does |
 |---|---|---|
-| `kind` | `game` (default) / `prototype` / `assets` | prototype: one acceptance role + verifier, ≤ 2 review rounds, every report starts with the mode; assets: no game and no engine (`engine=none`), models, sprite sheets, maps and music with `/kiln:model`, `/kiln:sprites`, `/kiln:track` |
+| `kind` | `game` (default) / `prototype` / `assets` | prototype: one acceptance role + verifier, ≤ 2 review rounds, every report starts with the mode; assets: no game and no engine (`engine=none`), models, sprite sheets, maps and music with `/kiln:model`, `/kiln:sprites`, `/kiln:track`, `/kiln:cinematic` |
 | `user_gates` | `proxy` (default) / `ask` | proxy: the agent decides your open decisions with the recommended option, marks them PROXY and lists them for redo; ask: it asks and waits |
 | `repo_access` | `private-solo` / `private-shared` / `public` | whether Kiln's memory and tasks are committed |
 | `model_generators`, `audio_generators` | `off` / `local` / `remote` / `api` | which asset generators roles may run (`remote`: open-weight models on a rented GPU through the gpu-server skill only) |

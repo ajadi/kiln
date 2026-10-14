@@ -49,7 +49,7 @@ will write and write them after the answer (a plain "yes" accepts all recommenda
 5. **Kind** — `game` (recommended: every acceptance gate) or `prototype` (a demo or test of an
    idea: one acceptance role + verifier, ≤ 2 review rounds; the run skill) or `assets` (no game:
    3D models, sprite sheets, 2D maps or music made on their own, with `/kiln:model`,
-   `/kiln:sprites`, `/kiln:track`) → `kind=`. Ask it first when the folder has no engine project
+   `/kiln:sprites`, `/kiln:track`, `/kiln:cinematic`) → `kind=`. Ask it first when the folder has no engine project
    and the user's words are about an asset, not a game ("make a 3D model from this photo", "a
    track for my video"): then recommend `assets`.
    `assets` → `engine=none`; skip questions 2 and 3 (dimension is per asset), §4 (no engine

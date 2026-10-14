@@ -423,3 +423,12 @@ a real `claude -p --plugin-dir` session).
   `shot_check.py` (timeline gaps, the 180-degree line, the 30-degree rule, subtitle reading
   speed, line length, duration and gaps) and the `cinematic` task type; the animator stages
   cutscenes.
+
+## 0.7.2 — 2026-10-14
+
+- **`/kiln:cinematic <description>`**: a video clip or a cutscene end to end - brief in one
+  question, shot list and animatic for the timing, built in Blender (asset mode, or when only a
+  video is wanted) or in the engine's sequencer, render time measured on 3 frames and told
+  before the full render, MP4 with sound; gates: `shot_check.py`, exact frame count, A/V offset,
+  loudness for online video, art-director on frame grabs. The `cinematic` skill is now both the
+  command and the knowledge roles load.
