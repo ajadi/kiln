@@ -1,6 +1,6 @@
 {
   "name": "kiln-start",
-  "version": "0.7.5",
+  "version": "0.8.0",
   "description": "Installer for Kiln: the here skill connects the current folder to the Kiln game-development framework. Install it user-wide; Kiln itself stays off in folders that are not connected.",
   "author": {
     "name": "David S"

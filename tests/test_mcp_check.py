@@ -48,6 +48,17 @@ class McpCheck(unittest.TestCase):
             self.assertEqual([r["server"] for r in reqs], ["blender"])
             self.assertTrue(reqs[0]["required"])
 
+    def test_gemini_register_commands(self):
+        # G03: gemini-cli 0.64.0 `gemini mcp add [-s user] [-t http] <name> <commandOrUrl> [args]`
+        # (checked with the installed CLI: stdio command + args, http url)
+        code, reqs = run(project("godot", "3d"), "required", "--runtime", "gemini")
+        self.assertEqual(code, 0, reqs)
+        cmds = {r["server"]: r["register"] for r in reqs}
+        self.assertTrue(cmds["godot-ai"].startswith("gemini mcp add -s user godot-ai "), cmds)
+        code, reqs = run(project("unity", "3d"), "required", "--runtime", "gemini")
+        self.assertEqual(reqs[1]["register"], "gemini mcp add -s user -t http unity "
+                                              "http://localhost:8080/mcp")
+
     def test_manifest_with_spaces_around_equals(self):
         # Review 2026-10-14: the hooks read "engine = unreal"; mcp_check fell back to Godot.
         root = tempfile.mkdtemp(prefix="kiln-mcp-")

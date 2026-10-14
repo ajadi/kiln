@@ -217,6 +217,16 @@
      "--",
      "{path}",
      "attach"
+    ],
+    "gemini": [
+     "gemini",
+     "mcp",
+     "add",
+     "-s",
+     "user",
+     "godot-ai",
+     "{path}",
+     "attach"
     ]
    }
   },
@@ -285,6 +295,15 @@
      "blender",
      "--",
      "{path}"
+    ],
+    "gemini": [
+     "gemini",
+     "mcp",
+     "add",
+     "-s",
+     "user",
+     "blender",
+     "{path}"
     ]
    }
   },
@@ -348,6 +367,17 @@
      "unity",
      "--url",
      "http://localhost:8080/mcp"
+    ],
+    "gemini": [
+     "gemini",
+     "mcp",
+     "add",
+     "-s",
+     "user",
+     "-t",
+     "http",
+     "unity",
+     "http://localhost:8080/mcp"
     ]
    },
    "find": [],
@@ -386,6 +416,17 @@
      "add",
      "unreal",
      "--url",
+     "http://127.0.0.1:8000/mcp"
+    ],
+    "gemini": [
+     "gemini",
+     "mcp",
+     "add",
+     "-s",
+     "user",
+     "-t",
+     "http",
+     "unreal",
      "http://127.0.0.1:8000/mcp"
     ]
    },

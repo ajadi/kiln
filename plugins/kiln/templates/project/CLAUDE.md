@@ -45,7 +45,8 @@ and talks to the user. Roles do the hands-on work; acceptance roles judge it.
 
 ## Problem reports (kiln-report.md)
 
-Every role and the main session report problems with Kiln itself while working, the moment they
+Unless manifest.md says `problem_reports=off`, every role and the main session report problems
+with Kiln itself while working (a crashed Kiln hook writes its own row), the moment they
 hit one, then carry on: a guard denial or hook nudge that looks wrong, a skill or role instruction
 that is wrong, missing or contradicts another, a tool, MCP server or add-on that fails to install
 or connect, a Kiln script that errors, a step that needed a workaround. One row per problem:

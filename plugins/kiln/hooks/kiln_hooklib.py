@@ -28,7 +28,7 @@ DEFAULT_POLICY = {
     "dimension": "3d",                                 # 3d | 2d
     "model_generators": "off",                         # off | local | remote | api — image-to-3D/2D generators
     "audio_generators": "off",                         # off | local | remote | api — music/sound models
-    "runtimes": "claude",                              # claude | codex | claude,codex
+    "runtimes": "claude",                              # claude | codex | gemini, comma-separated
     "mcp_only": "on",                                  # Blender/Godot only through MCP
     "godot_files_via_mcp": "scenes,resources,scripts", # what may not be hand-edited
     "orchestrator_writes": "state",                    # main session: state | any
@@ -43,6 +43,7 @@ DEFAULT_POLICY = {
     "autopilot_max_nudges": "3",                       # Stop-hook continuations without progress
     "agent_model": "",                                 # every Agent call: sonnet | opus | ...
     "agent_effort": "",                                # every Agent call: low ... max
+    "problem_reports": "on",                           # on | off: Kiln's own problems into kiln-report.md
     "llm_npc": "off",                                  # off | local | api (LLM-driven NPC talk)
     "perf_gate": "on",                                 # on | informational | off (qa-performance)
     "on_screen": "anytime",                            # anytime | slot (batch on-screen runs)
@@ -163,9 +164,54 @@ def log(root, message):
         pass
 
 
+# Gemini CLI (v0.64.0 packages/core/src/tools/tool-names.ts, tools/mcp-tool.ts): built-in tool
+# names, and MCP tools as mcp_<server>_<tool>. The hooks speak Claude Code's names inside.
+GEMINI_TOOLS = {"run_shell_command": "Bash", "write_file": "Write", "replace": "Edit"}
+MCP_SERVER_NAMES = ("unreal-mcp-proxy", "unreal-mcp", "godot-ai", "blender", "unity", "unreal")
+
+
+def gemini_agent_marker(root):
+    return os.path.join(kiln_dir(root), "gemini-agent.json")
+
+
+def clear_gemini_agent(root):
+    try:
+        os.remove(gemini_agent_marker(root))
+    except OSError:
+        pass
+
+
+def from_gemini(data, root):
+    """A Gemini CLI hook payload in the shape the Kiln hooks read. Gemini payloads name no
+    subagent: the role is the one an invoke_agent call is running (marker written at its
+    BeforeTool, removed at its AfterTool; subagents cannot start subagents)."""
+    out = dict(data)
+    name = out.get("tool_name") or ""
+    if name in GEMINI_TOOLS:
+        out["tool_name"] = GEMINI_TOOLS[name]
+    elif name.startswith("mcp_"):
+        for server in MCP_SERVER_NAMES:
+            if name.startswith(f"mcp_{server}_"):
+                out["tool_name"] = f"mcp__{server}__{name[len(server) + 5:]}"
+                break
+    if out.get("hook_event_name") in ("AfterAgent", "SessionStart", "SessionEnd"):
+        # only the main agent's turn fires these: no subagent runs now (an invoke_agent that
+        # failed before running never reached its AfterTool)
+        clear_gemini_agent(root)
+    elif name == "invoke_agent":
+        agent = str((out.get("tool_input") or {}).get("agent_name") or "")
+        out["agent_type"], out["agent_id"] = agent, "gemini:" + agent
+    else:
+        marker = load_json(gemini_agent_marker(root), {})
+        if marker.get("session") == out.get("session_id") and \
+                time.time() - marker.get("ts", 0) < 900:  # subagents time out after 10 min
+            out["agent_type"], out["agent_id"] = marker["agent_type"], marker["agent_id"]
+    return out
+
+
 def runtime():
-    """'codex' when the hook command passes --runtime codex (hooks/codex-hooks.json), else
-    'claude'. Codex hook input differs: file edits arrive as apply_patch, and its documented
+    """'codex' when the hook command passes --runtime codex (hooks/codex-hooks.json), 'gemini'
+    with --runtime gemini (the Gemini extension's hooks/hooks.json), else 'claude'. Codex hook input differs: file edits arrive as apply_patch, and its documented
     PreToolUse input does not identify the calling agent."""
     args = sys.argv[1:]
     if "--runtime" in args and args.index("--runtime") + 1 < len(args):
@@ -320,8 +366,24 @@ def locked(path, timeout=5.0):
 
 
 def emit(obj):
+    if runtime() == "gemini":
+        obj = to_gemini(obj)
+        if obj is None:
+            return
     sys.stdout.write(json.dumps(obj))
     sys.stdout.flush()
+
+
+def to_gemini(obj):
+    """Claude Code hook output -> Gemini CLI's contract (hooks/types.ts at v0.64.0)."""
+    spec = obj.get("hookSpecificOutput") or {}
+    decision = spec.get("permissionDecision")
+    if decision == "deny":
+        return {"decision": "deny", "reason": spec.get("permissionDecisionReason", "")}
+    if decision == "allow":
+        return {"hookSpecificOutput": {"tool_input": spec["updatedInput"]}} \
+            if spec.get("updatedInput") else None
+    return obj  # decision/reason (AfterAgent) and additionalContext have the same shape
 
 
 _CURRENT = {}  # the hook payload being handled, for the denial record
@@ -360,6 +422,14 @@ def deny(reason):
 
 
 def add_context(event, text):
+    if runtime() == "gemini" and event == "SubagentStart":
+        # Gemini has no subagent-start context: the role's start text leads its invoke_agent
+        # prompt instead (BeforeTool may rewrite the tool input)
+        # (every parameter: gemini-cli validates the rewritten input on its own)
+        tool_input = dict(_CURRENT.get("tool_input") or {})
+        tool_input["prompt"] = text + "\n\n" + str(tool_input.get("prompt") or "")
+        sys.stdout.write(json.dumps({"hookSpecificOutput": {"tool_input": tool_input}}))
+        return
     emit({"hookSpecificOutput": {"hookEventName": event, "additionalContext": text}})
 
 
@@ -367,6 +437,8 @@ def run_safely(main):
     data = {}
     try:
         data = read_input()
+        if runtime() == "gemini":
+            data = from_gemini(data, project_dir(data))
         _CURRENT.clear()
         _CURRENT.update(data)
         if os.environ.get("KILN_HOOK_TRACE"):  # diagnostics: /kiln:doctor checks hooks really run
@@ -375,12 +447,46 @@ def run_safely(main):
         main(data)
     except SystemExit:
         raise
-    except Exception:  # fail open
+    except Exception as exc:  # fail open
         try:
-            log(project_dir(data), "hook error:\n" + traceback.format_exc())
+            root = project_dir(data)
+            log(root, "hook error:\n" + traceback.format_exc())
+            script = os.path.basename(sys.argv[0]) if sys.argv and sys.argv[0] else "hook"
+            report_problem(root, "hook", "hooks", f"{script} crashed: {type(exc).__name__}: "
+                           f"{str(exc)[:160]} (traceback in .kiln/hooks.log; the action went on)")
         except Exception:
             pass
     sys.exit(0)
+
+
+REPORT_HEADER = ("# Kiln problem reports\n\n"
+                 "Problems with Kiln itself, written while working (rules) or by the user "
+                 "(/kiln:report).\n\n"
+                 "| # | date | who | area | what happened | suggestion | status |\n"
+                 "|---|---|---|---|---|---|---|\n")
+
+
+def report_problem(root, who, area, what, suggestion="-"):
+    """Append a row to the project's kiln-report.md unless manifest problem_reports=off or the
+    same problem is already listed as open."""
+    policy = kiln_manifest(root)
+    if not policy or str(policy.get("problem_reports", "on")).lower() == "off":
+        return
+    what = what.replace("|", "/").replace("\n", " ")
+    path = os.path.join(root, "kiln-report.md")
+    with locked(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError:
+            text = REPORT_HEADER
+        if any(what in line and line.rstrip().endswith("| open |") for line in text.splitlines()):
+            return
+        numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)\s*\|", text, re.M)]
+        row = (f"| {max(numbers, default=0) + 1} | {time.strftime('%Y-%m-%d')} | {who} | {area} | "
+               f"{what} | {suggestion} | open |")
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text.rstrip("\n") + "\n" + row + "\n")
 
 
 # ---- task files ---------------------------------------------------------------------------

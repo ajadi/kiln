@@ -565,11 +565,7 @@ def migrate():
     return 0
 
 
-REPORT_HEADER = ("# Kiln problem reports\n\n"
-                 "Problems with Kiln itself, written while working (rules) or by the user "
-                 "(/kiln:report).\n\n"
-                 "| # | date | who | area | what happened | suggestion | status |\n"
-                 "|---|---|---|---|---|---|---|\n")
+REPORT_HEADER = k.REPORT_HEADER
 
 
 DECISIONS_HEADER = ("# Decisions\n\n| # | date | phase | decision | options | by | why |\n"

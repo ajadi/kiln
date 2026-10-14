@@ -72,6 +72,9 @@ def start(data, root, policy):
                      "the manifest, shows what changed).")
     if not k.throwaway(root):  # test projects never read or write this machine's state
         lines += machine_lines(root, policy, version)
+    if str(policy.get("problem_reports", "on")).lower() == "off":
+        lines.append("problem_reports=off in manifest.md: do not write kiln-report.md (the "
+                     "project rules' problem reports are switched off here).")
     if policy.get("kind") == "prototype":
         lines.append("Project kind: PROTOTYPE (manifest kind=prototype, set by the user) — light "
                      "review per the run skill: one acceptance role + verifier, no risk review, no "
@@ -236,6 +239,11 @@ def subagent(data, root, policy):
     """Give every Kiln role the project's engine profile and policies at spawn."""
     k.agent_started(root, data)
     role = k.role_of(data)
+    if k.runtime() == "gemini" and role in k.KILN_ROLES:
+        k.save_json(k.gemini_agent_marker(root), {"agent_type": data.get("agent_type"),
+                                                  "agent_id": data.get("agent_id"),
+                                                  "session": data.get("session_id"),
+                                                  "ts": time.time()})
     if role not in k.KILN_ROLES:
         return
     engine = policy.get("engine", "godot")

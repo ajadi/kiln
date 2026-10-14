@@ -1,25 +1,148 @@
 # Kiln
 
-Version 0.7.5. A game development framework for Claude Code: Godot 4, Unity 6 or Unreal 5 plus
-Blender, everything through MCP, 3D and 2D.
+Version 0.8.0. Kiln turns your AI coding agent into a small game studio.
 
-Kiln is a Claude Code plugin. It is active only in projects where it is installed, so its hooks do
-not get in the way of other projects.
+You talk to one producer: your normal agent session. It plans the work and hands each piece to a
+specialist (modeler, animator, level designer, sound designer, ...). Other specialists check the
+result with real measurements, and you get a short report. Kiln works with Godot 4, Unity 6 or
+Unreal 5, plus Blender, and drives the editors through MCP, in 3D and 2D.
 
-New here? [GUIDE.md](GUIDE.md) explains it in plain words: install, every command, every skill
-and who calls whom.
+You don't have to make a whole game. Kiln can also make one thing:
 
-## What is inside
+- a **3D model** from one to three photos or sketches;
+- a **sprite sheet** or a **2D map** from a picture;
+- a **music track** from a description;
+- a **short video clip**, or a cutscene for your game.
+
+New to it? [GUIDE.md](GUIDE.md) explains everything in plain words.
+
+## Get started
+
+### 1. Install Kiln for your agent
+
+<details open>
+<summary><b>Claude Code</b> (the full framework)</summary>
+
+```bash
+claude plugin marketplace add ajadi/kiln
+claude plugin install kiln-start@kiln --scope user
+```
+
+You get everything: the commands, 31 specialist roles, the safety hooks and the checks.
+Updates: Kiln tells you at the start of a session when a new version is out.
+</details>
+
+<details>
+<summary><b>OpenAI Codex</b> (the full framework)</summary>
+
+```bash
+codex plugin marketplace add ajadi/kiln
+codex plugin add kiln@kiln
+```
+
+Then turn it on per project and generate the roles: [Codex details](#openai-codex).
+</details>
+
+<details>
+<summary><b>Gemini CLI</b> (the full framework)</summary>
+
+```bash
+gemini extensions install https://github.com/ajadi/kiln --ref gemini-extension --consent
+gemini extensions disable kiln --scope user        # off everywhere ...
+gemini extensions enable kiln --scope workspace    # ... on in this project (run it there)
+```
+
+The roles become Gemini subagents (`kiln-<role>`), the commands are `/kiln:<name>`, and the same
+safety hooks run. Python must be on PATH. Update with `gemini extensions update kiln`.
+Checked with gemini-cli 0.64.0 against a local test server. A session with a real Gemini model
+has not been run yet.
+</details>
+
+<details>
+<summary><b>Any other agent</b> (Cursor, GitHub Copilot, OpenCode, Windsurf, Amp, ...: the skills only)</summary>
+
+```bash
+npx skills@latest add ajadi/kiln -a <agent>      # cursor, github-copilot, opencode, ...; omit -a to choose
+```
+
+You get the knowledge and the commands as skills. There are no safety hooks and no specialist
+roles, so the agent does the work itself. Update with `npx skills@latest update`.
+</details>
+
+### 2. Open your project folder
+
+Run **`/kiln-start:here`** in the folder (Claude Code). It connects Kiln to **this folder only**,
+so other projects stay untouched. Then restart the agent in that folder.
+
+### 3. Answer a few questions
+
+Run **`/kiln:setup`**. It asks one round of questions, each with a recommended answer you can
+accept with "yes":
+
+- a game, a prototype or just assets;
+- which engine;
+- 2D or 3D;
+- whether it may decide small things for you.
+
+Then it finds the programs the project needs, offers to install what is missing (nothing is
+installed without your yes), and shows what it installed.
+
+### 4. Start
+
+- Making a game: **`/kiln:pipeline`**, or `/kiln:concept` with your idea.
+- One asset: **`/kiln:model`**, **`/kiln:sprites`**, **`/kiln:track`** or **`/kiln:cinematic`**
+  with a picture or a description.
+
+You can also just say what you want in your own words, in any language.
+
+## Commands
+
+| You want to ... | Type |
+|---|---|
+| set up or check a project | `/kiln:setup`, `/kiln:doctor`, `/kiln:settings`, `/kiln:status` |
+| make a game | `/kiln:pipeline` (the whole way), `/kiln:concept`, `/kiln:plan`, `/kiln:run` (next task), `/kiln:gym` (test one mechanic) |
+| let it work while you are away | `/kiln:autopilot`, and `/kiln:stop` to finish the current task and stop |
+| make one asset | `/kiln:model`, `/kiln:sprites`, `/kiln:track`, `/kiln:cinematic` |
+| update Kiln | `/kiln:update` (this project) or `/kiln:update all` (every project on this computer) |
+| complain or improve Kiln | `/kiln:report` (your complaint), `/kiln:retro` (review the session and fix what went wrong) |
+
+## How it works
+
+- **A studio, not one agent.** The producer plans and delegates. Builders make things; separate
+  checkers measure them; a verifier closes each task. Nobody grades their own work, and whether
+  it is fun is your call.
+- **Real editors.** Scenes are built in the open editor through MCP, so you can watch and change
+  them by hand later. Blender likewise.
+- **Safety hooks.** Small Python scripts check every action:
+  - editors only through MCP;
+  - each role writes only its own files;
+  - one agent per editor at a time;
+  - no secrets in commits;
+  - no task closes while a required check is missing.
+- **Decides for you, openly.** By default small decisions are taken for you, marked and listed, so
+  you can say "redo #3". Publishing, spending money and deleting your work always wait for you.
+- **Reports its own problems.** When Kiln gets in the way, the agents write it into
+  `kiln-report.md`. Your own complaints go there with `/kiln:report`.
+- **Keeps itself current.** It tells you when a new version is out, and updates every project with
+  `/kiln:update all`.
+
+Where things stand: `production/STATUS.html` shows the phases, the tasks, what each still needs,
+and the decisions taken for you.
+
+<details>
+<summary><b>What is inside</b></summary>
 
 | Part | What it does |
 |---|---|
 | 31 roles (`kiln:<role>`) | 2 designers, 14 builders, 8 acceptors, 4 reviewers, 3 experts (consultants) (below) |
 | 49 knowledge skills | engines (Godot / Unity / Unreal), Blender modelling, a model from 1-3 photos, assets, animation, human biomechanics, creature locomotion, rigid-body physics, destruction and effects (3D and 2D), shaders, optimisation, lighting, level design, procedural generation, 2D art and sprite sheets, UI, accessibility, localisation, controls and camera, game AI, saving, balance, narrative, LLM NPCs (opt-in), procedural audio, music, release and builds, tech design, playtest, acceptance, protocol; also doors and vehicles, fields and forces, fluids and granular matter, flight, riding, hands and grips, soft bodies, elements and materials, sky and weather, traversal, the implications of a new thing; project tools (find, install, verify), rented GPU servers |
-| 18 process commands | `/kiln:setup` (questionnaire), `/kiln:update` (update Kiln in a project and show what changed), `/kiln:settings`, `/kiln:doctor`, `/kiln:pipeline`, `/kiln:concept`, `/kiln:plan`, `/kiln:run`, `/kiln:autopilot`, `/kiln:stop` (finish the task and stop the autopilot), `/kiln:status`, `/kiln:gym`, `/kiln:model` (a 3D model from 1-3 images), `/kiln:sprites` (a sprite sheet or a 2D map), `/kiln:track` (a music track), `/kiln:cinematic` (a clip or cutscene), `/kiln:report` (your complaint about Kiln, into `kiln-report.md`), `/kiln:retro` (session review → fixes to Kiln and the project, incl. roles never used and required roles that never ran) |
-| Hooks (Python) | "MCP only", "scenes are built in the editor", write zones per role (also for shell writes), read-only acceptors in all three engines, one driver per editor with a queue and a lease, required roles per task (`touches:` + gates), git hygiene, state at session start, the engine profile in every agent, autopilot continuation, model and effort per project |
-| Check scripts | meshes, contacts, back faces and gaps in Blender; silhouette measurements of characters; reference preparation and model-vs-photo silhouettes; hair card atlases; sprites (palette, mixels, silhouettes, contrast, clusters) and sprite-sheet packing; readability (contrast, colour vision, squint, saliency); UI and focus visibility; subtitles; cinematic continuity (180-degree line, 30-degree rule) and subtitle timing; 2D maps into a deduplicated tileset and Tiled map; localisation; audio (BS.1770 loudness, true peak, loop seams, stems, RT60); motion, camera and AI probes for Godot / Unity / Unreal; headless probe base, CPU skinning and autoplay for Godot; dialogue; saves; balance; procgen; performance comparison; build audit and smoke; licence registry; pipeline gates; scope contract; import options; rented GPU jobs; project tools; visual regression against baseline frames per scene; asset budgets (triangles, draw calls, bones, textures, VRAM per glb) |
+| 18 process commands | `/kiln:setup`, `/kiln:update`, `/kiln:settings`, `/kiln:doctor`, `/kiln:pipeline`, `/kiln:concept`, `/kiln:plan`, `/kiln:run`, `/kiln:autopilot`, `/kiln:stop`, `/kiln:status`, `/kiln:gym`, `/kiln:model`, `/kiln:sprites`, `/kiln:track`, `/kiln:cinematic`, `/kiln:report`, `/kiln:retro` |
+| Hooks (Python) | "MCP only", "scenes are built in the editor", write zones per role (also for shell writes), read-only acceptors in all three engines, one driver per editor with a queue and a lease, required roles per task (`touches:` + gates), git hygiene, state at session start, the engine profile in every agent, autopilot continuation, model and effort per project, new-version notice, problem reports |
+| Check scripts | meshes, contacts, back faces and gaps in Blender; silhouettes; model-vs-photo silhouettes; hair card atlases; sprites and sprite-sheet packing; 2D maps into a deduplicated tileset and Tiled map; readability; UI and focus; subtitles; cinematic continuity (180-degree line, 30-degree rule); localisation; audio (loudness, true peak, loop seams, stems, RT60); motion, camera and AI probes for Godot / Unity / Unreal; dialogue; saves; balance; procgen; performance; build audit and smoke; licences; pipeline gates; rented GPU jobs; project tools; visual regression; asset budgets |
+</details>
 
-## Roles
+<details>
+<summary><b>The roles and their models</b></summary>
 
 | Group | Roles | Model tier · effort |
 |---|---|---|
@@ -30,192 +153,93 @@ and who calls whom.
 | Release | release-engineer | balanced · high |
 | Audio | sound-designer, composer, music-producer | strong · medium / high |
 | Acceptance (read-only) | qa-physics, qa-locomotion, qa-feel, qa-damage, qa-ai, qa-audio, qa-performance, qa-readability | balanced · high (readability: strong) |
-| Review (read-only) | playtester, autoplayer (plays the game while you are away), art-director, verifier | balanced · high (playtester, autoplayer) / strong · high / strong · medium |
+| Review (read-only) | playtester, autoplayer (plays the game while you are away), art-director, verifier | balanced · high / strong · high / strong · medium |
 | Experts (write notes only) | physics-expert, anatomy-expert, creature-expert | strong · high |
 
-Tiers, not vendors: each role file names a tier, and the app running Kiln picks the model.
+Each role file names a tier, and the app running Kiln picks the model:
 
-| Tier | Claude Code | OpenAI Codex (`codex_agents.py`, change with `--model-map`) |
-|---|---|---|
-| strong | Opus | `gpt-6.1-sol` |
-| balanced | Sonnet | `gpt-6.1-sol` |
-| fast | Haiku | `gpt-6-luna` |
+| Tier | Claude Code | OpenAI Codex (`codex_agents.py --model-map`) | Gemini CLI |
+|---|---|---|---|
+| strong | Opus | `gpt-6.1-sol` | the session's model |
+| balanced | Sonnet | `gpt-6.1-sol` | the session's model |
+| fast | Haiku | `gpt-6-luna` | the session's model |
 
-The main session is the producer: it plans, delegates, checks and talks to the user. Model and
-effort can be set per project (`agent_model` / `agent_effort` in manifest.md): a tier alias
-(`opus`, `sonnet`, `haiku`) works in both apps; a Codex model name (`gpt-6.1-sol`) applies only in
-Codex, and Claude Code then keeps each role's own model. A builder never
-accepts its own work: acceptors measure, the verifier closes, the user decides whether it is fun.
-Which consultants and acceptors a task needs follows from its `touches:` line (humanoid, creature,
-physics, audio, ...) and is checked before the task closes.
+`agent_model` / `agent_effort` in manifest.md set every role at once: a tier alias (`opus`,
+`sonnet`, `haiku`) works everywhere; a Codex model name applies only in Codex. Which experts and
+checkers a task needs follows from its `touches:` line (humanoid, creature, physics, audio, ...).
+</details>
 
-Each role preloads only the core of its knowledge. Other skills are loaded with the Skill tool,
-from the table in the protocol, when a task touches them. The hook adds the engine profile at agent
-start, and only to roles that work with the engine.
-
-## Installation (30-second setup)
-
-Kiln's skills are plain `SKILL.md` files (the Agent Skills format), written for no particular
-model: the app you run picks the model. How much of Kiln you get depends on the app.
-
-| App | What you get | Install |
-|---|---|---|
-| **Claude Code** | everything: commands, the 31 roles as subagents, the safety hooks, gates | below |
-| **OpenAI Codex** | everything, roles generated as Codex agents | [OpenAI Codex](#openai-codex-gpt-models) |
-| **Any other agent that reads Agent Skills** (Gemini CLI, GitHub Copilot, Cursor, OpenCode, Windsurf, Amp, ...) | the skills: every command and every knowledge skill as a skill | `npx skills@latest add ajadi/kiln -a <agent>` |
-
-Claude Code, once per machine:
-
-```bash
-claude plugin marketplace add ajadi/kiln             # or a path to a local copy of the repo
-claude plugin install kiln-start@kiln --scope user   # the installer: one command in any folder
-```
-
-Other agents, in the project folder (leave out `-a` to pick the agent from a list; update with
-`npx skills@latest update`):
-
-```bash
-npx skills@latest add ajadi/kiln -a gemini-cli       # or github-copilot, cursor, opencode, ...
-```
-
-Through `skills` the knowledge works as written, but nothing enforces Kiln's rules: there are no
-hooks (editors only through MCP, write zones, one agent per editor, gates before a task closes)
-and no Kiln roles, so the agent does the roles' work itself or with its own subagents. Paths
-written as `${CLAUDE_SKILL_DIR}` mean the skill's own folder. Checked: `skills` finds every Kiln
-skill in this repository; the agents themselves were not tried one by one.
-
-In the game folder:
-
-1. `/kiln-start:here` connects Kiln **to this folder only** (`--scope project`): Kiln's hooks and
-   rules do not reach other projects. In other projects the installer costs almost nothing
-   (~70 tokens: one command, invoked only by hand).
-2. Restart Claude Code in this folder: plugin commands load at session start.
-3. `/kiln:setup`: a one-round questionnaire (engine, 2D/3D, game, prototype or assets only, whether to decide
-   for you, repository access, generators, tools folder) with recommended answers, then the project
-   files, the engine project and its MCP, the Blender check. Change the answers later with
-   `/kiln:settings`.
-4. `/kiln:doctor`: real calls to Blender and the engine editor.
-5. `/kiln:pipeline`: production by phases: concept → style → tech plan → look-dev → mechanics →
-   vertical slice → content → polish → release.
-
-### Assets without a game
-
-Kiln also makes single assets for people who are not making a game. `/kiln-start:here`, then
-`/kiln:setup` with kind **assets** (it offers it when the folder has no engine project and you ask
-for an asset): no engine, no game pipeline, Blender only. Cutscenes inside a game come from the same `/kiln:cinematic`.
-
-| Command | Makes | How |
-|---|---|---|
-| `/kiln:model <images>` | a 3D model from 1-3 photos, concept art or sketches | modelled by hand in Blender, generated (TRELLIS.2, Pixal3D, SPAR3D, TripoSG ... when `model_generators` allows), or both; checked against every view (silhouette IoU), mesh and budget checks; `.blend` + `.glb` + previews |
-| `/kiln:sprites <image>` | a sprite sheet with animations and directions, or a 2D map | pre-rendered from a Blender model with orthographic cameras, or drawn; maps cut from a reference into a deduplicated tileset + Tiled `.tmj` (`tiles.py`); PNG + Aseprite-compatible JSON |
-| `/kiln:cinematic <description>` | a short video clip, or a cutscene in a game | shot list and animatic first, then built and rendered in Blender (MP4 with sound); camera continuity and subtitles checked by `shot_check.py`, exact length, loudness for online video; the render time is told before the full render |
-| `/kiln:track <description>` | a song, an instrumental or a game loop | composed (MIDI + synthesis) or generated (ACE-Step 1.5, DiffRhythm when `audio_generators` allows; paid services with their terms named first); loudness, true peak, tempo, key and loop seams measured; WAV 48 kHz/24-bit + OGG or MP3 |
-
-Everything lands in `out/<asset>/` with a README of its numbers and how it was made, and a
-licence row. The same commands work inside a game project and deliver into its folders.
-
-Problems with Kiln itself land in `kiln-report.md` in the project root: every role and the main
-session add a row when the framework gets in the way (a wrong denial, a misfiring hook, a wrong or
-missing instruction, a tool that fails to install), and `/kiln:report <what went wrong>` adds
-yours. It can also become a GitHub issue for the Kiln authors, with your yes.
-
-Where things stand: `production/STATUS.html` (`pipeline.py page`, regenerated after every closed task): phases, tasks and the roles they still owe, running agents and the editor queue, decisions taken for you (say "redo #N"), the last autoplay night, checks waiting for your screen.
-
-After pulling a new Kiln: `/kiln:update` in a project (refreshes the installed copy, migrates task
-files and the manifest, lists what changed), or `/kiln:update all` from any of them: Kiln knows
-every project on this machine that uses it (each session records its project in
-`~/.kiln/projects.json`; `--scan <folder>` finds older ones), shows their versions and updates
-all of them after one yes. A session also says when other projects are behind, and when a
-newer Kiln is out: once a day a background check reads the latest release on GitHub (the session
-never waits for it; offline it stays quiet; `"update_check": "off"` in `~/.kiln/machine.json`
-turns it off).
-
-The "the agent does it" principle: Kiln installs, starts and uses the tools itself (editors, MCP
-servers, add-ons, the engine project and its settings, the embedded game run) and hands the user
-only what cannot be automated (signing in, a licence, payment, a GUI button with no file or API
-behind it), with the reason. Decisions stay the user's per `user_gates`.
-
-Requirements: Python 3 on PATH (hooks and scripts run on it), Pillow and numpy for the check
-scripts, the `blender` MCP server (Blender Lab MCP) and the engine's server: `godot-ai` (Godot AI),
-`unity` (MCP for Unity) or `unreal` (Epic Unreal MCP, UE 5.8). Heavy Python environments (audio,
-music, ML) live outside the project, under the machine's tools folder (`tools_root` in
-`~/.kiln/machine.json`, asked once at `/kiln-start:here` and never again; change it by asking).
-
-Tools: `/kiln:setup` looks for every tool the project needs first (registry, PATH, the tools
-folder, the usual install folders) and asks once to install what is missing. Blender, uv,
-git-lfs, Ollama (`llm_npc=local`), the MCP servers and their add-ons install into the tools folder
-from official sources with checksums; Unity and Unreal get a short instruction; AI generators are
-offered with a comparison (VRAM, licence, what they make) when `model_generators` is `local` or
-`remote`. Nothing installs without your yes. Every setup run ends with a table of what Kiln
-installed (version, place, size, checksum, MCP registrations, add-ons).
-
-## Project rules (manifest.md)
+<details>
+<summary><b>Settings</b> (<code>manifest.md</code>; change them with <code>/kiln:settings</code> or in words)</summary>
 
 | Key | Default | Meaning |
 |---|---|---|
+| `kind` | `game` | `game`; `prototype` (light checks: one acceptor + verifier, ≤ 2 rounds); `assets` (no game, no engine: single assets). Set only by you |
+| `user_gates` | `proxy` | `proxy`: small decisions are taken for you, marked and listed; `ask`: it asks and waits |
 | `engine` | `godot` | `godot` / `unity` / `unreal` / `none` (asset mode) |
 | `dimension` | `3d` | `3d` / `2d` |
-| `mcp_only` | `on` | Blender and the engine editor only through MCP: no background Blender, no `bpy` from the shell, no headless engine scripts for editor work, no hand edits of scenes and assets |
-| `scene_first` | `on` | scenes, prefabs and levels are built in the editor; code that builds scene content is refused (exception: a line with `kiln:runtime-node <reason>`) |
-| `model_generators` | `off` | 3D and image generators: `off` / `local` / `remote` (a rented GPU through `gpu_job.py`) / `api`; only models with a commercially safe licence |
+| `runtimes` | `claude` | the agent apps: `claude`, `codex`, `gemini`, comma-separated |
+| `model_generators` | `off` | 3D and image generators: `off` / `local` / `remote` (a rented GPU) / `api`; only commercially safe licences |
 | `audio_generators` | `off` | music and sound generators: `off` / `local` / `remote` / `api` |
-| `llm_npc` | `off` | LLM-driven NPC talk: `off` / `local` (Ollama, installed with your yes) / `api` |
+| `llm_npc` | `off` | NPCs that talk through a language model: `off` / `local` (Ollama) / `api` |
+| `problem_reports` | `on` | Kiln's own problems into `kiln-report.md` (agents, and crashed hooks by themselves); `off` stops both |
+| `mcp_only` | `on` | Blender and the engine editor only through MCP |
+| `scene_first` | `on` | scenes are built in the editor; code that builds scene content is refused (unless marked `kiln:runtime-node <reason>`) |
 | `godot_files_via_mcp` | `scenes,resources,scripts` | which Godot files may not be edited as text |
-| `orchestrator_writes` | `state` | the main session writes only project state; `any` lifts the limit |
+| `orchestrator_writes` | `state` | the producer writes only project state; `any` lifts the limit |
+| `state_paths` | empty | extra paths the producer may write itself |
+| `notes_files` | `memory/kiln_reports.md` | shared notes everyone may append to (`kiln-report.md` always is one) |
+| `perf_gate` | `on` | whether the performance check blocks a task: `informational` / `off` |
+| `on_screen` | `anytime` | `slot`: agents do not take your screen; on-screen checks wait for a time you give |
 | `editor_lock_ttl` | `600` | seconds of inactivity after which an editor lock frees |
-| `editor_lock_other_session_ttl` | `120` | the same for a lock left by another session (killed, hit a limit) |
-| `editor_lease_s` | `900` | how long a role may hold an editor while another waits in the queue |
-| `user_gates` | `proxy` | the agent decides for the user (the recommended option, marked PROXY, listed in the report: "say so and I will redo it"); `ask` is the strict mode: ask and wait. Publishing, money, deleting work and overriding the user's own decisions never happen without the user |
-| `kind` | `game` | `assets`: no game, no engine: models, sprite sheets, maps and music on their own (`/kiln:model`, `/kiln:sprites`, `/kiln:track`, `/kiln:cinematic`). `prototype`: light checks (one acceptor + verifier, ≤ 2 rounds, no risk review or separate playtest). Set only by the user; every report starts with the mode; switching to `game` plans a full re-acceptance task |
-| `autopilot_max_nudges` | `3` | how many times in a row the autopilot continues without progress |
-| `runtimes` | `claude` | agent apps: `claude` / `codex` / `claude,codex` |
-| `state_paths` | empty | extra paths (comma-separated globs) the main session writes itself under `orchestrator_writes=state` |
-| `notes_files` | `memory/kiln_reports.md` | shared notes every role and the main session append to (`kiln-report.md` always is one) |
-| `perf_gate` | `on` | whether qa-performance blocks closing a task: `informational` reports only, `off` does not run |
-| `on_screen` | `anytime` | `slot`: agents do not take the screen; on-screen checks queue in `production/MEASUREMENT_SLOT.md` and run in one session when the user grants the time |
-| `agent_model`, `agent_effort` | empty | model and effort of every agent (`sonnet`, `opus`, ... / `low` ... `max`): the hook fills them into Agent calls and refuses other values unless the task file asks for them (`model:` / `effort:`, `complexity: high`) |
+| `editor_lock_other_session_ttl` | `120` | the same for a lock left by another session |
+| `editor_lease_s` | `900` | how long a role may hold an editor while another waits |
+| `autopilot_max_nudges` | `3` | how often in a row the autopilot continues without progress |
+| `agent_model`, `agent_effort` | empty | model and effort of every role (see the roles table) |
 
-## OpenAI Codex (GPT models)
+On this computer, `~/.kiln/machine.json` holds the tools folder (`tools_root`, asked once) and
+`"update_check": "off"` turns off the new-version notice.
+</details>
 
-The same plugin works in Codex. There is no separate framework: Codex reads the same plugin
-manifest and skills and runs the same Python hooks through `hooks/codex-hooks.json`. Installation
-is in `/kiln:setup`, step 6:
+## OpenAI Codex
 
-1. `codex plugin marketplace add <path to kiln>`, then `codex plugin add kiln@kiln`.
-2. In the project's `.codex/config.toml`: `[plugins."kiln@kiln"]` and `enabled = true`.
+The same plugin works in Codex; `/kiln:setup` step 6 does this for you:
+
+1. `codex plugin marketplace add ajadi/kiln`, then `codex plugin add kiln@kiln`.
+2. In the project's `.codex/config.toml`: `[plugins."kiln@kiln"]` and `enabled = true` (and
+   `enabled = false` in your user config, so Kiln stays off elsewhere).
 3. Add the MCP servers with `codex mcp add` under the same names: `blender`, `godot-ai`, `unity`,
    `unreal`.
 4. Run `python <kiln>/scripts/codex_agents.py` in the project root: it generates 31 roles
-   `kiln-<role>` in `.codex/agents/`. It writes the model and effort from `agent_model` /
-   `agent_effort` in manifest.md into every role (Codex has no Agent tool the hook could fill);
-   re-run it after changing them.
+   `kiln-<role>` in `.codex/agents/`; re-run it after updating Kiln or changing `agent_model`.
 5. Open a new session, go to `/hooks` and trust the Kiln hooks.
 
-| Part | Claude Code | Codex 0.160 |
-|---|---|---|
-| Skills | `/kiln:<skill>` | `kiln:<skill>` through `$` or `/skills` |
-| Roles | subagents `kiln:<role>` | agents `kiln-<role>`, made by the generator |
-| Preloaded role skills | yes | no: the role's instructions say to read the skills first |
-| Models | strong / balanced / fast = Opus / Sonnet / Haiku | the same tiers through `--model-map` (default `gpt-6.1-sol` / `gpt-6.1-sol` / `gpt-6-luna`) |
-| MCP only, scenes in the editor, git hygiene | guard hook | the same guard; `apply_patch` edits are checked per file |
-| Write zones and read-only roles | the agent's `tools` + guard | guard (Codex passes `agent_type` to subagent hooks) |
-| The main session does not write game content | guard | only a rule in AGENTS.md: Codex does not tell the main thread apart |
-| One driver per editor | guard | guard, by `agent_id` |
+<details>
+<summary>What differs from Claude Code</summary>
 
-Project rules for Codex live in `AGENTS.md`, and `CLAUDE.md` just imports it, so both apps read
-one source of rules.
+| Part | Claude Code | Codex 0.160 | Gemini CLI 0.64 |
+|---|---|---|---|
+| Commands | `/kiln:<name>` | `kiln:<skill>` through `$` or `/skills` | `/kiln:<name>` |
+| Roles | subagents `kiln:<role>` | agents `kiln-<role>`, made by the generator | subagents `kiln-<role>`, built into the extension |
+| Preloaded role skills | yes | no: the role's instructions say to read them first | no: the role activates them first |
+| Safety hooks | guard hook | the same guard; `apply_patch` checked per file | the same guard (`run_shell_command`, `write_file`, `replace`, MCP tools) |
+| Write zones per role | the agent's `tools` + guard | guard (Codex passes `agent_type`) | guard; the role is known from the `invoke_agent` call that runs it |
+| The producer does not write game content | guard | a rule in AGENTS.md (Codex does not tell the main thread apart) | guard |
+
+Project rules for Codex and Gemini live in `AGENTS.md`; `CLAUDE.md` and `GEMINI.md` just import it.
+</details>
 
 ## Developing Kiln
 
 ```bash
-python -m unittest discover -s tests        # hooks (3 engines), scripts, Codex adapter
+python -m unittest discover -s tests        # hooks (3 engines), scripts, Codex and Gemini adapters
 KILN_LIVE=1 python -m unittest tests.test_live -v   # real claude -p sessions (costs a few cents)
 claude plugin validate plugins/kiln --strict
+python plugins/kiln/scripts/gemini_extension.py --out dist/gemini/kiln   # the Gemini extension
 ```
 
-The repository is English only (code, comments, test data, skills, docs); `tests/test_english.py` fails on Cyrillic. Agents still talk to each user in that user's language.
-
-What changed: [plugins/kiln/CHANGELOG.md](plugins/kiln/CHANGELOG.md).
+The repository is English only (`tests/test_english.py` fails on Cyrillic); the agents still talk
+to each user in that user's language. What changed: [plugins/kiln/CHANGELOG.md](plugins/kiln/CHANGELOG.md).
 
 ## Licence
 

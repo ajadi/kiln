@@ -159,8 +159,8 @@ def stop(data, root, policy):
     if not os.path.exists(os.path.join(root, ".kiln", "autopilot")):
         return
     who = k.autopilot_session(data, root)
-    if who == "other" or (who is None and k.runtime() != "codex"):
-        return  # only the session that typed /kiln:autopilot is kept going (Codex: unknown)
+    if who == "other" or (who is None and k.runtime() not in ("codex", "gemini")):
+        return  # only the session that typed /kiln:autopilot is kept going (Codex, Gemini: unknown)
     running = k.running_agents(root, session)
     if running:
         # Their notifications wake this session; a nudge now only buys busy-work (g2 row 125).
@@ -249,6 +249,11 @@ def subagent(data, root, policy):
     release_locks(root, k.actor_id(data), data.get("session_id") or "")
     leave_queues(root, k.actor_id(data), data.get("session_id") or "")
     k.agent_stopped(root, data)
+    if k.runtime() == "gemini":
+        # invoke_agent finished: later calls are the main session's again. Its result is already
+        # the main agent's; a handoff nudge here would only replace it.
+        k.clear_gemini_agent(root)
+        return
     role = k.role_of(data)
     if role not in k.KILN_ROLES or data.get("stop_hook_active") or not delegated_task(data):
         return  # ad-hoc questions to a role need no handoff

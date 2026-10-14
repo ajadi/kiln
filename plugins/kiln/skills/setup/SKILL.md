@@ -45,7 +45,7 @@ will write and write them after the answer (a plain "yes" accepts all recommenda
 2. **Engine** — **Godot (recommended; best for 2D, lightest MCP)** / Unity 6 / Unreal 5.8 (MCP is
    Experimental; not for 2D) → `engine=`.
 3. **Dimension** — 3D / 2D → `dimension=`.
-4. **Agent apps** — Claude Code (default) / OpenAI Codex / both → `runtimes=`.
+4. **Agent apps** — Claude Code (default) / OpenAI Codex / Gemini CLI / several (comma-separated) → `runtimes=`.
 5. **Kind** — `game` (recommended: every acceptance gate) or `prototype` (a demo or test of an
    idea: one acceptance role + verifier, ≤ 2 review rounds; the run skill) or `assets` (no game:
    3D models, sprite sheets, 2D maps or music made on their own, with `/kiln:model`,
@@ -101,7 +101,7 @@ decisions", "this is a prototype now", in their own language); the agent changes
    `model_generators` is `local` or `remote`, the generator comparison from `tools_check.py offers`
    with your recommendation and why (tools skill §4).
 3. On the yes: `tools_check.py install <tool> --yes` for each (uv first); register every MCP server
-   with the `register` command it prints (Claude Code, and Codex when `runtimes` includes codex),
+   with the `register` command it prints (Claude Code, and Codex or Gemini CLI when `runtimes` includes them),
    then its `after` step: the Blender add-on with `<blender> --command extension install-file -r
    user_default -e <add-on zip>`, the Godot addon linked into the project in step 4, Ollama's
    model pull. After each: `tools_check.py mark <tool> --mcp claude|codex` per registration and
@@ -244,6 +244,8 @@ Project rules (the `CLAUDE.md` template is the Kiln rules block for both runtime
   between the same markers (after any requirements the user already wrote there), and
   `CLAUDE.md` (Claude Code too) contains only `@AGENTS.md` — one copy of the rules, read by both.
   Keep the combined `AGENTS.md` under Codex's 32 KiB `project_doc_max_bytes`.
+- Gemini CLI in `runtimes`: the block goes to `AGENTS.md` the same way, and `GEMINI.md` (the
+  context file Gemini reads) contains only `@AGENTS.md` (Gemini's import syntax).
 
 Show the user the added section.
 
@@ -278,6 +280,25 @@ Codex session the workspace `.codex/` folder is read-only to commands.
    header for what Codex applies). Re-run after every Kiln update.
 5. Start a new Codex session and open `/hooks`: review and trust the Kiln hooks — Codex skips
    plugin hooks until their current definition is trusted.
+
+Gemini CLI (when `runtimes` includes gemini; gemini-cli 0.64.0 docs "Extensions", "Hooks",
+"Subagents", "MCP servers"):
+
+1. The extension, once per machine: `gemini extensions install https://github.com/ajadi/kiln
+   --ref gemini-extension --consent` (the built extension: roles as subagents `kiln-<role>`,
+   commands `/kiln:<name>`, the same Python hooks; `python` must be on PATH). From a local Kiln
+   checkout: `python <kiln>/plugins/kiln/scripts/gemini_extension.py --out <folder>`, then
+   `gemini extensions install <folder>`.
+2. This project only: `gemini extensions disable kiln --scope user`, then in the project root
+   `gemini extensions enable kiln --scope workspace`. On Windows the user-scope rule covers only
+   folders under the user profile: a project on another drive stays enabled everywhere on that
+   drive unless it is disabled there too; say so.
+3. Trust the project folder when Gemini asks (an untrusted folder ignores the project's
+   settings, agents and commands).
+4. MCP servers, once per machine, with the same names: the `gemini` command in each tool's
+   `register` (`gemini mcp add -s user godot-ai <path> attach`, `gemini mcp add -s user -t http
+   unity http://localhost:8080/mcp`, ...).
+5. Restart Gemini CLI in the project; `/kiln:doctor`.
 
 ## 7. Blender
 

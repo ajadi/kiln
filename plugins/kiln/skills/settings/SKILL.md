@@ -21,6 +21,7 @@ does in one line, how to change it. Mark values that differ from the default.
 | `repo_access` | `private-solo` / `private-shared` / `public` | whether Kiln's memory and tasks are committed |
 | `model_generators`, `audio_generators` | `off` / `local` / `remote` / `api` | which asset generators roles may run (`remote`: open-weight models on a rented GPU through the gpu-server skill only) |
 | tools folder (machine, not the manifest) | a path | only when the user asks to change it: `tools_check.py root --set <folder>` (tools skill); tools already installed stay where they are |
+| `problem_reports` | `on` (default) / `off` | Kiln's own problems into `kiln-report.md`: agents write a row when Kiln gets in the way, a crashed hook writes its own; `off` stops both |
 | `llm_npc` | `off` / `local` / `api` | LLM-driven NPC talk: `local` installs Ollama (with your yes) and a model; `api` needs a key in an environment variable |
 | `mcp_only`, `scene_first` | `on` / `off` | editor work only through MCP; scenes built in the editor |
 | `orchestrator_writes` | `state` / `any` | what the main session may write itself |

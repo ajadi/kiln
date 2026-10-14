@@ -31,6 +31,10 @@ the one piece installed for the whole user, so it exists in every folder.
    `codex plugin add kiln@kiln` once per machine, then keep `[plugins."kiln@kiln"]` / `enabled = false`
    in the user `~/.codex/config.toml` (Kiln stays off in folders that are not connected) and write
    `enabled = true` in this project's `.codex/config.toml` (Codex reads it for trusted projects).
+   Gemini CLI as well (if the user works with it): the extension once per machine
+   (`gemini extensions install https://github.com/ajadi/kiln --ref gemini-extension --consent`),
+   then `gemini extensions disable kiln --scope user` and, here,
+   `gemini extensions enable kiln --scope workspace` (setup §6).
 4. **Hand over.** Plugin commands load when a session starts. Tell the user, in their language and
    in two lines: restart Claude Code in this folder, then run **`/kiln:setup`** — it explores the
    folder and asks one round of questions (engine, 2D/3D, kind, how much it may decide for them, …),

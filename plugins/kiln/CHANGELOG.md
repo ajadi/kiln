@@ -484,3 +484,24 @@ Fixes from a code review of the whole project, each with a test:
   names with suffixes and cloud ids (`sonnet[1m]`, `us.anthropic.claude-...`) and ignores a
   task's Codex `model:` line; the Codex generator leaves out Claude-only names (`fable`).
 
+## 0.8.0 — 2026-10-14
+
+- **Gemini CLI.** Kiln builds as a Gemini CLI extension (`scripts/gemini_extension.py`; published
+  as the `gemini-extension` branch: `gemini extensions install https://github.com/ajadi/kiln
+  --ref gemini-extension`). The 31 roles become Gemini subagents `kiln-<role>`, the commands
+  `/kiln:<name>`, and the same Python hooks run with `--runtime gemini`: Gemini tool names are
+  mapped for the guard, denials and input rewrites use Gemini's contract, AfterAgent keeps the
+  autopilot going, and a role is known from the `invoke_agent` call that runs it, so its write
+  zone holds. `setup`, `kiln-start` and the MCP register commands know Gemini; on per project with
+  `gemini extensions enable kiln --scope workspace`. Checked in gemini-cli 0.64.0 against a local
+  fake model API: the extension validates and installs, SessionStart runs, the guard denied
+  `git add -A`, a subagent `kiln-art-director` loaded and was denied a write outside its zone.
+  The live run found two bugs the docs did not show (a rewritten tool input must carry every
+  parameter; a failed `invoke_agent` left its role behind), both fixed with tests. Not yet run
+  against a real Gemini model.
+- **problem_reports** setting (`on` by default): a crashed Kiln hook writes its own row to
+  `kiln-report.md`; `off` stops all problem reports.
+- **README rewritten for people**: what Kiln is in a few lines, a collapsible install block per
+  agent (Claude Code, Codex, Gemini CLI, any other agent), four first steps, commands by what you
+  want to do; the full tables fold away.
+
