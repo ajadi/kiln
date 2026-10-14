@@ -48,6 +48,15 @@ class Readme(unittest.TestCase):
         self.assertEqual(len(re.findall(r"`/kiln:[a-z-]+`", text.split("process commands")[1]
                                         .split("\n")[0])), c["commands"])
 
+    def test_guide_names_every_command_and_skill(self):
+        # User 2026-10-14: a plain guide - install, every command, every skill and who calls whom.
+        guide = read(ROOT, "GUIDE.md")
+        for path in glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md")):
+            name = os.path.basename(os.path.dirname(path))
+            hidden = re.search(r"^user-invocable:\s*false", read(path), re.M)
+            self.assertIn(f"`{name}`" if hidden else f"`/kiln:{name}", guide, name)
+        self.assertIn("[GUIDE.md](GUIDE.md)", read(ROOT, "README.md"))
+
     def test_setup_names_the_codex_role_count(self):
         self.assertIn(f"({counts()['roles']} files:", read(PLUGIN, "skills", "setup", "SKILL.md"))
 

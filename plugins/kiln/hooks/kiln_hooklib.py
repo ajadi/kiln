@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import time
 import traceback
 
@@ -100,6 +101,44 @@ def kiln_manifest(root):
     policy = dict(DEFAULT_POLICY)
     policy.update(manifest)
     return policy
+
+
+def kiln_home():
+    """The machine's Kiln folder (~/.kiln; KILN_HOME overrides): machine.json, projects.json."""
+    return os.environ.get("KILN_HOME") or os.path.join(os.path.expanduser("~"), ".kiln")
+
+
+def projects_path():
+    return os.path.join(kiln_home(), "projects.json")
+
+
+def register_project(root, policy):
+    """Remember this project for /kiln:update all. Throwaway folders under the system temp dir
+    (test runs) are not remembered unless KILN_REGISTER_TEMP is set."""
+    path = os.path.abspath(root)
+    temp = os.path.normcase(os.path.abspath(tempfile.gettempdir())) + os.sep
+    if not os.environ.get("KILN_REGISTER_TEMP") and os.path.normcase(path).startswith(temp):
+        return
+    try:
+        os.makedirs(kiln_home(), exist_ok=True)
+        reg = projects_path()
+        with locked(reg):
+            data = load_json(reg, {})
+            data[path.replace("\\", "/")] = {
+                "name": policy.get("project_name") or os.path.basename(path),
+                "version": policy.get("framework_version", "0.0.0"),
+                "seen": time.strftime("%Y-%m-%d")}
+            save_json(reg, data)
+    except OSError:
+        pass  # a read-only home never blocks a session
+
+
+def manifest_version(path):
+    """framework_version of a Kiln project folder, None when it is not one (any more)."""
+    manifest = read_manifest(path)
+    if not manifest or manifest.get("framework") != "kiln":
+        return None
+    return manifest.get("framework_version", "0.0.0")
 
 
 def kiln_dir(root):

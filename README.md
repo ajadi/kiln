@@ -1,10 +1,13 @@
 # Kiln
 
-Version 0.7.3. A game development framework for Claude Code: Godot 4, Unity 6 or Unreal 5 plus
+Version 0.7.4. A game development framework for Claude Code: Godot 4, Unity 6 or Unreal 5 plus
 Blender, everything through MCP, 3D and 2D.
 
 Kiln is a Claude Code plugin. It is active only in projects where it is installed, so its hooks do
 not get in the way of other projects.
+
+New here? [GUIDE.md](GUIDE.md) explains it in plain words: install, every command, every skill
+and who calls whom.
 
 ## What is inside
 
@@ -86,8 +89,11 @@ yours. It can also become a GitHub issue for the Kiln authors, with your yes.
 
 Where things stand: `production/STATUS.html` (`pipeline.py page`, regenerated after every closed task): phases, tasks and the roles they still owe, running agents and the editor queue, decisions taken for you (say "redo #N"), the last autoplay night, checks waiting for your screen.
 
-After pulling a new Kiln: `/kiln:update` in each connected project (refreshes the installed copy,
-migrates task files and the manifest, lists what changed).
+After pulling a new Kiln: `/kiln:update` in a project (refreshes the installed copy, migrates task
+files and the manifest, lists what changed), or `/kiln:update all` from any of them: Kiln knows
+every project on this machine that uses it (each session records its project in
+`~/.kiln/projects.json`; `--scan <folder>` finds older ones), shows their versions and updates
+all of them after one yes. A session also says when other projects are behind.
 
 The "the agent does it" principle: Kiln installs, starts and uses the tools itself (editors, MCP
 servers, add-ons, the engine project and its settings, the embedded game run) and hands the user

@@ -452,3 +452,13 @@ Fixes from a code review of the whole project, each with a test:
   `codex_agents.py` picks the newest cached plugin by version number (0.10.0 after 0.9.0).
   `effort_agents.py --from-tasks` accepts `role: kiln:<role>`.
 
+## 0.7.4 — 2026-10-14
+
+- **Update every project from one place.** Every Kiln session records its project in
+  `~/.kiln/projects.json`. `/kiln:update all` lists every Kiln project on the computer with its
+  version (`--scan <folder>` also finds projects not opened since), asks once and updates all
+  that are behind (`kiln_update.py projects` / `apply-all --yes`). A session says when other
+  projects are behind. Folders under the system temp dir are not recorded.
+- **GUIDE.md**: Kiln in plain words - install, install scopes, updating, every command, every
+  knowledge skill and who uses it, who calls whom. A test keeps it naming every skill.
+

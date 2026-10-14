@@ -69,6 +69,19 @@ def start(data, root, policy):
         lines.append(f"Kiln {version} is installed, the project was set up with "
                      f"{policy['framework_version']}: run /kiln:update (migrates task files and "
                      "the manifest, shows what changed).")
+    k.register_project(root, policy)
+    if version:
+        here = os.path.abspath(root).replace("\\", "/")
+        behind = [v.get("name", os.path.basename(p)) for p, v in
+                  sorted(k.load_json(k.projects_path(), {}).items())
+                  if os.path.normcase(p) != os.path.normcase(here)
+                  and (k.manifest_version(p) or version) != version
+                  and k_version(k.manifest_version(p) or version) < k_version(version)]
+        if behind:
+            lines.append(f"{len(behind)} other Kiln project{'s' if len(behind) > 1 else ''} on "
+                         f"this machine {'are' if len(behind) > 1 else 'is'} older than Kiln "
+                         f"{version} ({', '.join(behind[:5])}): /kiln:update all updates them "
+                         "from here (the user confirms once).")
     if policy.get("kind") == "prototype":
         lines.append("Project kind: PROTOTYPE (manifest kind=prototype, set by the user) — light "
                      "review per the run skill: one acceptance role + verifier, no risk review, no "
