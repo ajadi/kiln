@@ -21,6 +21,14 @@ claude plugin install kiln-start@kiln --scope user
 The first line tells Claude Code where Kiln lives (the public GitHub repository). The second
 installs a tiny helper that gives you one command, `/kiln-start:here`, in every folder.
 
+### Other agents
+
+Kiln's skills are plain `SKILL.md` files, so any agent that reads the Agent Skills format (Gemini
+CLI, GitHub Copilot, Cursor, OpenCode, Windsurf, Amp, ...) can use them:
+`npx skills@latest add ajadi/kiln -a <agent>` in the project folder. You get the knowledge and the
+commands as skills, but not the safety hooks and not the 31 roles; only Claude Code and Codex run
+the whole framework.
+
 ### In each project folder
 
 1. Open Claude Code in the folder and run **`/kiln-start:here`**. It connects Kiln to this

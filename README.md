@@ -53,14 +53,36 @@ Each role preloads only the core of its knowledge. Other skills are loaded with 
 from the table in the protocol, when a task touches them. The hook adds the engine profile at agent
 start, and only to roles that work with the engine.
 
-## Installation
+## Installation (30-second setup)
 
-Once per machine:
+Kiln's skills are plain `SKILL.md` files (the Agent Skills format), written for no particular
+model: the app you run picks the model. How much of Kiln you get depends on the app.
+
+| App | What you get | Install |
+|---|---|---|
+| **Claude Code** | everything: commands, the 31 roles as subagents, the safety hooks, gates | below |
+| **OpenAI Codex** | everything, roles generated as Codex agents | [OpenAI Codex](#openai-codex-gpt-models) |
+| **Any other agent that reads Agent Skills** (Gemini CLI, GitHub Copilot, Cursor, OpenCode, Windsurf, Amp, ...) | the skills: every command and every knowledge skill as a skill | `npx skills@latest add ajadi/kiln -a <agent>` |
+
+Claude Code, once per machine:
 
 ```bash
 claude plugin marketplace add ajadi/kiln             # or a path to a local copy of the repo
 claude plugin install kiln-start@kiln --scope user   # the installer: one command in any folder
 ```
+
+Other agents, in the project folder (leave out `-a` to pick the agent from a list; update with
+`npx skills@latest update`):
+
+```bash
+npx skills@latest add ajadi/kiln -a gemini-cli       # or github-copilot, cursor, opencode, ...
+```
+
+Through `skills` the knowledge works as written, but nothing enforces Kiln's rules: there are no
+hooks (editors only through MCP, write zones, one agent per editor, gates before a task closes)
+and no Kiln roles, so the agent does the roles' work itself or with its own subagents. Paths
+written as `${CLAUDE_SKILL_DIR}` mean the skill's own folder. Checked: `skills` finds every Kiln
+skill in this repository; the agents themselves were not tried one by one.
 
 In the game folder:
 

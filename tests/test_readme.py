@@ -56,6 +56,9 @@ class Readme(unittest.TestCase):
             hidden = re.search(r"^user-invocable:\s*false", read(path), re.M)
             self.assertIn(f"`{name}`" if hidden else f"`/kiln:{name}", guide, name)
         self.assertIn("[GUIDE.md](GUIDE.md)", read(ROOT, "README.md"))
+        # any agent that reads Agent Skills, as mattpocock/skills documents it
+        self.assertIn("npx skills@latest add ajadi/kiln", read(ROOT, "README.md"))
+        self.assertIn("npx skills@latest add ajadi/kiln", guide)
 
     def test_setup_names_the_codex_role_count(self):
         self.assertIn(f"({counts()['roles']} files:", read(PLUGIN, "skills", "setup", "SKILL.md"))
