@@ -18,7 +18,10 @@ New to it? [GUIDE.md](GUIDE.md) explains everything in plain words.
 
 ## Get started
 
-### 1. Install Kiln for your agent
+### 1. Install Kiln for your agent and turn it on in your project
+
+Each block installs Kiln once per computer and turns it on in **one project folder only**, so
+your other projects stay untouched.
 
 <details open>
 <summary><b>Claude Code</b> (the full framework)</summary>
@@ -28,8 +31,8 @@ claude plugin marketplace add ajadi/kiln
 claude plugin install kiln-start@kiln --scope user
 ```
 
+Then, in your project folder: `/kiln-start:here`, and restart Claude Code there.
 You get everything: the commands, 31 specialist roles, the safety hooks and the checks.
-Updates: Kiln tells you at the start of a session when a new version is out.
 </details>
 
 <details>
@@ -40,7 +43,8 @@ codex plugin marketplace add ajadi/kiln
 codex plugin add kiln@kiln
 ```
 
-Then turn it on per project and generate the roles: [Codex details](#openai-codex).
+Then, in your project: turn it on in `.codex/config.toml` and generate the roles
+([Codex details](#openai-codex)).
 </details>
 
 <details>
@@ -68,7 +72,7 @@ copilot plugin disable kiln@kiln                    # off everywhere ...
 ```
 
 ... and on in your project: `.github/copilot/settings.json` with
-`{"enabledPlugins": {"kiln@kiln": true}}` (`/kiln:setup` writes it). The roles are Copilot agents
+`{"enabledPlugins": {"kiln@kiln": true}}`. The roles are Copilot agents
 `kiln:<role>`, and the same safety hooks run. Python must be on PATH. Checked with Copilot CLI
 1.0.97 against a local test model. A session with a real Copilot model has not been run yet.
 </details>
@@ -100,15 +104,18 @@ here too: its CLI needs a Cursor account and routes every call through Cursor's 
 Kiln's hooks could not be checked against a test model, and Kiln does not ship them for it.
 </details>
 
-### 2. Open your project folder
+### 2. Set up the project
 
-Run **`/kiln-start:here`** in the folder (Claude Code). It connects Kiln to **this folder only**,
-so other projects stay untouched. Then restart the agent in that folder.
+Ask your agent to set up Kiln in the project: say **"set up Kiln here"**, or call the setup
+command the way your agent calls commands:
 
-### 3. Answer a few questions
+| Agent | Command |
+|---|---|
+| Claude Code, Gemini CLI | `/kiln:setup` |
+| OpenAI Codex | `$kiln:setup` (or pick it in `/skills`) |
+| GitHub Copilot CLI, OpenCode | say it: "set up Kiln here" (the skill loads by its description) |
 
-Run **`/kiln:setup`**. It asks one round of questions, each with a recommended answer you can
-accept with "yes":
+It asks one round of questions, each with a recommended answer you can accept with "yes":
 
 - a game, a prototype or just assets;
 - which engine;
@@ -118,17 +125,21 @@ accept with "yes":
 Then it finds the programs the project needs, offers to install what is missing (nothing is
 installed without your yes), and shows what it installed.
 
-### 4. Start
+### 3. Start
 
-- Making a game: **`/kiln:pipeline`**, or `/kiln:concept` with your idea.
-- One asset: **`/kiln:model`**, **`/kiln:sprites`**, **`/kiln:track`** or **`/kiln:cinematic`**
-  with a picture or a description.
+- Making a game: the **pipeline** ("make a game: ...", or `pipeline` as a command), or
+  **concept** with your idea.
+- One asset: **model**, **sprites**, **track** or **cinematic** with a picture or a
+  description.
 
-You can also just say what you want in your own words, in any language.
+Say it in your own words, in any language, or use the commands below.
 
 ## Commands
 
-| You want to ... | Type |
+Written as Claude Code and Gemini CLI call them (`/kiln:<name>`); in Codex `$kiln:<name>`; in
+Copilot CLI and OpenCode name the command in words ("run the Kiln pipeline").
+
+| You want to ... | Command |
 |---|---|
 | set up or check a project | `/kiln:setup`, `/kiln:doctor`, `/kiln:settings`, `/kiln:status` |
 | make a game | `/kiln:pipeline` (the whole way), `/kiln:concept`, `/kiln:plan`, `/kiln:run` (next task), `/kiln:gym` (test one mechanic) |
@@ -270,8 +281,7 @@ python plugins/kiln/scripts/gemini_extension.py --out dist/gemini/kiln   # the G
 python plugins/kiln/scripts/copilot_agents.py   # after changing a role: the Copilot agents
 ```
 
-The repository is English only (`tests/test_english.py` fails on Cyrillic); the agents still talk
-to each user in that user's language. What changed: [plugins/kiln/CHANGELOG.md](plugins/kiln/CHANGELOG.md).
+What changed: [plugins/kiln/CHANGELOG.md](plugins/kiln/CHANGELOG.md).
 
 ## Licence
 

@@ -1,7 +1,7 @@
 # Kiln in plain words
 
-Kiln turns Claude Code into a small game studio. You talk to one producer (your normal Claude
-Code session). It plans the work, hands each piece to a specialist agent (a "role": modeler,
+Kiln turns your AI coding agent into a small game studio. You talk to one producer (your normal
+agent session). It plans the work, hands each piece to a specialist agent (a "role": modeler,
 animator, sound designer, ...), has other agents check the result with real measurements, and
 reports back to you. It can also just make one asset - a 3D model, a sprite sheet, a music track
 or a video clip - without any game.
@@ -11,7 +11,11 @@ on their own, and how they all call each other.
 
 ## 1. Install
 
-### Once per computer
+Kiln runs in Claude Code, OpenAI Codex, Gemini CLI, GitHub Copilot CLI and OpenCode (the whole
+framework), and its skills in any agent that reads Agent Skills. Install it once per computer
+for your agent, then turn it on in each project folder (next section).
+
+### Claude Code
 
 ```bash
 claude plugin marketplace add ajadi/kiln
@@ -20,6 +24,11 @@ claude plugin install kiln-start@kiln --scope user
 
 The first line tells Claude Code where Kiln lives (the public GitHub repository). The second
 installs a tiny helper that gives you one command, `/kiln-start:here`, in every folder.
+
+### OpenAI Codex
+
+`codex plugin marketplace add ajadi/kiln`, then `codex plugin add kiln@kiln` (details in the
+README, "OpenAI Codex").
 
 ### GitHub Copilot CLI
 
@@ -48,24 +57,34 @@ CLI, Copilot CLI and OpenCode run the whole framework.
 
 ### In each project folder
 
-1. Open Claude Code in the folder and run **`/kiln-start:here`**. It connects Kiln to this
-   folder only. The first time on a computer it also asks where Kiln may install programs
-   (the tools folder, e.g. `~/kiln-tools`); it never asks again.
-2. Restart Claude Code in that folder (commands load when a session starts).
-3. Run **`/kiln:setup`**. One round of questions, each with a recommended answer you can accept
-   with "yes": a game, a prototype or just assets; engine (Godot, Unity, Unreal) or none; 2D or
-   3D; whether it may decide small things for you; AI generators allowed or not. Then it looks
-   for every program the project needs, asks once to install what is missing (Blender, Godot,
-   uv, git-lfs, Ollama, the MCP servers that let agents drive the editors), and ends with a
-   table of everything it installed.
-4. If setup registered new MCP servers, restart Claude Code and run `/kiln:setup` again; then
-   **`/kiln:doctor`** checks that Blender and the engine really answer.
-5. Start working: **`/kiln:pipeline`** (or `/kiln:concept` with your idea) for a game; one of
-   `/kiln:model`, `/kiln:sprites`, `/kiln:track`, `/kiln:cinematic` for a single asset.
+1. Turn Kiln on in this folder only:
+
+   | Agent | How |
+   |---|---|
+   | Claude Code | `/kiln-start:here`, then restart Claude Code in the folder (commands load when a session starts) |
+   | OpenAI Codex | `enabled = true` for `kiln@kiln` in the project's `.codex/config.toml`, then generate the roles (README, "OpenAI Codex") |
+   | Gemini CLI | `gemini extensions enable kiln --scope workspace` in the folder |
+   | GitHub Copilot CLI | `.github/copilot/settings.json` with `{"enabledPlugins": {"kiln@kiln": true}}` |
+   | OpenCode | `python <kiln>/plugins/kiln/scripts/opencode_setup.py --project .` |
+
+2. Set up the project: say **"set up Kiln here"**, or call the setup command (`/kiln:setup` in
+   Claude Code and Gemini CLI, `$kiln:setup` in Codex; in Copilot CLI and OpenCode say it in
+   words). One round of questions, each with a recommended answer you can accept with "yes": a
+   game, a prototype or just assets; engine (Godot, Unity, Unreal) or none; 2D or 3D; whether it
+   may decide small things for you; AI generators allowed or not; the first time on a computer,
+   where Kiln may install programs (the tools folder, e.g. `~/kiln-tools`). Then it looks for
+   every program the project needs, asks once to install what is missing (Blender, Godot, uv,
+   git-lfs, Ollama, the MCP servers that let agents drive the editors), and ends with a table of
+   everything it installed.
+3. If setup registered new MCP servers, restart the agent and ask for the setup again; then the
+   **doctor** checks that Blender and the engine really answer.
+4. Start working: the **pipeline** (or **concept** with your idea) for a game; **model**,
+   **sprites**, **track** or **cinematic** for a single asset - as a command or in your own
+   words.
 
 Nothing is installed, published or paid for without your yes.
 
-### Install scopes
+### Install scopes (Claude Code)
 
 `--scope` says where Claude Code records that a plugin is installed, and so who gets it.
 
@@ -98,6 +117,9 @@ OpenAI Codex works the same way with its own switches: the plugin stays off in y
   `~/.kiln/machine.json` turns it off.
 
 ## 2. Commands (18)
+
+Written as Claude Code and Gemini CLI call them (`/kiln:<name>`); in Codex `$kiln:<name>`; in
+Copilot CLI and OpenCode name the command in words.
 
 You type these. Everything else happens through them or through plain requests ("make the door
 open slower").
