@@ -240,6 +240,12 @@ def godot_bootstrap(rel, root, role):
 def check_write(data, root, policy):
     tool_input = data.get("tool_input") or {}
     path = tool_input.get("file_path") or tool_input.get("notebook_path")
+    if str(path or "").replace("\\", "/").lower().endswith(".codex/config.toml"):
+        # field report 2026-10-19: an appended block without a final newline got Codex's next
+        # table glued to it and Codex would not start
+        k.deny("Codex's config.toml is changed only with Kiln's scripts/codex_config.py (--on / "
+               "--off / --plugin <id> / --check / --repair): it keeps every other line, parses the "
+               "result and keeps a backup. A hand edit can stop Codex from starting.")
     rel = k.rel_path(root, path)
     if rel is None:
         return

@@ -79,7 +79,11 @@ class GodotTests(GuardCase):
         self.check(write("tasks/TASK-001.md"), "ALLOW")
         self.check(write("production/PLAYTESTS.md"), "ALLOW")
         self.check(write("research/style.md"), "ALLOW")
-        self.check(write(".codex/config.toml"), "ALLOW")
+        # field report 2026-10-19: a hand-appended block glued to Codex's next one stopped Codex
+        # from starting; config.toml changes go through scripts/codex_config.py
+        self.check(write(".codex/config.toml"), "DENY")
+        self.check(write(os.path.join(os.path.expanduser("~"), ".codex", "config.toml")), "DENY")
+        self.check(write(".codex/agents/kiln-modeler.toml"), "ALLOW")
         self.check(write("tools/audio/gen.py"), "DENY")
         self.check(write("tools/audio/gen.py", "sound-designer"), "ALLOW")
         self.check(write("tools/x.py", "qa-feel"), "DENY")

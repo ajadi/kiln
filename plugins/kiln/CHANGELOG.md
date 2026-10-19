@@ -556,3 +556,13 @@ Fixes from a code review of the whole project, each with a test:
   proposes a new check (or an extension of an existing one) as a follow-up task for every defect
   no check caught.
 
+
+## Fix after 0.8.0 - Codex config.toml
+
+- A user's Codex app would not start: the install text had an agent append
+  `[plugins."kiln@kiln"]` / `enabled = false` to `~/.codex/config.toml` by hand, without a final
+  newline, and Codex's next block was glued to it (`enabled = false[features]`). New
+  `scripts/codex_config.py` switches a plugin on or off keeping every other line, ends the file
+  with a newline, parses the result before writing and keeps `config.toml.kiln-backup`;
+  `--check` / `--repair` find and fix a value glued to a table header. README, GUIDE,
+  `/kiln-start:here` and setup use it; the guard refuses hand edits of any `.codex/config.toml`.

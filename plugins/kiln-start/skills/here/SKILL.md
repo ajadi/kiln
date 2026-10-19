@@ -28,9 +28,11 @@ the one piece installed for the whole user, so it exists in every folder.
    `claude plugin install kiln@kiln --scope project`; if it reports the plugin is already installed,
    `claude plugin enable kiln@kiln --scope project`. Check with `claude plugin list` that
    `kiln@kiln` shows `Scope: project`, `enabled`. OpenAI Codex as well (if the user works with it):
-   `codex plugin add kiln@kiln` once per machine, then keep `[plugins."kiln@kiln"]` / `enabled = false`
-   in the user `~/.codex/config.toml` (Kiln stays off in folders that are not connected) and write
-   `enabled = true` in this project's `.codex/config.toml` (Codex reads it for trusted projects).
+   `codex plugin add kiln@kiln` once per machine, then only through Kiln's script, never by hand
+   (a line glued to the next block stops Codex from starting): `python
+   <kiln>/scripts/codex_config.py --off` (user config: Kiln off in folders that are not connected)
+   and here `python <kiln>/scripts/codex_config.py --file .codex/config.toml --on` (Codex reads it
+   for trusted projects). `<kiln>` is the installed kiln plugin folder.
    Gemini CLI as well (if the user works with it): the extension once per machine
    (`gemini extensions install https://github.com/ajadi/kiln --ref gemini-extension --consent`),
    then `gemini extensions disable kiln --scope user` and, here,

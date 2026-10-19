@@ -77,7 +77,7 @@ will write and write them after the answer (a plain "yes" accepts all recommenda
    model-invoked skills overlap Kiln's process — e.g. `mattpocock-skills` (`prototype`, `tdd`,
    `code-review`, `research`, `grilling`, `domain-modeling`) — ➡️ off for this project only
    (they stay on elsewhere): `.claude/settings.json` `"enabledPlugins": {"<id>": false}`; Codex:
-   `[plugins."<id>"]` / `enabled = false` in the project `.codex/config.toml`. The template
+   `codex_config.py --file .codex/config.toml --plugin <id> --off` (§6, never by hand). The template
    already turns `mattpocock-skills` off. Packs that do not overlap (output style, editor
    helpers) stay on.
 
@@ -264,10 +264,12 @@ Codex session the workspace `.codex/` folder is read-only to commands.
 1. Marketplace and plugin, once per machine: `codex plugin marketplace add <kiln repo path or
    owner/repo>` (Codex reads the repo's `.agents/plugins/marketplace.json`), then
    `codex plugin add kiln@kiln` (or install it from `/plugins`).
-2. Enable it for this project only: project `.codex/config.toml` gets
-   `[plugins."kiln@kiln"]` / `enabled = true`, plus `[plugins."mattpocock-skills@mattpocock"]` /
-   `enabled = false` and any other overlapping pack from §1b item 9; set `enabled = false` in the
-   user config if Kiln should stay off elsewhere. Codex loads project config only for trusted projects — trust the
+2. Enable it for this project only, only with `python ${CLAUDE_PLUGIN_ROOT}/scripts/codex_config.py`
+   (never edit a Codex `config.toml` by hand or with a text tool: a value glued to the next
+   table header stops Codex from starting): `--file .codex/config.toml --on`, then
+   `--file .codex/config.toml --plugin mattpocock-skills@mattpocock --off` and the same for any
+   other overlapping pack from §1b item 9; `--off` without `--file` for the user config if Kiln
+   should stay off elsewhere. `--check` / `--repair` when Codex reports a broken config. Codex loads project config only for trusted projects — trust the
    folder when Codex asks.
 3. MCP servers, once per machine, with the same names as in Claude Code (the guard and the role
    instructions use them): `codex mcp add blender -- <blender-mcp executable>`,

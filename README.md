@@ -266,8 +266,13 @@ OpenCode read `AGENTS.md` themselves.
 The same plugin works in Codex; `/kiln:setup` step 6 does this for you:
 
 1. `codex plugin marketplace add ajadi/kiln`, then `codex plugin add kiln@kiln`.
-2. In the project's `.codex/config.toml`: `[plugins."kiln@kiln"]` and `enabled = true` (and
-   `enabled = false` in your user config, so Kiln stays off elsewhere).
+2. Turn it on in the project and off elsewhere with Kiln's script (never edit Codex's
+   `config.toml` by hand or with a text tool: a line glued to the next block stops Codex from
+   starting):
+   `python <kiln>/scripts/codex_config.py --off` (your user config) and, in the project root,
+   `python <kiln>/scripts/codex_config.py --file .codex/config.toml --on`. If Codex already says
+   "configuration could not be loaded", `python <kiln>/scripts/codex_config.py --repair` fixes a
+   line glued to a table header (it keeps a backup).
 3. Add the MCP servers with `codex mcp add` under the same names: `blender`, `godot-ai`, `unity`,
    `unreal`.
 4. Run `python <kiln>/scripts/codex_agents.py` in the project root: it generates 31 roles

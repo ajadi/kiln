@@ -62,7 +62,7 @@ CLI, Copilot CLI and OpenCode run the whole framework.
    | Agent | How |
    |---|---|
    | Claude Code | `/kiln-start:here`, then restart Claude Code in the folder (commands load when a session starts) |
-   | OpenAI Codex | `enabled = true` for `kiln@kiln` in the project's `.codex/config.toml`, then generate the roles (README, "OpenAI Codex") |
+   | OpenAI Codex | `python <kiln>/scripts/codex_config.py --file .codex/config.toml --on` (never edit Codex's config.toml by hand), then generate the roles (README, "OpenAI Codex") |
    | Gemini CLI | `gemini extensions enable kiln --scope workspace` in the folder |
    | GitHub Copilot CLI | `.github/copilot/settings.json` with `{"enabledPlugins": {"kiln@kiln": true}}` |
    | OpenCode | `python <kiln>/plugins/kiln/scripts/opencode_setup.py --project .` |
