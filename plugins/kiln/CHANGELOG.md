@@ -557,7 +557,7 @@ Fixes from a code review of the whole project, each with a test:
   no check caught.
 
 
-## Fix after 0.8.0 - Codex config.toml
+## 0.8.1 — 2026-10-19
 
 - A user's Codex app would not start: the install text had an agent append
   `[plugins."kiln@kiln"]` / `enabled = false` to `~/.codex/config.toml` by hand, without a final

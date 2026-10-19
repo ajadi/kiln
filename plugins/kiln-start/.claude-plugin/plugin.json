@@ -1,7 +1,7 @@
 {
   "name": "kiln-start",
   "description": "Installer for Kiln: one command, /kiln-start:here, connects the current folder to the Kiln game-development framework. Install it user-wide; it adds nothing to the context of other projects.",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "author": {
     "name": "David S"
   }
