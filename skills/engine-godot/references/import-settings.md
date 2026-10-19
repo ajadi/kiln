@@ -27,6 +27,7 @@ at tag 4.7.2-stable.
 | Use one existing material for a surface | `--sub "materials::<name>::use_external/enabled=true" --sub 'materials::<name>::use_external/path="res://materials/hair.tres"'` |
 | No shadow from decals, water, glass, flames | `--sub "nodes::PATH:<node path>::mesh_instance/cast_shadow=0"` per node (0 off, 1 on, 2 double-sided, 3 shadows only). Node paths come from the imported scene tree; ask the modeler to name such nodes with a suffix (`_decal`, `_water`, `_glass`) so the list is mechanical. |
 | Rule for every node by name | `--param 'import_script/path="res://tools/import/post_import.gd"'`: an `EditorScenePostImport` script (`_post_import(scene)`) that walks the tree and sets `cast_shadow`, materials or metadata by name suffix |
+| Authored LOD chain (`<mesh>_LOD<n>`, asset-pipeline "LOD chain") | copy `scripts/kiln_lod_ranges.gd` to `res://tools/import/`, set `FOVY_DEG` to the game camera's FOV, then `--param 'import_script/path="res://tools/import/kiln_lod_ranges.gd"' --param meshes/generate_lods=false`: the levels become visibility ranges from their `kiln_lod_screen` extras (glTF extras arrive as the node's `extras` metadata; checked on 4.7.2). One import script per file: merge its logic into an existing one instead of replacing it |
 
 ## Facts that cost time in g2
 

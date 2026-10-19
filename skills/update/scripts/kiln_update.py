@@ -102,14 +102,40 @@ SKIP_DIRS = {".git", ".godot", ".import", "node_modules", "Library", "Temp", "In
              "Saved", "Binaries", "DerivedDataCache", ".venv", "__pycache__", "export"}
 
 
+def kiln_checkout(folder):
+    """A Kiln source checkout: its project template and test fixtures are not projects."""
+    return os.path.isfile(os.path.join(folder, "plugins", "kiln", ".claude-plugin", "plugin.json"))
+
+
+def template(folder):
+    try:
+        with open(os.path.join(folder, "manifest.md"), encoding="utf-8") as fh:
+            return "{{" in fh.read()
+    except OSError:
+        return False
+
+
 def scan(folder, depth=4):
     found = []
     for base, dirs, files in os.walk(folder):
+        if kiln_checkout(base):
+            dirs[:] = []
+            continue
         level = os.path.relpath(base, folder).count(os.sep)
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS and level < depth]
-        if "manifest.md" in files and k.manifest_version(base):
+        if "manifest.md" in files and k.manifest_version(base) and not template(base):
             found.append(os.path.abspath(base))
     return found
+
+
+def merged(data):
+    """Registry rows under one key per folder (k.registry_key); the latest 'seen' wins."""
+    out = {}
+    for path, row in data.items():
+        key = k.registry_key(path)
+        if key not in out or str(row.get("seen", "")) > str(out[key].get("seen", "")):
+            out[key] = row
+    return out
 
 
 def projects(scan_dirs=()):
@@ -117,10 +143,10 @@ def projects(scan_dirs=()):
     reg = k.projects_path()
     os.makedirs(k.kiln_home(), exist_ok=True)
     with k.locked(reg):
-        data = k.load_json(reg, {})
+        data = merged(k.load_json(reg, {}))
         for folder in scan_dirs:
             for path in scan(folder):
-                key = path.replace("\\", "/")
+                key = k.registry_key(path)
                 data.setdefault(key, {"name": os.path.basename(path), "seen": "found by scan"})
         rows = []
         for path in sorted(data):

@@ -1,0 +1,16 @@
+# Kiln for Gemini CLI: copy to ~/.gemini/policies/kiln.toml (setup does it).
+
+[[rule]]
+name = "Kiln read-only roles in Plan Mode"
+toolName = "invoke_agent"
+argsPattern = '"agent_name":\s*"kiln-(art-director|autoplayer|playtester|qa-ai|qa-audio|qa-damage|qa-feel|qa-locomotion|qa-performance|qa-physics|qa-readability|verifier)"'
+decision = "allow"
+priority = 100
+modes = ["plan"]
+
+[[rule]]
+name = "Kiln skills"
+toolName = "activate_skill"
+argsPattern = '"name":\s*"(acceptance|accessibility|animation|api-generators|art-2d|asset-libraries|asset-pipeline|autopilot|balance|blender-modeling|cinematic|concept|controls-camera|creature-locomotion|destruction-vfx|doctor|doors|elements-materials|engine-godot|engine-unity|engine-unreal|fields-forces|flight|fluids-granular|game-ai|gpu-server|grilling|gym|hands|human-biomechanics|image-to-model|implications|level-design|lighting|llm-npc|localization|model|music|narrative|optimization|pipeline|plan|playtest|procedural-audio|procgen|protocol|release|report|retro|riding|rigid-body-physics|run|save-system|settings|setup|shaders|sky|soft-bodies|sprites|status|stop|tech-design|tools|track|traversal|ui|update|vehicles|weather)"'
+decision = "allow"
+priority = 100

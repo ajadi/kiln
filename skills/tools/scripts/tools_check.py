@@ -43,6 +43,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 import zipfile
 
@@ -64,10 +65,15 @@ def machine_path():
 def load_machine():
     data = {}
     try:
-        with open(machine_path(), encoding="utf-8") as fh:
+        with open(machine_path(), encoding="utf-8-sig") as fh:  # a BOM from PowerShell is fine
             data = json.load(fh)
-    except (OSError, ValueError):
+    except OSError:
         pass
+    except ValueError:  # keep a broken file: the next save would leave only one key
+        try:
+            os.replace(machine_path(), machine_path() + time.strftime(".broken-%Y%m%d-%H%M%S"))
+        except OSError:
+            pass
     old_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
     if old_dir and not data.get("_migrated"):
         try:
@@ -118,6 +124,8 @@ def manifest(project):
 def needed(cond, policy):
     if cond in (None, "always"):
         return True
+    if cond == "on-request":                 # installed only when a task asks for it
+        return False
     key, _, value = cond.partition("=")
     have = policy.get(key, {"engine": "godot"}.get(key, "off"))
     return have == value
@@ -273,6 +281,26 @@ def cmd_install(a, catalog, machine):
     if not root:
         return {"problems": ["no tools_root yet: ask the user once and run `tools_check.py root "
                              "--set <folder>` (suggest ~/kiln-tools)"]}, 1
+    if tool["source"]["kind"] == "venv":           # a Python library for Kiln's own scripts
+        packages = tool["source"]["packages"]
+        dest = os.path.join(root, "venvs", a.tool)
+        plan = {"tool": a.tool, "packages": packages, "into": dest,
+                "size_mb": tool.get("size_mb"), "licence": tool.get("licence")}
+        if not a.yes:
+            return {"would_install": plan, "confirm": "ask the user, then rerun with --yes"}, 3
+        uv = (machine.get("tools") or {}).get("uv", {}).get("path") or shutil.which("uv")
+        if not uv:
+            return {"problems": ["uv is needed first: tools_check.py install uv --yes"]}, 1
+        py = os.path.join(dest, "Scripts" if os.name == "nt" else "bin",
+                          "python.exe" if os.name == "nt" else "python")
+        for argv in ([uv, "venv", "--python", tool["source"].get("python", "3.12"), dest],
+                     [uv, "pip", "install", "--python", py, *packages]):
+            p = subprocess.run(argv, capture_output=True, text=True, timeout=3600)
+            if p.returncode:
+                return {"problems": [f"{' '.join(argv[:3])} failed: {(p.stdout + p.stderr)[-600:]}"]}, 1
+        record(machine, a.tool, py, " ".join(packages), "pip via uv", "via uv")
+        return {"tool": a.tool, "python": norm(py), "packages": packages,
+                "after": tool.get("after")}, 0
     if tool["source"]["kind"] == "uv-tool":
         version = a.version or tool["source"].get("default_version")
         spec = fill(tool["source"]["spec"], version=version)
@@ -425,7 +453,8 @@ def offers_for(catalog, policy):
     """Generators that the policy allows: 3D/image ones by model_generators, music and sound ones
     (kind audio) by audio_generators; `fits` = runs here (local) or on a rented GPU (remote)."""
     modes = {"model": policy.get("model_generators", "off"),
-             "audio": policy.get("audio_generators", "off")}
+             "audio": policy.get("audio_generators", "off"),
+             "video": policy.get("video_generators", "off")}
     if not any(m in ("local", "remote") for m in modes.values()):
         return []
     gpu = gpu_gb()

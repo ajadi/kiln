@@ -3,7 +3,8 @@
   python asset_budget.py "assets/**/*.glb" [--budgets production/budgets.json] [--top 20]
 
 Per file (read from the glTF JSON and the binary chunk, nothing imported):
-  triangles         drawn per scene instance (a mesh used by two nodes counts twice)
+  triangles         drawn per scene instance (a mesh used by two nodes counts twice); of a LOD
+                    chain (`<name>_LOD0`, `_LOD1`, ...) only LOD0 counts, the levels are in `lods`
   unique_triangles  in the meshes themselves
   vertices, draw_calls (one per primitive per mesh instance), materials, bones (largest skin),
   textures          size of every image (embedded PNG/JPEG or an external file next to it)
@@ -12,7 +13,8 @@ Per file (read from the glTF JSON and the binary chunk, nothing imported):
                     full mip chain (x 4/3). Images are counted once per file: every glb carries its
                     own copy, so a "shared" atlas in 12 glbs costs 12 times (asset-pipeline).
 Budgets (JSON, committed): {"<glob>": {"triangles": N, "draw_calls": N, "materials": N,
-"bones": N, "texture_px": N (largest side), "vram_mb": N (compressed)}, ...}; the first glob that
+"bones": N, "texture_px": N (largest side), "vram_mb": N (compressed), "lod_ratio": 0.5 (each LOD
+level at most this share of the one before, +10 %)}, ...}; the first glob that
 matches a file applies ("*" last as the default). Totals give the whole set. Output: JSON; exit 1
 when a file is over its budget.
 """
@@ -22,10 +24,12 @@ import fnmatch
 import glob
 import json
 import os
+import re
 import struct
 import sys
 
 MAGIC, JSON_CHUNK, BIN_CHUNK = 0x46546C67, 0x4E4F534A, 0x004E4942
+LOD = re.compile(r"^(.*?)_LOD(\d+)$", re.I)
 
 
 def load(path):
@@ -95,7 +99,20 @@ def measure(path):
     mesh_tris = [sum(prim_tris(p) for p in m.get("primitives", [])) for m in meshes]
     mesh_verts = [sum(acc[p["attributes"]["POSITION"]]["count"] for p in m.get("primitives", [])
                       if "POSITION" in p.get("attributes", {})) for m in meshes]
-    uses = [n["mesh"] for n in gltf.get("nodes", []) if "mesh" in n] or list(range(len(meshes)))
+    # LOD chains (`<base>_LOD<n>` node or mesh names, asset-pipeline "LOD chain"): one level is
+    # drawn at a time, so the drawn numbers take the highest-detail level only
+    levels, uses = {}, []
+    for n in gltf.get("nodes", []):
+        if "mesh" not in n:
+            continue
+        name = n.get("name") or meshes[n["mesh"]].get("name") or ""
+        m = LOD.match(name)
+        if m:
+            levels.setdefault(m.group(1), []).append((int(m.group(2)), n["mesh"]))
+            if int(m.group(2)) > 0:
+                continue
+        uses.append(n["mesh"])
+    uses = uses or list(range(len(meshes)))
     textures = []
     for img in gltf.get("images", []):
         raw = image_bytes(gltf, blob, img, os.path.dirname(path))
@@ -112,7 +129,8 @@ def measure(path):
             "textures": textures,
             "texture_px": max((max(t["size"]) for t in textures if t["size"]), default=0),
             "vram_mb_uncompressed": px * 4 * 4 / 3 / 2 ** 20,
-            "vram_mb_compressed": px * 1 * 4 / 3 / 2 ** 20}
+            "vram_mb_compressed": px * 1 * 4 / 3 / 2 ** 20,
+            "lods": {base: [mesh_tris[m] for _, m in sorted(lv)] for base, lv in levels.items()}}
 
 
 def budget_for(path, budgets):
@@ -149,6 +167,12 @@ def main():
         for key, value in checks.items():
             if key in limits and value > limits[key]:
                 problems.append(f"{key} {round(value, 2)} > {limits[key]} ({pattern})")
+        if "lod_ratio" in limits:
+            for base, tris in row["lods"].items():
+                for i in range(1, len(tris)):
+                    if tris[i - 1] and tris[i] / tris[i - 1] > limits["lod_ratio"] * 1.1:
+                        problems.append(f"lod_ratio {base}_LOD{i}: {tris[i]} of {tris[i - 1]} "
+                                        f"triangles > {limits['lod_ratio']} ({pattern})")
         row["vram_mb_uncompressed"] = round(row["vram_mb_uncompressed"], 6)
         row["vram_mb_compressed"] = round(row["vram_mb_compressed"], 6)
         row.update({"budget": pattern, "problems": problems,

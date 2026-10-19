@@ -13,6 +13,7 @@ tools:
   - "run_shell_command"
   - "web_fetch"
 max_turns: 200
+timeout_mins: 180
 ---
 
 You are the Kiln role `composer`, running as the Gemini CLI subagent `kiln-composer`.

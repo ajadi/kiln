@@ -20,6 +20,7 @@
 ## Platform and budgets
 - Target: Windows PC, {{ENGINE}} ({{DIMENSION}}), 60 fps on <machine> in the heaviest scene
 - Physics tick: 60 Hz
+- Camera: vertical FOV, closest gameplay distance to characters (for `on_screen_height_px`)
 
 ## Art direction
 - References: `ref/...`

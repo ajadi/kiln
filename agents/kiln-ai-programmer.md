@@ -16,6 +16,7 @@ tools:
   - "mcp_unity_*"
   - "mcp_unreal_*"
 max_turns: 300
+timeout_mins: 180
 ---
 
 You are the Kiln role `ai-programmer`, running as the Gemini CLI subagent `kiln-ai-programmer`.

@@ -63,6 +63,10 @@ argument-hint: "[phase or feature]"
    only — confirm the guess and write the line; the gates enforce declared touches, never
    guesses. Keep every row; a role that truly does not apply gets `SKIP: <reason>` now, never a
    silent deletion and never "if needed" in parentheses.
+   Asset tasks: props and sound effects try a free library first (asset-libraries), then
+   generation, then a hand-made asset (decided for the user; heroes stay made to the
+   reference). Assets that must read as one family carry `series: <name>`; the first approved
+   member is the anchor the others are checked against (asset-pipeline "Series").
 3. Add one line per task to `backlog.md`:
    `- [ ] TASK-NNN [type] name · role:<role> · deps:<ids|none> · editor:<blender|engine|both|none> → tasks/TASK-NNN.md`
 4. Check: no dependency cycles; every acceptance check in the design is covered by some task;

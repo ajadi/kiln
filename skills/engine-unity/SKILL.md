@@ -138,7 +138,9 @@ Compression None, one Pixels Per Unit for the whole project. Art rules in the ar
   primitive colliders on the prefab (the only shapes CCD supports), or `*_COL` child meshes turned
   into convex MeshColliders by a project `AssetPostprocessor`; non-kinematic bodies need convex
   mesh colliders.
-- LOD: `Name_LOD0`, `Name_LOD1`… under one parent → automatic LODGroup.
+- LOD: `Name_LOD0`, `Name_LOD1`… under one parent in an FBX → automatic LODGroup; set the
+  transition heights to each level's `kiln_lod_screen` (asset-pipeline "LOD chain"); do not
+  combine it with Mesh LOD (Mesh LOD ignores skin weights and does not cut skinning cost).
 - Materials: URP Lit smoothness in the Metallic map's alpha (invert Blender roughness); HDRP Mask
   Map R metallic, G AO, B detail mask, A smoothness; data maps sRGB off. Normal maps are OpenGL
   (+Y) like Blender — do not flip; Texture Type = Normal map.

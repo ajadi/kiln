@@ -32,6 +32,7 @@ tools:
   - "mcp_unity_*"
   - "mcp_unreal_*"
 max_turns: 150
+timeout_mins: 180
 ---
 
 You are the Kiln role `qa-readability`, running as the Gemini CLI subagent `kiln-qa-readability`.

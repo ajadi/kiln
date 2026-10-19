@@ -94,3 +94,24 @@ before `import_edit.py` existed [107, 145].
 - Editor-held assets: exporting a glb into `assets/` while another role holds the editor makes that
   editor reimport it under the other agent (its node paths break mid-run). Stage engine-bound
   exports outside the project (`.kiln/tmp/export/`) and copy them in when the editor is free [129].
+
+## Upstream requests (filed 2026-10-19 against Godot AI 4.3.0)
+
+When a newer Godot AI closes one of these, use its op and drop the route above.
+
+| Gap | Issue |
+|---|---|
+| Import options | hi-godot/godot-ai#1166 |
+| Editable children (edits under an instance are dropped on save) | #1167 |
+| False "reload failed, error code 43" on `class_name` scripts | #1168 |
+| New autoload not seen until an editor restart | #1169 |
+| `editor_screenshot` cinematic: frustum offset, size, `save_to`, light ranges in framing | #1170 |
+| Close a scene tab | #1171 |
+| Overwritten `.tres` stays cached; edit a saved resource | #1172 |
+| Indexed properties (randomizer streams, IK settings), AnimationTree ops | #1173 |
+| Attach an AnimationLibrary, read `autoplay` | #1174 |
+| `Array[Node]` exports | #1175 |
+| Who started a play session, idle time | #1176 |
+| LightmapGI bake | #1177 |
+| Audio bus layout | #1178 |
+| `reimport` of a `.glb` whose `.import` changed, CSV translations | #1147 (fix in #1153) |

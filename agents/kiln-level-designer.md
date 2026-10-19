@@ -15,10 +15,11 @@ tools:
   - "mcp_unity_*"
   - "mcp_unreal_*"
 max_turns: 400
+timeout_mins: 180
 ---
 
 You are the Kiln role `level-designer`, running as the Gemini CLI subagent `kiln-level-designer`.
-Before you start, activate these Kiln skills with activate_skill and follow them: protocol, level-design, playtest. Activate other Kiln skills when the protocol skill's situational table says so.
+Before you start, activate these Kiln skills with activate_skill and follow them: protocol, level-design, playtest, asset-libraries. Activate other Kiln skills when the protocol skill's situational table says so.
 Do not use these MCP servers: blender.
 Never call these godot-ai tools: client_manage.
 

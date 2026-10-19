@@ -14,6 +14,15 @@ argument-hint: "[scope note, e.g. 'only phase 1' or 'until the hero is done']"
    The Kiln Stop hook now reminds you of open checklist items and ready backlog work when a turn
    ends, up to `autopilot_max_nudges` times without progress. It pushes only the session that
    typed `/kiln:autopilot`; other sessions in the project end their turns normally.
+   GitHub Copilot CLI ends a turn after 8 hook continuations in a row: there, check that the
+   session is in Copilot's autopilot mode (`copilot --autopilot`, or Shift+Tab); if it is not,
+   tell the user once that the run will stop after about 8 steps without it.
+   Gemini CLI headless (`gemini -p`) needs `--approval-mode yolo`; roles run one at a time.
+   Claude Code headless (`claude -p "/kiln:autopilot ..."`): start it with the environment
+   variable `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` (Claude Code 2.1.182+); by default `-p`
+   gives up on background roles after 10 idle minutes and drops their work. For long unattended
+   runs an interactive session is better: signed in with a claude.ai subscription it waits for
+   a usage limit to reset and continues; `-p` does not.
 3. Run the `/kiln:run` loop, but after closing a task pick the next ready one instead of
    stopping. Keep each task's checklist current — the hook reads it to know what is left. Mark
    the task you work on `[~]` in the backlog.
@@ -50,7 +59,9 @@ user. The stops you should make are the hard stops below.
 - A third failure of the same gate on the same task.
 - A test regression in previously passing gyms/tests that you cannot attribute and fix.
 - Anything in the run skill's "Hard stops" list (deleting user work, publishing, money, new
-  plugins).
+  plugins). A paid generation is not a stop by itself: `gen_api.py request <job> --why ...`
+  puts its estimate into `production/SPEND_REQUESTS.md` and the run goes on with work that
+  needs no money (the local route, other tasks); it stops only when nothing else is left.
 - Scope reached, or no ready task left and the current phase's remaining gates are ones you
   may not proxy (publishing, money, deleting user work).
 
@@ -62,5 +73,7 @@ Before the report, call the Skill tool with "kiln:retro" for this autopilot run 
 ## Report (in the user's language)
 
 Tasks closed (with what now works and how to see it), tasks blocked and why, decisions you took
-on the user's behalf (for review), the retro's top three findings, and the next ready task. If a push-notification tool is
+on the user's behalf (for review), the retro's top three findings, the waiting rows of
+`production/SPEND_REQUESTS.md` as one yes/no per row (credits, about how many dollars, why),
+and the next ready task. If a push-notification tool is
 available, send a one-line summary.

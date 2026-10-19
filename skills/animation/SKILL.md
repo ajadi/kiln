@@ -26,6 +26,37 @@ soft-bodies for spring bones, cloth and ropes on the rig.
   a neutral mid-range pose for mechs — engines blend rotations from the rest, so a rest far from
   the motion range causes flips.
 - Transforms applied (identity) before export; character faces -Y in Blender.
+- **Auto-rig on a paid service** (`model_generators=api`, the api-generators skill): Meshy rigs a
+  textured humanoid (5 credits) and puts library clips on it (3 credits each, up to 10 in one
+  file). Its skeleton is the service's, not this export contract: check the bone names, the rest
+  pose and the deformation in extreme poses, and retarget to the project's skeleton before the
+  clips meet hand-made ones. Non-humanoids and mechs are rigged by hand.
+- **Rig budget by on-screen height** (working rule, derived; no published standard): keep a bone
+  chain only when a move in the clip list needs it **and** its segment covers about 4 px or
+  more at the closest gameplay distance (`on_screen_height_px` in the character spec; hand
+  ≈ 0.108 H, forearm 0.146 H). Each bone costs every frame (Unity: 15 more bones on a 30-bone
+  rig, 50 % more work); unused bones cost almost nothing.
+
+  | `on_screen_height_px` | Hand ≈ px | Deform bones |
+  |---|---|---|
+  | ≤ 48 (top-down enemy, RTS unit) | ≤ 5 | root, pelvis, 1-2 spine, head, upper arm, forearm, hand, thigh, shin, foot, prop bones: about 15-20 |
+  | 48-150 | 5-16 | + clavicles, a third spine bone, neck, toes; hands one "mitten" bone (or thumb + one grouped finger when grips show) |
+  | 150-400 (third person) | 16-43 | + full fingers (2-3 segments), upper-arm and forearm twist bones, jaw and eyes if faces show |
+  | > 400 (close-ups, cutscenes, FPS arms) | > 43 | + every finger segment, face rig or shape keys, corrective bones or shapes |
+
+  One rig per character; far LODs drop bones where the engine allows (Unreal "Bones to
+  Remove"), in Godot and Unity author the LOD skeleton directly.
+- Rigging starts on a mesh that passed blender-modeling `joint_topology.py` and `joint_bend.py`
+  (loops around the joints, cross-sections kept in a bend); a generated mesh that fails goes
+  back to retopology, not into weight painting.
+- **Deformation check after every rig** (by hand or auto-rig), before any clip:
+  `scripts/deform_check.py` through `execute_blender_code` poses the stress set from the
+  human-biomechanics range table (elbow and knee 90/130°, shoulder abduction 90/160° and flexion
+  150°, forearm twist ±80°, hip flexion 90° and abduction 40°, spine twist 30°) with Preserve
+  Volume off (linear blend skinning, as game engines draw it) and measures weights, joint
+  centres, ring volume, candy-wrapper, shoulder collapse, edge stretch, crossings and mesh
+  volume. Fix in this order: joint placement, edge loops, weight smoothing, twist bones,
+  corrective bones, corrective shape keys (only where the engine path supports them).
 - Rigid mechanical parts: exactly one influence at weight 1.0, or bone-parented; each damageable
   part a separate mesh so it can be hidden or swapped on detach. Pistons: two bones aiming at each
   other (or an aim modifier in engine). Soft parts (cables, antennae): spring bones.
@@ -213,6 +244,16 @@ in the traversal skill, `traversal_check.py jumps`):
   hands only — prone legs and knees sank 7–9 cm into the floor when bones were put at floor
   level (reads-wrong 10).
 
+## Video reference (optional)
+
+A video clip (filmed, library, or generated when `video_generators` allows) can guide the timing
+and key poses of a new move: [references/video-reference.md](references/video-reference.md)
+(sources, input render, prompt, licences). `scripts/video_ref.py` reads it - `frames`, `pose`
+(rtmlib, installed on the user's yes), `gate` (reject a drifting or held-frame clip before
+authoring), `period` and `keys` (the loop cut and the frames to key first) - and `compare`
+scores our render against it with the same estimator. The reference never overrides the rows
+below: joint limits, phase, slip and seam win.
+
 ## Acceptance thresholds (also used by qa-locomotion)
 
 Players notice certain failures at once — the catalogue
@@ -243,6 +284,7 @@ new one.
 | Idle alive but calm (≥ 60 s recording) | `analyze.py idle --pos pelvis --chest chest --bones <limbs, head>`: sway RMS AP 1–8 mm, ML 0.5–4 mm, ≥ 80% of sway power below 0.5 Hz, breathing 12–20/min, no part frozen (< 0.5° in 10 s) | symmetric base pose; weight never shifts in 60 s; plates interpenetrate |
 | Direction changes (zig-zag course: 45/90/135/180° left and right at 1.5/3/5 m/s, turn at a random step phase; slalom r 2/3/5 m) | `analyze.py stance --root`: turning stances ≤ 10 mm typical, ≤ 20 mm worst | heading change > the per-step limit without a pivot clip; lean off atan(a/g) by > 5° |
 | Multi-leg stability (working) | COM inside support polygon with ≥ 10% margin at slow gait | — |
+| Against a video reference (working; `video_ref.py gate` passed first) | `video_ref.py compare`: period within 3 %, key poses ±1 frame at 30 fps, DTW warp ≤ 1 mean / 2 max, joint angles RMSE ≤ 8° and extremes ±10°, PCK@0.05 H ≥ 0.85 (widened to 2 sigma by `noise`) | the reference's own slips, limb swaps and rest-pose start are not copied (reads-wrong 15, 16) |
 
 ## Godot 4.6/4.7
 

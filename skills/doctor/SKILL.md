@@ -56,7 +56,11 @@ below say what each failure usually means.
    print a JSON deny. No output → manifest missing `framework=kiln` or Python not found.
    Also confirm the plugin is enabled for this project: `claude plugin list`.
 6. **Manifest** — `framework=kiln`, `engine`, `dimension`, `repo_access`, `mcp_only=on` (warn if
-   off), `model_generators` / `audio_generators` (report; `api` needs a key in the environment),
+   off), `model_generators` / `audio_generators` / `video_generators` (report; `api` needs a key in
+   the environment: `gen_api.py services` says which keys are set, never their values, and
+   `gen_api.py balance <service>` the credit left - both free calls; a missing key → `/kiln:settings
+   api`), `asset_libraries` (not `off` → `assets_api.py search polyhaven wood --kind texture
+   --limit 1` answers: the libraries are reachable),
    `kind` (report `prototype` prominently: reviews are light), `user_gates`.
    Other skill packs: `claude plugin list --json` (and `codex plugin list` for Codex) — a
    general-purpose pack enabled in this project whose model-invoked skills overlap Kiln (e.g.
@@ -65,7 +69,12 @@ below say what each failure usually means.
    (`.godot/`, Unity `Library/`, Unreal `Intermediate/` `Saved/` `DerivedDataCache/`).
    `git status` lists files whose diff is line endings only (`git diff --ignore-cr-at-eol
    --name-only` shorter than `git diff --name-only`) → add `* text=auto eol=lf` to
-   `.gitattributes` and `git add --renormalize .` (setup §3).
+   `.gitattributes` and `git add --renormalize .` (setup §3). Engine folders in `.gitignore`
+   are anchored (`/export/`, `/Saved/`): an unanchored `Saved/` also hides a code folder of that
+   name - offer the anchored line. `manifest.md` is UTF-8 (kiln-report.md lists it otherwise).
+   Junctions in the project (Windows: `Get-ChildItem -Recurse -Attributes ReparsePoint
+   -Directory`) → name each with its target and say how to remove one: `cmd /c rmdir <link>`,
+   never `Remove-Item -Recurse` over it.
 7b. **Tools** — `tools_check.py plan --project .` (tools skill): every tool the project needs is
    found (or listed for install / as a manual step); `production/tools.json` pins pass
    `tools_check.py verify`. Missing tools go to the user as one install question, never installed
@@ -80,7 +89,8 @@ below say what each failure usually means.
    per-task effort then needs `scripts/effort_agents.py`, and a manifest `agent_effort` must be
    left empty (the guard would pass an `effort` the old Agent tool does not know); recommend updating the CLI
    (`npm i -g @anthropic-ai/claude-code`, not while a run uses it) or launching with the newer
-   bundled binary.
+   bundled binary. Older than 2.1.182: `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` does not exist,
+   and a headless run may drop background roles after 10 idle minutes - say so.
 9. **Codex** (when `runtimes` includes codex) —
    - `codex plugin list` shows `kiln@kiln  installed, enabled`; `codex mcp list` has `blender`
      and the engine server; project `.codex/config.toml` enables `kiln@kiln`.

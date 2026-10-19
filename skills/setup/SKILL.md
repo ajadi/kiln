@@ -20,6 +20,9 @@ installed and started, what is still missing.
 
 ## 1. Look before writing
 
+- `python "${extensionPath}/scripts/folder_check.py"` first: exit 1 (the home folder, a
+  folder above it, a drive root) → stop and tell the user what it printed; change nothing. A
+  project install there is the user's whole setup, and `git init` would take in the profile.
 - `manifest.md` with a different `framework=` value → another framework owns this project. Stop
   and ask whether to convert it; two frameworks' rules in one project conflict.
 - `manifest.md` with `framework=kiln` → already set up: only fill what is missing (never
@@ -63,8 +66,13 @@ will write and write them after the answer (a plain "yes" accepts all recommenda
    overriding a decision you made are never decided for you in either mode.
 7. **Repository** — `private-solo` (recommended for a one-person private repo: Kiln's memory and
    tasks are committed) / `private-shared` / `public` (framework state stays local) → `repo_access=`.
-8. **Generators** — models: `off` / `local` (open-weight, offline) / `api` (paid services; key in
-   an environment variable) → `model_generators=`; sound and music the same → `audio_generators=`.
+8. **Generators** — models: `off` / `local` (open-weight, offline) / `remote` (open-weight on a
+   rented GPU through the gpu-server skill) / `api` (paid services; key in an environment
+   variable) → `model_generators=`; sound and music the same → `audio_generators=`; video
+   models (animation reference clips) the same → `video_generators=`. `api` anywhere → the user
+   puts the key in on the local key page (`/kiln:settings api`), never in the chat. Free asset
+   libraries → `asset_libraries=` `attribution` (default: CC0 and CC BY, credits generated) /
+   `cc0` / `sharealike` / `off`.
    Recommend `off` until a task needs one.
 8a. **Tools folder** (`tools_root`) — only when machine.json has none; set earlier → no
    question, skip this item. Where Kiln installs editors, MCP servers, venvs and downloads:
@@ -77,7 +85,7 @@ will write and write them after the answer (a plain "yes" accepts all recommenda
    model-invoked skills overlap Kiln's process — e.g. `mattpocock-skills` (`prototype`, `tdd`,
    `code-review`, `research`, `grilling`, `domain-modeling`) — ➡️ off for this project only
    (they stay on elsewhere): `.claude/settings.json` `"enabledPlugins": {"<id>": false}`; Codex:
-   `[plugins."<id>"]` / `enabled = false` in the project `.codex/config.toml`. The template
+   `codex_config.py --file .codex/config.toml --plugin <id> --off` (§6, never by hand). The template
    already turns `mattpocock-skills` off. Packs that do not overlap (output style, editor
    helpers) stay on.
 
@@ -125,15 +133,18 @@ decisions", "this is a prototype now", in their own language); the agent changes
   create them when first needed. A project with sound or music roles gets the audio venv now:
   `python -m venv <venvs>/audio` + `pip install numpy scipy soundfile pyloudnorm` (soundfile
   reads Ogg Vorbis; ffmpeg is then optional).
-- Line endings: put `* text=auto eol=lf` at the top of `.gitattributes` (before the LFS block)
-  and, in an existing repo, `git add --renormalize .` once. On Windows with
+- Line endings: `python "${extensionPath}/scripts/text_block.py" include --file
+  .gitattributes --line "* text=auto eol=lf"` (first line, the user's lines kept) and, in an
+  existing repo, `git add --renormalize .` once. On Windows with
   `core.autocrlf=true` a repo without it showed 1045 files as modified by CRLF alone, which made
   "check git status after every agent" useless (g2 row 24).
 - `repo_access` and `kind` come from the questionnaire (§1b); keep existing values.
-- Append the block from `gitignore.tmpl` to `.gitignore` unless its `# --- kiln ---` marker is
-  already there.
-- If `git lfs version` works, append `gitattributes.tmpl` to `.gitattributes` (marker check) and
-  run `git lfs install --local`; otherwise tell the user binary assets will be stored in plain
+- `.gitignore`: `python "${extensionPath}/scripts/text_block.py" block --file .gitignore
+  --source "${extensionPath}/templates/project/gitignore.tmpl" --marker kiln` - never append
+  with a text tool (a file without a final newline turned `.env` + the block into
+  `.env# --- kiln ---`, and that pattern stopped working).
+- If `git lfs version` works, the same for `.gitattributes` with `gitattributes.tmpl`, then
+  `git lfs install --local`; otherwise tell the user binary assets will be stored in plain
   git and how to enable LFS later.
 
 ## 4. Engine project and its MCP
@@ -153,7 +164,10 @@ To keep a single global copy, link it instead of copying:
 A linked addon stays out of git: add `addons/godot_ai/` to `.gitignore` (git walks a Windows
 junction and would commit ~270 third-party files; a Unix symlink would commit a path that exists
 only on this machine). A fresh clone runs setup or doctor, which relinks it. A copied fallback
-is committed like any other addon.
+is committed like any other addon. To remove the link, remove only the link:
+`cmd /c rmdir addons\godot_ai` (or `[IO.Directory]::Delete("addons\godot_ai")`), elsewhere `rm
+addons/godot_ai`; never `Remove-Item -Recurse` on a folder that holds a junction - Windows
+PowerShell 5.1 follows it and deletes the shared addon for every project (the guard refuses it).
 
 If there is no `project.godot`, write the minimal bootstrap yourself — do not send the user to
 the Project Manager: `config_version=5`, `[application]` `config/name="<project name>"` and
@@ -192,7 +206,9 @@ MCP once the editor is connected (not by editing `project.godot`).
    `https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#<tag>` (latest tag:
    `gh api repos/CoplayDev/unity-mcp/releases/latest`) — before the first open as a
    `dependencies` entry in `Packages/manifest.json` (package name from the repo's
-   `MCPForUnity/package.json`). Start its HTTP server (Window → MCP for Unity; use its auto-start
+   `MCPForUnity/package.json`), only with `python "${extensionPath}/scripts/json_config.py"
+   merge --file Packages/manifest.json --json '{"dependencies": {"<name>": "<git url>"}}'` (a
+   broken manifest stops Unity at package resolution). Start its HTTP server (Window → MCP for Unity; use its auto-start
    if it has one, otherwise this is the one handed-over click, with that reason); enable only the
    core, testing, scripting_ext and profiling tool groups (asset_gen off).
 3. Register once per user: `claude mcp add --scope user --transport http unity http://localhost:8080/mcp`.
@@ -208,6 +224,8 @@ MCP once the editor is connected (not by editing `project.godot`).
    Epic launcher is the fallback, handed to the user with the reason.
 2. Enable **Unreal MCP**, **AllToolsets** and **Python Editor Script Plugin** yourself: `Plugins`
    entries (`{"Name": "<plugin>", "Enabled": true}`) in the `.uproject` before the first open,
+   with `json_config.py merge --file <name>.uproject --json '{"Plugins": [...]}'` (lists are
+   joined; a broken `.uproject` does not open),
    then start or restart the editor yourself. Per user: MCP auto-start on, port 8000, path `/mcp`
    (engine-unreal skill).
 3. Register once per user: `claude mcp add --scope user --transport http unreal http://127.0.0.1:8000/mcp`
@@ -221,8 +239,10 @@ MCP once the editor is connected (not by editing `project.godot`).
 ## 5. Project files
 
 Copy from the templates without overwriting existing files: `manifest.md`, `GAME.md`,
-`backlog.md`, `memory/**` (including `memory/out-of-scope/README.md`), `.claude/settings.json` (merge: add the template's allow/deny
-entries to existing arrays and its `enabledPlugins` keys, keep everything else), `tasks/archive/`,
+`backlog.md`, `memory/**` (including `memory/out-of-scope/README.md`), `.claude/settings.json` (merge with
+`python "${extensionPath}/scripts/json_config.py" merge --file .claude/settings.json --json
+'<the template's object>'`: lists joined, keys added, everything else kept; an invalid file would
+turn Kiln and the user's permissions off), `tasks/archive/`,
 `design/`.
 
 Godot only: an empty `.gdignore` file in every folder that holds working material, not game
@@ -242,10 +262,14 @@ Project rules (the `CLAUDE.md` template is the Kiln rules block for both runtime
   `<!-- kiln:begin -->` and `<!-- kiln:end -->` markers (replace that block on re-runs).
 - Codex in `runtimes`: Codex reads `AGENTS.md`, not `CLAUDE.md`, so the block goes to `AGENTS.md`
   between the same markers (after any requirements the user already wrote there), and
-  `CLAUDE.md` (Claude Code too) contains only `@AGENTS.md` — one copy of the rules, read by both.
+  `CLAUDE.md` (Claude Code too) imports it: `python "${extensionPath}/scripts/text_block.py"
+  include --file CLAUDE.md --line "@AGENTS.md"` (adds the line first, keeps the user's text; if
+  `CLAUDE.md` holds an older Kiln block between the markers, remove only that block) — one copy
+  of the rules, read by both.
   Keep the combined `AGENTS.md` under Codex's 32 KiB `project_doc_max_bytes`.
 - Gemini CLI in `runtimes`: the block goes to `AGENTS.md` the same way, and `GEMINI.md` (the
-  context file Gemini reads) contains only `@AGENTS.md` (Gemini's import syntax).
+  context file Gemini reads) imports it the same way: `text_block.py include --file GEMINI.md
+  --line "@AGENTS.md"` (Gemini's import syntax; the user's text in `GEMINI.md` stays).
 
 Show the user the added section.
 
@@ -264,10 +288,12 @@ Codex session the workspace `.codex/` folder is read-only to commands.
 1. Marketplace and plugin, once per machine: `codex plugin marketplace add <kiln repo path or
    owner/repo>` (Codex reads the repo's `.agents/plugins/marketplace.json`), then
    `codex plugin add kiln@kiln` (or install it from `/plugins`).
-2. Enable it for this project only: project `.codex/config.toml` gets
-   `[plugins."kiln@kiln"]` / `enabled = true`, plus `[plugins."mattpocock-skills@mattpocock"]` /
-   `enabled = false` and any other overlapping pack from §1b item 9; set `enabled = false` in the
-   user config if Kiln should stay off elsewhere. Codex loads project config only for trusted projects — trust the
+2. Enable it for this project only, only with `python "${extensionPath}/scripts/codex_config.py"` (Python 3.11+; if it fails, stop and say so, never hand-edit)
+   (never edit a Codex `config.toml` by hand or with a text tool: a value glued to the next
+   table header stops Codex from starting): `--file .codex/config.toml --on`, then
+   `--file .codex/config.toml --plugin mattpocock-skills@mattpocock --off` and the same for any
+   other overlapping pack from §1b item 9; `--off` without `--file` for the user config if Kiln
+   should stay off elsewhere. `--check` / `--repair` when Codex reports a broken config. Codex loads project config only for trusted projects — trust the
    folder when Codex asks.
 3. MCP servers, once per machine, with the same names as in Claude Code (the guard and the role
    instructions use them): `codex mcp add blender -- <blender-mcp executable>`,
@@ -298,22 +324,37 @@ Gemini CLI (when `runtimes` includes gemini; gemini-cli 0.64.0 docs "Extensions"
 4. MCP servers, once per machine, with the same names: the `gemini` command in each tool's
    `register` (`gemini mcp add -s user godot-ai <path> attach`, `gemini mcp add -s user -t http
    unity http://localhost:8080/mcp`, ...).
-5. Restart Gemini CLI in the project; `/kiln:doctor`.
+5. Kiln's user policy, once per machine, with the user's yes: copy `user-policy/kiln.toml` from
+   the extension folder (`~/.gemini/extensions/kiln/`) to `~/.gemini/policies/kiln.toml`. It
+   lets Kiln's skills activate without a question each time (headless runs otherwise hide
+   `activate_skill`) and lets Plan Mode start Kiln's read-only roles (art-director, QA,
+   verifier, playtester, autoplayer). Extensions may not ship allow rules, hence the copy.
+6. Restart Gemini CLI in the project; `/kiln:doctor`.
+
+In Gemini CLI Kiln runs one role at a time: a second role started while one runs is refused
+until the first returns (Gemini's hook payloads do not name the role, so two at once would be
+mixed up). Headless runs (`gemini -p`, autopilot) need `--approval-mode yolo`, because headless
+Gemini denies file writes and shell commands; the Kiln guard still checks every call.
 
 GitHub Copilot CLI (when `runtimes` includes copilot; checked with Copilot CLI 1.0.97). Copilot
 reads the plugin through `plugins/kiln/.github/plugin/plugin.json`: the roles as agents
 `kiln:<role>` (from `copilot/agents/`, generated by `scripts/copilot_agents.py`), the skills, and
 the same Python hooks (`hooks/copilot-hooks.json`, `--runtime copilot`). It also reads
-`CLAUDE.md` / `AGENTS.md`, so the project rules need no extra file.
+`CLAUDE.md` / `AGENTS.md`, so the project rules need no extra file; the roles get them too
+(`include-custom-instructions: true` in each generated agent).
 
 1. Once per machine: `copilot plugin marketplace add ajadi/kiln`, then
    `copilot plugin install kiln@kiln`, then `copilot plugin disable kiln@kiln` (off elsewhere).
-2. This project only: `.github/copilot/settings.json` gets `{"enabledPlugins": {"kiln@kiln":
-   true}}` (merge with what is there).
+2. This project only: `python "${extensionPath}/scripts/json_config.py" merge --file
+   .github/copilot/settings.json --json '{"enabledPlugins": {"kiln@kiln": true}}'`.
 3. MCP servers, once per machine, with the same names: the `copilot` command in each tool's
    `register` (`copilot mcp add godot-ai -- <path> attach`, `copilot mcp add --transport http
    unity http://localhost:8080/mcp`, ...).
 4. Trust the folder when Copilot asks; restart Copilot CLI; `/kiln:doctor`.
+
+`/kiln:autopilot` in Copilot runs in Copilot's own autopilot mode (`copilot --autopilot`, or
+Shift+Tab to autopilot): without it Copilot ends the turn after 8 continuations in a row
+(checked live with 1.0.98: 9 of 12 items done, then it stopped; in autopilot mode all 12).
 
 OpenCode (when `runtimes` includes opencode; checked with OpenCode 1.19.0). Kiln runs as a
 project plugin, so it is on in this project only:
@@ -324,7 +365,9 @@ project plugin, so it is on in this project only:
    (links to Kiln's skills). Re-run it after updating Kiln.
 2. Project rules: the block goes to `AGENTS.md` (OpenCode reads it, and `CLAUDE.md`).
 3. MCP servers: merge each server's `register` entry (`mcp_check.py required --runtime
-   opencode`) into `"mcp"` in the project's `opencode.json`.
+   opencode`) into the project's `opencode.json` with `json_config.py merge --file opencode.json
+   --json '{"mcp": {...}}'` (it reads JSONC; comments are not kept, the original stays as
+   `opencode.json.kiln-backup` - tell the user if it had comments).
 4. The autopilot continues only in a running OpenCode (TUI or `opencode serve`): a one-shot
    `opencode run` exits after its first answer.
 

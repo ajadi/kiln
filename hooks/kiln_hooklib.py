@@ -28,6 +28,7 @@ DEFAULT_POLICY = {
     "dimension": "3d",                                 # 3d | 2d
     "model_generators": "off",                         # off | local | remote | api — image-to-3D/2D generators
     "audio_generators": "off",                         # off | local | remote | api — music/sound models
+    "video_generators": "off",                         # off | local | remote | api — video (animation reference)
     "runtimes": "claude",                              # claude | codex | gemini | copilot | opencode
     "mcp_only": "on",                                  # Blender/Godot only through MCP
     "godot_files_via_mcp": "scenes,resources,scripts", # what may not be hand-edited
@@ -80,17 +81,29 @@ def project_dir(data):
         path = parent
 
 
+NOT_UTF8 = set()   # project roots whose manifest.md is not UTF-8 (read anyway; reported once)
+
+
 def read_manifest(root):
+    """manifest.md as a dict. A file saved in another encoding (PowerShell 5.1, cp1251 or
+    cp1252 editors) once made every hook crash and fail open (install audit 2026-10-19); the keys
+    are ASCII, so it is read with replacement characters and reported."""
     path = os.path.join(root, "manifest.md")
     values = {}
     try:
-        with open(path, encoding="utf-8") as fh:
-            for line in fh:
-                m = re.match(r"\s*([A-Za-z_][\w-]*)\s*=\s*(.*?)\s*$", line)
-                if m:
-                    values[m.group(1)] = m.group(2)
+        with open(path, "rb") as fh:
+            raw = fh.read()
     except OSError:
         return None
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("utf-8", errors="replace")
+        NOT_UTF8.add(root)
+    for line in text.splitlines():
+        m = re.match(r"\s*([A-Za-z_][\w-]*)\s*=\s*(.*?)\s*$", line)
+        if m:
+            values[m.group(1)] = m.group(2)
     return values
 
 
@@ -101,6 +114,13 @@ def kiln_manifest(root):
         return None
     policy = dict(DEFAULT_POLICY)
     policy.update(manifest)
+    if root in NOT_UTF8:
+        NOT_UTF8.discard(root)
+        try:
+            report_problem(root, "hooks", "manifest", "manifest.md is not UTF-8; Kiln reads it, "
+                           "but other tools may not", "save it as UTF-8 (no BOM)", policy=policy)
+        except OSError:
+            pass
     return policy
 
 
@@ -122,6 +142,15 @@ def throwaway(root):
     return os.path.normcase(os.path.realpath(root)).startswith(temp)  # 8.3 names, symlinks
 
 
+def registry_key(path):
+    """One spelling per folder in projects.json: forward slashes, upper-case drive letter (a
+    session started from d:\\ and one from D:\\ listed the same project twice)."""
+    key = os.path.abspath(path).replace("\\", "/")
+    if len(key) > 1 and key[1] == ":":
+        key = key[0].upper() + key[1:]
+    return key
+
+
 def register_project(root, policy):
     """Remember this project for /kiln:update all. Throwaway folders under the system temp dir
     (test runs) are not remembered unless KILN_REGISTER_TEMP is set."""
@@ -133,7 +162,7 @@ def register_project(root, policy):
         reg = projects_path()
         with locked(reg):
             data = load_json(reg, {})
-            data[path.replace("\\", "/")] = {
+            data[registry_key(path)] = {
                 "name": policy.get("project_name") or os.path.basename(path),
                 "version": policy.get("framework_version", "0.0.0"),
                 "seen": time.strftime("%Y-%m-%d")}
@@ -170,6 +199,11 @@ GEMINI_TOOLS = {"run_shell_command": "Bash", "write_file": "Write", "replace": "
 MCP_SERVER_NAMES = ("unreal-mcp-proxy", "unreal-mcp", "godot-ai", "blender", "unity", "unreal")
 
 
+# Kiln roles' Gemini time limit (agent timeout_mins; Gemini's default stops a subagent after
+# 10 minutes). The role marker lives as long as a role may run.
+GEMINI_ROLE_TIMEOUT_MIN = 180
+
+
 def gemini_agent_marker(root):
     return os.path.join(kiln_dir(root), "gemini-agent.json")
 
@@ -204,7 +238,7 @@ def from_gemini(data, root):
     else:
         marker = load_json(gemini_agent_marker(root), {})
         if marker.get("session") == out.get("session_id") and \
-                time.time() - marker.get("ts", 0) < 900:  # subagents time out after 10 min
+                time.time() - marker.get("ts", 0) < GEMINI_ROLE_TIMEOUT_MIN * 60 + 60:
             out["agent_type"], out["agent_id"] = marker["agent_type"], marker["agent_id"]
     return out
 
@@ -411,10 +445,19 @@ def path_matches(rel, patterns):
 
 
 def load_json(path, default):
+    """The file's JSON (a BOM is fine), or `default`. A file that does not parse is first kept as
+    <path>.broken-<time>: callers save right after reading, and a BOM or a stray comma once
+    turned machine.json into a one-key file (install audit 2026-10-19)."""
     try:
-        with open(path, encoding="utf-8") as fh:
+        with open(path, encoding="utf-8-sig") as fh:
             return json.load(fh)
-    except (OSError, json.JSONDecodeError):
+    except OSError:
+        return default
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        try:
+            os.replace(path, f"{path}.broken-{time.strftime('%Y%m%d-%H%M%S')}")
+        except OSError:
+            pass
         return default
 
 
@@ -443,13 +486,13 @@ def locked(path, timeout=5.0):
     while fd is None:
         try:
             fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
+        except (FileExistsError, PermissionError):  # Windows: the holder is deleting it right now
             try:
                 if time.time() - os.path.getmtime(lock) > 10:
                     os.remove(lock)
                     continue
             except OSError:
-                continue
+                pass                     # gone in between: try again (still within the deadline)
             if time.time() > deadline:
                 break
             time.sleep(0.01)
@@ -569,17 +612,17 @@ REPORT_HEADER = ("# Kiln problem reports\n\n"
                  "|---|---|---|---|---|---|---|\n")
 
 
-def report_problem(root, who, area, what, suggestion="-"):
+def report_problem(root, who, area, what, suggestion="-", policy=None):
     """Append a row to the project's kiln-report.md unless manifest problem_reports=off or the
     same problem is already listed as open."""
-    policy = kiln_manifest(root)
+    policy = policy or kiln_manifest(root)
     if not policy or str(policy.get("problem_reports", "on")).lower() == "off":
         return
     what = what.replace("|", "/").replace("\n", " ")
     path = os.path.join(root, "kiln-report.md")
     with locked(path):
         try:
-            with open(path, encoding="utf-8") as fh:
+            with open(path, encoding="utf-8", errors="replace") as fh:
                 text = fh.read()
         except OSError:
             text = REPORT_HEADER
@@ -605,7 +648,7 @@ def active_tasks(root):
     for name in names:
         path = os.path.join(tasks_dir, name)
         try:
-            text = open(path, encoding="utf-8").read()
+            text = open(path, encoding="utf-8", errors="replace").read()
         except OSError:
             continue
         title = text.splitlines()[0].lstrip("# ").strip() if text else name
@@ -624,7 +667,7 @@ def active_tasks(root):
 
 def open_questions(root):
     try:
-        text = open(os.path.join(root, "GAME.md"), encoding="utf-8").read()
+        text = open(os.path.join(root, "GAME.md"), encoding="utf-8", errors="replace").read()
     except OSError:
         return []
     return [row.strip() for row in re.findall(r"^\|\s*OQ-\d+.*⏳.*$", text, re.M)]
@@ -632,7 +675,7 @@ def open_questions(root):
 
 def backlog_progress(root):
     try:
-        text = open(os.path.join(root, "backlog.md"), encoding="utf-8").read()
+        text = open(os.path.join(root, "backlog.md"), encoding="utf-8", errors="replace").read()
     except OSError:
         return None
     done = len(re.findall(r"^\s*- \[x\]", text, re.M | re.I))

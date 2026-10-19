@@ -30,12 +30,24 @@ by asset type:
 |---|---|
 | hard-surface, mechs, anything with damageable parts, joints, exact dimensions | **B: model by hand** from the images; a generated mesh may serve only as a proportion reference |
 | organic prop, rock, food, cloth, statue, foliage clump | **A: generate → clean up** (if allowed), else B |
-| character or creature that deforms | **C: hybrid** — generated sculpt as reference/bake source, hand retopology with deformation loops, then rig; B if generators are off |
+| character or creature that deforms | **C: hybrid** — generated sculpt as reference/bake source, hand retopology with deformation loops (or a service's quad output as a candidate), `joint_topology.py` and `joint_bend.py` pass, then rig; B if generators are off |
 | poor, occluded or off-axis photos | B, using any generated blockout only for proportions |
 | stylised concept art | A only if it shows a clean ¾ or front view; otherwise B |
 
 Generated meshes are fused (fingers, held weapons, legs), soft-edged, have nothing inside, invent
 the back, and bake lighting into the albedo. Never ship one without §4 and §5.
+
+Input views for a generator (several views help only when they show one consistent object):
+
+| Views come from | Hard surface (vehicles, weapons, mechs, buildings) | Organic, characters, creatures |
+|---|---|---|
+| photos on a real turntable (same distance, lens, height) | multi-view if `view_consistency.py` passes | same |
+| a 2D image model, drawn view by view | **one image**: front, or a low ¾ view (elevation ≤ 15°), unless the check passes | multi-view only if the check passes; else one front image in A/T-pose |
+| the generator vendor's own multi-view tool | run the check anyway; one image on fail | the preferred way to get consistent views |
+| Pixal3D multi-view | only with real camera poses (photos with solved cameras, or renders) | same |
+
+Tripo P2 wants a front view. Avoid strong top-down angles: elevated inputs hurt several
+generators.
 
 ## 2. Prepare the images
 
@@ -55,6 +67,33 @@ the back, and bake lighting into the albedo. Never ship one without §4 and §5.
 Reference files stay outside the game's content folders (Godot: add `.gdignore`); record source,
 licence and date of every image in `ref/manifest.csv`; prepped images go to
 `art/source/<asset>/ref_prepped/`.
+
+### 2a. No usable image: concept first
+
+When the task has no photo or clean concept, make one before any 3D credit or GPU hour is spent:
+artist-2d draws it, or an image model makes it if `model_generators` allows (art-2d §AI image
+models for the licences: Gemini images carry a SynthID watermark and EEA users need its paid
+tier; FLUX.2-dev and FLUX.2-klein-9B are non-commercial). The art-director or the user approves
+the concept against the art bible first. Concept checklist:
+
+1. One object, whole and uncropped, on a plain background; cut out to RGBA (`prep_image.py`).
+2. About 0.85 fill on a square canvas, ≥ 1024 px on the short side.
+3. Even, soft light: no cast shadows, blown highlights or rim light (generators bake light in).
+4. View per the table in §1; a long-lens look ("orthographic", "telephoto" in the prompt).
+5. Characters: A-pose (arms about 45° down) or T-pose, legs and fingers apart, nothing in the
+   hands, neutral face; or the service's pose option (Meshy `pose_mode`, Rodin `TAPose`).
+6. No text or logos (they come back garbled; add decals later).
+7. Provenance (model, version, prompt, seed, date) in `ref/manifest.csv`.
+
+More views of the approved design: redraw them from the concept with an image model that takes
+references, then §2b decides whether they may be used together.
+
+### 2b. Several views: check they agree
+
+`view_consistency.py --front f.png --back b.png --left l.png --right r.png --diff
+production/captures/<task>/views/` before any multi-view generation. Opposite views must be
+mirror images; it compares the outlines (an IoU check passes a 4 % wheelbase error). `fail` →
+one image and say why in the handoff; `warn` → the art-director looks at the diffs first.
 
 ## 3. Route B: model by hand from images
 
@@ -80,7 +119,7 @@ copyrightable in the US — tell the user which assets came from generators.
 
 | Option | Input | Licence / limits | When |
 |---|---|---|---|
-| Pixal3D (TencentARC, built on TRELLIS.2) | 1 image, or N posed views (`transforms.json`, first view = front) | MIT; inherits TRELLIS.2 deps; `--low_vram` | best local fidelity and PBR, multi-view |
+| Pixal3D (TencentARC, built on TRELLIS.2) | 1 image, or N posed views (`transforms.json`, first view = front) | MIT; inherits TRELLIS.2 deps incl. nvdiffrast (see the traps); `--low_vram` | best local fidelity and PBR, multi-view |
 | TRELLIS.2-4B (Microsoft) | 1 image | MIT + DINOv3 licence; ≥24 GB, Linux (Windows via ComfyUI-Trellis2) | local, PBR, up to 1536³ |
 | TripoSG | 1 image | MIT; 8 GB; shape only | small GPU: shape, then texture by projection in Blender |
 | Direct3D-S2 / Hi3DGen | 1 image | MIT; shape only | sharp hard-surface blockouts |
@@ -88,9 +127,9 @@ copyrightable in the US — tell the user which assets came from generators.
 | SF3D / SPAR3D (Stability) | 1 image | Stability Community: free under $1M revenue | fast, de-lit albedo, lower fidelity |
 | TripoSR (VAST / Stability) | 1 image | MIT code and weights; CPU works (~40 s model + ~40 s mesh at 256³; PyMCubes wheel when torchmcubes will not compile) | no CUDA GPU: rough shape with vertex colours, clean-up expected |
 | PartCrafter / OmniPart | image (+ 2D part mask) | MIT | separate part meshes (OmniPart textured) |
-| Tripo API | 1 image or front/left/back/right | paid plan for commercial use (free tier non-commercial); ≈$0.20–0.30 per model | cheapest API; segmentation, low-poly |
-| Meshy API | 1–4 images, no poses | paid plan (free tier outputs are CC BY) | multi-image without poses |
-| Rodin (Hyper3D) | multi-image | paid; API on Business plan; ≈$0.40–1.50 per model | high-quality fallback |
+| Tripo API (v3; v2 shuts down 2026-10-31) | 1 image or 4 views | paid plan for commercial use (free tier: Tripo keeps the rights); ≈$0.10–0.40 per model ($0.01/credit) | cheapest API; quad option, rigging of non-humanoids, segmentation, low-poly |
+| Meshy API (meshy-7.1) | 1–4 images, no poses | API keys need a paid plan (free tier outputs are CC BY); ≈$0.40–0.70 per model | multi-image without poses; humanoid rigging and animation |
+| Rodin (Hyper3D Gen-2.5) | 1–5 images | API only on the Business plan ($120/month); ≈$0.75 per model | high-quality fallback; quad mode, T/A pose |
 
 Framing the input: single-image generators read the frame as the object's extent. A tight crop of
 a face comes back as a flat relief mask (live TripoSR run: 0.09 m deep, no back of the skull); the
@@ -98,7 +137,8 @@ same head cropped with neck, hair, ears and collar, ~0.85 fill on a square canva
 closed bust. Feed the whole object with its natural context and a margin, then cut the extra away
 in Blender. Check left/right against an asymmetric mark (a mole, a decal) after import.
 
-`local` allows the open-weight rows; `api` also allows the paid APIs (the user supplies the key
+`local` allows the open-weight rows; `api` also allows the paid APIs, always through the
+`api-generators` skill (`gen_api.py`: the estimate, the user's yes, caps, provenance; the user supplies the key
 in an environment variable, never in the project).
 
 Licence traps — refuse these for a commercial game:
@@ -121,9 +161,11 @@ Then in Blender through the MCP (`execute_blender_code`, one step per call, numb
    non-manifold shells.
 4. Symmetry: align the symmetry plane to X = 0, bisect, Mirror modifier; re-bake the texture from
    the mirrored high-poly.
-5. Budget: static props — Decimate (Collapse); deforming meshes — voxel remesh, then
-   `bpy.ops.object.quadriflow_remesh(target_faces=N, use_mesh_symmetry=True, use_preserve_sharp=True)`
-   (fails on non-manifold input) or hand retopology for heroes.
+5. Budget: static props — Decimate (Collapse); deforming meshes — hand retopology with edge
+   loops around the joints (the Blender manual: QuadriFlow is not meant as the final topology of
+   a mesh that will be animated). `bpy.ops.object.quadriflow_remesh(target_faces=N,
+   use_mesh_symmetry=True, use_preserve_sharp=True)` (fails on non-manifold input) only as a
+   starting point or for a static part.
 6. UV: `uv.smart_project(angle_limit=1.15, island_margin=0.003)` + `uv.pack_islands(margin=0.004)`;
    hand seams for hero assets.
 7. Bake high → low in Cycles (`use_selected_to_active=True`, cage extrusion 1–2% of size,
@@ -150,6 +192,8 @@ text and logos → decals.
 2. `silhouette_iou.py ref_prep.png render.png --min 0.90 --diff <path>` for the front view,
    `--min 0.85` for side/back views; read the diff image — red = model too thin or missing,
    blue = too wide or extra. Thresholds are starting points; calibrate on an accepted model.
+   IoU hardly moves when a part sits a few percent off: hard-surface assets also pass
+   `--max-disagree 0.08` (the share of the top, bottom and side outline that differs).
    From primary forms on, also `value_bands.py ref_prep.png render.png --bands 16 --image <path>`
    for every view (render with the viewport colours or materials on): a matching silhouette can
    still be one white tube where the reference has separate plates, dark joints and soles.

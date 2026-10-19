@@ -7,7 +7,7 @@
           {
             "type": "command",
             "name": "kiln-guard-BeforeTool",
-            "command": "python \"${extensionPath}${/}hooks${/}guard.py\" --runtime gemini",
+            "command": "node \"${extensionPath}${/}hooks${/}py.cjs\" \"${extensionPath}${/}hooks${/}guard.py\" --runtime gemini",
             "timeout": 10000
           }
         ],
@@ -18,7 +18,7 @@
           {
             "type": "command",
             "name": "kiln-session-BeforeTool",
-            "command": "python \"${extensionPath}${/}hooks${/}session.py\" subagent --runtime gemini",
+            "command": "node \"${extensionPath}${/}hooks${/}py.cjs\" \"${extensionPath}${/}hooks${/}session.py\" subagent --runtime gemini",
             "timeout": 10000
           }
         ],
@@ -31,7 +31,7 @@
           {
             "type": "command",
             "name": "kiln-stop-AfterTool",
-            "command": "python \"${extensionPath}${/}hooks${/}stop.py\" subagent --runtime gemini",
+            "command": "node \"${extensionPath}${/}hooks${/}py.cjs\" \"${extensionPath}${/}hooks${/}stop.py\" subagent --runtime gemini",
             "timeout": 10000
           }
         ],
@@ -44,7 +44,7 @@
           {
             "type": "command",
             "name": "kiln-session-SessionStart",
-            "command": "python \"${extensionPath}${/}hooks${/}session.py\" start --runtime gemini",
+            "command": "node \"${extensionPath}${/}hooks${/}py.cjs\" \"${extensionPath}${/}hooks${/}session.py\" start --runtime gemini",
             "timeout": 10000
           }
         ]
@@ -56,7 +56,7 @@
           {
             "type": "command",
             "name": "kiln-session-SessionEnd",
-            "command": "python \"${extensionPath}${/}hooks${/}session.py\" end --runtime gemini",
+            "command": "node \"${extensionPath}${/}hooks${/}py.cjs\" \"${extensionPath}${/}hooks${/}session.py\" end --runtime gemini",
             "timeout": 5000
           }
         ]
@@ -68,7 +68,7 @@
           {
             "type": "command",
             "name": "kiln-stop-AfterAgent",
-            "command": "python \"${extensionPath}${/}hooks${/}stop.py\" stop --runtime gemini",
+            "command": "node \"${extensionPath}${/}hooks${/}py.cjs\" \"${extensionPath}${/}hooks${/}stop.py\" stop --runtime gemini",
             "timeout": 10000
           }
         ]

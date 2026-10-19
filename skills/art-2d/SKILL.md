@@ -25,8 +25,11 @@ Aseprite batch: `aseprite -b in.aseprite --sheet out.png --sheet-type packed --d
 (`--script` + `--script-param` for Lua). Aseprite MCP servers exist (diivi/aseprite-mcp MIT) —
 an extra integration needs the user's approval, like any MCP.
 
-AI image models only when `model_generators` allows: FLUX.1-schnell, FLUX.2-klein-4B and
-Qwen-Image (Apache-2.0), SDXL (OpenRAIL++); **not** FLUX.1-dev / FLUX.2-dev (non-commercial).
+AI image models only when `model_generators` allows: FLUX.1-schnell, FLUX.2-klein-4B,
+Qwen-Image, Qwen-Image-Edit (pose and view changes) and Z-Image-Turbo (Apache-2.0), HiDream-I1
+(MIT), SDXL (OpenRAIL++); hosted Gemini images (Google claims no ownership; every image carries
+a SynthID watermark; apps for EEA users must use the paid tier). **Not** FLUX.1-dev, FLUX.2-dev
+or FLUX.2-klein-9B (non-commercial). A concept for image-to-3D follows image-to-model §2a.
 Consistency needs a LoRA, IP-Adapter or ControlNet; pixel art from AI still needs palette
 quantisation and hand cleanup. AI output is not copyrightable in the US and Steam requires an AI
 disclosure — record provenance per file.

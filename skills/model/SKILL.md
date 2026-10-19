@@ -22,16 +22,24 @@ job end to end. Blender only through its MCP (`mcp_only`).
    sculpt as reference or bake source, hand retopology). Generation needs `model_generators`
    `local`, `remote` or `api` in the manifest; agents never change it, so with `off` say which
    route that leaves and how to allow generation (`/kiln:settings model_generators=local`).
+   `api` (the user's paid service, e.g. Meshy) → the `api-generators` skill: estimate, ask the
+   user with its cost, submit only on their yes.
    Allowed but nothing installed → `tools_check.py offers --project .` (tools skill §4):
    compare in a table (makes, GPU memory, licence and commercial use, speed), recommend one
-   with the reason, install on the yes. 2-3 views of one object → a multi-view model
-   (TRELLIS.2, Pixal3D). `remote` runs through the gpu-server skill's `gpu_job.py` with its
+   with the reason, install on the yes. Photos of one object with solved cameras → Pixal3D multi-view;
+   views drawn by an image model → `view_consistency.py` first (image-to-model §2b), else one
+   image (TRELLIS.2 takes one image only). No image at all → concept first (image-to-model §2a). `remote` runs through the gpu-server skill's `gpu_job.py` with its
    spend cap.
 4. **Build.** Delegate to `kiln:modeler` with the task file: image preparation and camera match,
    then the route, then cleanup, UVs, materials and bake (image-to-model §2-4,
    blender-modeling).
-5. **Gates.** Silhouette IoU against every input view (`silhouette_iou.py --min 0.90`),
+5. **Gates.** Silhouette IoU against every input view (`silhouette_iou.py --min 0.90`; hard
+   surface also `--max-disagree 0.08`),
    `mesh_qa.py`, `asset_budget.py` on the exported .glb (triangles, materials, textures);
+   with a `series:` line and an anchor in `art/anchors/<series>/`, `style_anchor.py check` and a
+   lineup next to the anchor (asset-pipeline "Series"); no anchor yet → this model becomes it
+   once approved; a mesh that deforms (`touches:` humanoid or creature) passes blender-modeling
+   `joint_topology.py` and `joint_bend.py` before rigging;
    `kiln:art-director` against the images, `kiln:verifier` closes. Experts the touches name
    (anatomy, creature) review before the art-director.
 6. **Deliver** into `out/<asset>/` (asset mode) or the task's paths: `<asset>.blend`,

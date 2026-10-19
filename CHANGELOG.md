@@ -556,3 +556,297 @@ Fixes from a code review of the whole project, each with a test:
   proposes a new check (or an extension of an existing one) as a follow-up task for every defect
   no check caught.
 
+
+## 0.8.1 — 2026-10-19
+
+- Codex `config.toml` only through `scripts/codex_config.py` (released as a fix on top of 0.8.0;
+  details in the 0.9 entry below).
+
+## 0.8.2 — 2026-10-19
+
+- Install fixes released on top of 0.8.1 (launchers for Python, `codex_config.py` gaps,
+  `json_config.py`, `text_block.py`, OpenCode keeps user skills, `folder_check.py`, guard lets
+  setup register Unity / Unreal) and README "Set up the project" per agent; details in the 0.9
+  entry below.
+
+## 0.9.0 — 2026-10-19
+
+- **Guard: generator hosts and secrets.** `audio_generators` now also covers DiffRhythm and
+  Stable Audio's API (`api.stability.ai/.../audio`); `model_generators` covers Rodin's new host
+  `api.hyper3d.com`, fal, Replicate, Tencent Cloud, Sloyd, 3D AI Studio, Leonardo, Scenario and
+  Layer. Staging or committing keys and certificates (`*.key`, `*.pem`, `*.p12`, `*.pfx`),
+  `credentials.json`, `client_secret*.json` and anything under a `secrets/` folder is refused,
+  like `.env` files already were.
+- **`/kiln:update all` registry.** A scan no longer registers the project template or test
+  fixtures inside a Kiln checkout, and one folder is one row whatever the drive letter's case
+  (older registries with `d:/x` and `D:/x` are merged).
+- **OpenCode: `apply_patch` goes through the guard.** OpenCode 1.x gives GPT models
+  `apply_patch` instead of write/edit; the plugin passed it through unchecked, so write zones
+  and the MCP-only file rules did not apply. Checked live (OpenCode 1.18.18, a fake
+  `gpt-5-fake` model): a patch adding a scene file is refused.
+- **OpenCode: a role's handoff is checked.** A role that answers without its status line gets
+  one more turn (as SubagentStop does in Claude Code), as the same role, and the producer sees
+  the second reply. Before, the check never ran in OpenCode. Checked live on OpenCode 1.18.18.
+- **OpenCode: `agent_model` reaches the roles.** OpenCode's task tool has no model field, so the
+  guard's per-call model never applied there; `opencode_setup.py` now writes `agent_model` in
+  OpenCode's `provider/model` form into every role (checked live with `opencode debug agent`).
+- **Gemini CLI: roles run up to 3 hours.** Gemini stops a subagent after 10 minutes unless its
+  agent file sets `timeout_mins`; every Kiln role now has 180, and the role marker lives as
+  long. Checked live: Gemini CLI 0.64.0 loads all 31 roles with it.
+- **Gemini CLI: one role at a time, Plan Mode, headless skills.** A second role started while one
+  runs is refused until the first returns (Gemini runs one turn's agent calls in parallel and its
+  hooks do not name the role, so roles were mixed up). The extension ships
+  `user-policy/kiln.toml`; setup copies it to `~/.gemini/policies/` with the user's yes: Kiln's
+  skills activate without a question (headless Gemini hid `activate_skill`) and Plan Mode may
+  start Kiln's read-only roles. Checked live on Gemini CLI 0.64.0 (both, with and without the
+  file).
+- **Copilot CLI: role effort and project rules.** The generated roles use Copilot's
+  `reasoning-effort` (it ignored `effort`) and `include-custom-instructions: true`, so a role
+  reads `CLAUDE.md` / `AGENTS.md` (before it got none). Checked live on Copilot CLI 1.0.98 with a
+  fake model API: the role's requests carry its effort (`high` in a `low` session) and the
+  project's `CLAUDE.md`; with the old files neither. `/kiln:autopilot` in Copilot runs in
+  Copilot's autopilot mode: without it Copilot ends the turn after 8 hook continuations (live:
+  9 of 12 checklist items, then a stop; in autopilot mode all 12).
+- **Codex: `config.toml` only through `scripts/codex_config.py` (field report).** A user's Codex
+  app would not start: the install text had an agent append `[plugins."kiln@kiln"]` /
+  `enabled = false` to `~/.codex/config.toml` by hand, without a final newline, and Codex's next
+  block was glued to it (`enabled = false[features]`). The new script switches a plugin on or
+  off keeping every other line, ends the file with a newline, parses the result before writing,
+  keeps `config.toml.kiln-backup`, and `--check` / `--repair` find and fix a value glued to a
+  table header. README, GUIDE, `/kiln-start:here` and setup use it; the guard refuses hand edits
+  of any `.codex/config.toml`. Checked with Codex 0.163: the broken file fails to load, the
+  repaired one loads.
+- **Codex: the producer rule is enforced.** Codex's main thread is the hook call without an
+  agent id (its subagents always carry one), so "the producer writes only state" is now a guard
+  check in Codex too, not only a line in `AGENTS.md`.
+- **Codex: hooks have readable names in the review.** Codex's `/hooks` review titled Kiln's hooks
+  "Hook 1", "Hook 3"; it titles a hook by its `statusMessage` (tui hooks_browser_view.rs), so each
+  has one now: Protect Kiln project tools (PreToolUse, guard.py), Load Kiln project state
+  (SessionStart), Add engine rules to Kiln agents (SubagentStart), Save session handoff and
+  release locks (SessionEnd), Manage Kiln autopilot and release locks (Stop), Clean up Kiln
+  agent state (SubagentStop). Behaviour and permissions unchanged; Codex asks once to trust the
+  renamed hooks (the name is part of a hook's trust hash).
+- **Hooks find Python on every system.** Claude Code and Gemini CLI started every Kiln hook as
+  plain `python`; macOS and many Linux systems have only `python3`, so every hook failed as a
+  non-blocking error and nothing was guarded. Claude Code now runs them through `hooks/py.sh`
+  (bash; Git Bash on Windows), Gemini through `hooks/py.cjs` (node, which Gemini CLI always
+  has): both pick the first working Python 3.10+ (`python`, `python3`, on Windows also
+  `py -3`; a Microsoft Store stub is skipped), cache it in `~/.kiln`, and say so when there is
+  none. Checked live: Claude Code (a real session: project context at start, a scene write
+  refused) and Gemini CLI 0.64.0 on Windows; the stub and no-Python cases by tests.
+- **Codex config fix, the gaps (install audit).** `codex_config.py` reads a file saved with a BOM
+  (PowerShell 5.1) and writes it back without one, handles the inline form Codex may write
+  (`[plugins]` / `"kiln@kiln" = { enabled = ... }`), and says it needs Python 3.11+ instead of a
+  traceback. README, GUIDE and `/kiln-start:here` say where `<kiln>` is for a Codex install
+  (`~/.codex/plugins/cache/kiln/kiln/<version>`) and to stop rather than edit by hand when the
+  script cannot run. The guard also refuses shell writes to a `.codex/config.toml` outside the
+  project (the user config). Checked live: Codex 0.163 loads the result.
+- **OpenCode setup keeps the user's own skills.** `opencode_setup.py` removed a real
+  `.opencode/skills/<name>` folder whose name matched a Kiln skill (release, run, status, ...)
+  and linked Kiln's in its place; now such a folder is kept, Kiln's skill of that name is not
+  linked, and the report names them. `--project` with forward slashes no longer fails halfway
+  (`mklink /J` read `/` as a switch).
+- **Setup no longer breaks the project's own text files.** New `scripts/text_block.py`: `block`
+  puts Kiln's `.gitignore` / `.gitattributes` part between marker lines (replaced on re-runs,
+  the user's lines kept), with a newline before it - appending to a file without a final newline
+  turned `*.keystore` + the block into `*.keystore# --- kiln ---`, and that file stopped being
+  ignored (checked with real git: ignored again with the script). `include` puts `@AGENTS.md`
+  first in `CLAUDE.md` / `GEMINI.md` instead of replacing what the user wrote there. Both keep
+  LF or CRLF and drop a BOM. Setup uses it.
+- **The guard lets setup register Unity and Unreal.** `claude|codex|gemini|copilot|opencode mcp
+  add ... http://localhost:8080/mcp` names the editor's port without connecting to it, but the
+  "no direct connections to the editors' MCP ports" rule refused it once `manifest.md` existed,
+  which pushed agents towards hand-editing the agents' own config files. A real connection
+  (`curl`, a script) is still refused.
+- **No Kiln in the home folder or a drive root.** `folder_check.py` (in Kiln and in kiln-start)
+  runs first in `/kiln-start:here` and `/kiln:setup` and stops there: in the home folder a
+  project install is the user's whole setup (`~/.claude/settings.json`, `~/.codex/config.toml`,
+  `~/.codex/agents`), and `git init` would take in the whole profile.
+- **Other programs' JSON is merged by a script.** New `scripts/json_config.py merge` (also in
+  kiln-start): deep merge, lists joined, BOM and JSONC read, the result parsed before an atomic
+  write, the original kept as `.kiln-backup`, a file that does not parse left alone. Setup,
+  `/kiln-start:here`, README and GUIDE use it for `.claude/settings.json`,
+  `.github/copilot/settings.json`, `opencode.json`, Unity's `Packages/manifest.json`, an Unreal
+  `.uproject` and `~/.kiln/machine.json` - all were edited by hand before, and a broken one
+  turns Kiln off or stops the program from starting. Kiln's own `~/.kiln/*.json` now read a
+  BOM, and a file that does not parse is kept as `<name>.broken-<time>` instead of being
+  replaced by a one-key file on the next save.
+- **Claude Code background subagents.** Claude Code in fork mode (interactive since 2.1.232) runs
+  every subagent in the background and the Agent tool has no `run_in_background`, so the run
+  skill's "delegate in the foreground" could not always be obeyed: it now says to wait for the
+  role's completion notification and never end the turn while a role runs. Headless autopilot
+  (`claude -p`) is started with `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`: by default `-p` drops
+  background work after 10 idle minutes (Claude Code docs, env-vars and headless pages).
+- **Skill descriptions within the Agent Skills limit.** doors, fluids-granular, riding, sky,
+  traversal and weather had descriptions over 1,024 characters (the spec's limit; agents may cut
+  or reject them); each is now 820-910 with the same triggers, and a test holds every skill to
+  the limit.
+- **`asset_budget.py` counts a LOD chain once.** A glb with `<name>_LOD0`, `_LOD1`, ... nodes (or
+  meshes) counted every level as drawn, about 1.9x the real cost; now only LOD0 counts towards
+  triangles, vertices and draw calls, and each chain's triangles per level are in `lods`.
+- **Docs say what the code does.** README: Godot and Blender are checked in real projects, Unity 6
+  and Unreal 5.8 are described and tested but not yet run in a real editor. GUIDE: the stop hook
+  reminds about a missing required check, it does not block. `model`: TRELLIS.2 takes one image
+  (Pixal3D is the multi-view model). `image-to-model`: QuadriFlow is not the final topology of a
+  deforming mesh (hand retopology with joint loops). `track`: Suno has no public API and is not
+  offered. Setup lists the `remote` generator policy. The Codex plugin description: the guard,
+  not permission profiles, enforces role write limits.
+- **`image-to-model` generator table updated (2026-10-19):** Tripo API v3 (v2 shuts down
+  2026-10-31; ≈$0.10-0.40 per model), Meshy 7.1 (API keys need a paid plan), Rodin Gen-2.5 (API
+  only on the $120/month Business plan, ≈$0.75 per model), Pixal3D carries TRELLIS.2's nvdiffrast.
+- **Codex: forked sessions get the Kiln context.** The SessionStart matcher also takes `fork`
+  (Codex 0.155+); a forked session started without the project state.
+- **Paid generators on the user's account (`api-generators`, Meshy first).** `gen_api.py`:
+  `services` / `balance` / `estimate` (free calls; prints the question for the user: credits,
+  about how many dollars, balance before and after, the output licence on their plan) / `submit`
+  (only for a fresh, unchanged estimate, within `gen_spend_cap_usd` and `gen_daily_cap_usd`, a
+  service in `gen_services`; a failed create is never resent) / `status --wait` (downloads into
+  `art/generated/<asset>/` with `provenance.json`) / `jobs`. Keys only from the environment or
+  the user's stored environment, scrubbed from every message. Tested against a local fake
+  Meshy API with a sentinel key; checked live on the user's Meshy account: balance 1500, one
+  image-to-3D on meshy-6-lite estimated at 15 credits, balance after 1485, a valid GLB that
+  `asset_budget.py` reads.
+- **Meshy rigging and animations.** `estimate meshy rigging --from <image-to-3d job>` (or
+  `--model <humanoid .glb>`; 5 credits) and `estimate meshy animations --from <rigging job> --opt
+  actions=92,15` (3 credits per action, up to 10 clips in one file); `actions meshy --search walk`
+  lists the animation library for free. `--from` checks the earlier job's kind and that Meshy
+  still keeps it (3 days). Results go to `art/generated/<asset>/rig/` and `anim-<ids>/`, each with
+  `provenance.json`. Checked live: a humanoid GLB rigged (rigged GLB/FBX, walk, run) and one clip
+  applied, 8 credits as estimated.
+- **Spend requests under autopilot.** `gen_api.py request <job> --why ...` adds the estimate to
+  `production/SPEND_REQUESTS.md` and the run goes on with work that needs no money; the
+  autopilot report asks one yes/no per row; `submit` takes a request for 7 days and marks the row
+  submitted. A paid generation is no longer a hard stop of autopilot by itself.
+- **Guard: the user's yes, vendor MCP servers, library downloads.** `gen_api.py submit` needs a
+  user message newer than the estimate (read from the Claude Code transcript; fails open
+  elsewhere); `actions` is a free call. A paid vendor's own MCP server (Meshy, fal, Replicate,
+  ElevenLabs, ...) follows `model_generators` / `audio_generators` and under autopilot only its
+  read calls run. `assets_api.py fetch` is refused with `asset_libraries=off`. Checked live in
+  Claude Code 2.1 with the dev plugin: an estimate against a fake Meshy ran, the agent's own
+  `submit` in the same turn was refused (nothing spent), and with the policies off both
+  `gen_api.py estimate` and `assets_api.py fetch` were refused.
+- **More free libraries, imports and CREDITS.md.** `assets_api.py` adds Kenney (pack pages and
+  zips; CC0 checked in each pack's `License.txt`), KayKit (GitHub; `--format`, `--only`, git blob
+  checksums), game-icons (CC BY 3.0 with the author's credit line, CC0 authors from
+  `license.txt`) and Google Fonts (licence and files from `METADATA.pb`, the licence file
+  downloaded with the font); kinds `sprite`, `ui`, `audio`, `icon`, `font`. `import <folder>`
+  records assets the user downloaded by hand (Quaternius QAL and Sonniss flagged: keep the raw
+  files out of a public repository). Downloads are assembled in `<id>.part` and kept only when
+  every check passed; `search all` lists a source that is down under `errors`. `licenses.py
+  build` also writes `production/CREDITS.md` (required attribution, fonts, courtesy thanks) and
+  no longer lists a library font twice. Checked live on all four new sources.
+- **Image-to-3D inputs: concept first, views checked.** New `view_consistency.py`
+  (image-to-model): opposite views must be mirror images; it compares the top, bottom and side
+  outlines (an IoU check passed a 4 % wheelbase error at 0.985) and says pass, warn or fail -
+  fail means one image instead of a multi-view run. `silhouette_iou.py` reports the same outline
+  disagreement and gates on it with `--max-disagree` (0.08 for hard surface). image-to-model gets
+  the input-view rule table, §2a concept first (checklist, pose options, image-model licences)
+  and §2b the view check; `model` step 3 and `art-2d` follow; the tools catalogue flags
+  nvdiffrast in Pixal3D and lists MeshAnything V2, FastMesh, FLUX.2-dev and FLUX.2-klein-9B as
+  not offered (non-commercial).
+- **Series style anchor.** New `style_anchor.py` (asset-pipeline; numpy, the glb read
+  directly through the new shared `glb_mesh.py`): `extract` the anchor's style statistics,
+  `check` a follower (triangle and texel density, edge sharpness for bevels, hard-edge share,
+  part sizes, flat-surface share, materials, palette in Lab with CIEDE2000, values, silhouette
+  solidity and outline; never silhouette IoU, members are meant to differ in shape), and
+  `calibrate` the tolerances on approved members. asset-pipeline gets a "Series" section
+  (anchor folder, style sheet, shared parts helpers, the art-director's lineup), `model` and
+  `blender-modeling` follow, and `plan` gives asset tasks `series:` and "library first".
+- **Authored LOD chains.** blender-modeling `lod_build.py` builds `<name>_LOD1..n` (about 50 %
+  triangles per level, at least a 25 % cut, sub-pixel parts left out, skip rules under 256 and
+  1,000 triangles) and stores each level's switch size from its measured error (two-sided
+  Hausdorff distance, 1 px at the target resolution) as glTF extras; `lod_shots.py` renders LOD0
+  and each level at that size. asset-pipeline `lod_check.py` gates the chain: triangle ratio,
+  chain length, outline distance in game pixels (p95 ≤ 1, max ≤ 2), boundary shift, shading
+  and triangle size (warn until calibrated), materials per level; `asset_budget.py` checks an
+  optional `lod_ratio`. engine-godot `kiln_lod_ranges.gd` (an import script) turns the levels
+  into visibility ranges. asset-pipeline gets a "LOD chain" section (when to skip, the formula,
+  per-engine import); optimization, engine-unity and engine-unreal follow. Checked end to end in
+  Blender 5.2 and Godot 4.7.2 (headless): a 4k-triangle rock halves twice, a 3 mm bolt leaves
+  at LOD1, the extras survive export and import, the ranges match the formula.
+- **Rig by on-screen size, deformation checked.** New animation `deform_check.py` (Blender):
+  stress poses from the range-of-motion table with linear blend skinning (Preserve Volume off),
+  measuring weight hygiene, joint centres, ring volume, candy-wrapper on forearm twist, shoulder
+  collapse, edge stretch, crossings and mesh volume; bones found by name (Mixamo / Meshy,
+  Rigify, Unreal, Godot humanoid). The animation skill gets the rig budget by
+  `on_screen_height_px` (bones kept only when the move list needs them and they cover ~4 px) and
+  the check after every rig; the animator runs it before any clip; the game-designer writes
+  `on_screen_height_px` per character and controls-camera gives the formula. Checked in
+  Blender 5.2 on a tube rig: smooth weights blend, hard weights have no ring, a plain forearm
+  twist shows the candy-wrapper (0.78).
+- **Joint topology and the bend test.** New blender-modeling `joint_topology.py` (bmesh): per
+  joint found from the bone names, the limb radius, the joint band, quad edge loops walked around
+  the limb (closed, 330° coverage, tilt ≤ 30°), poles and triangles in the band, with loop
+  targets per mesh class; and `joint_bend.py`: a temporary copy on automatic weights bent at
+  elbows and knees (90/120°) and shoulders and hips (90° abduction) with linear blend skinning,
+  gated on the cross-section area kept (≥ 0.75 / ≥ 0.60; crossings and stretch warn until
+  calibrated). blender-modeling QA, `model`, `image-to-model` route C and `animation` require
+  both before rigging a deforming mesh. Checked in Blender 5.2 on an arm tube: rings every 1 cm
+  give 7 loops and 0.83 of the area at 90°, rings 12 cm apart none and 0.71, triangles none.
+- **`video_generators` policy.** Video models (animation reference clips) get their own
+  setting, `off` / `local` / `remote` / `api` (default `off`), so a yes to image-to-3D does not
+  cover them: the guard knows local video models (Wan, LTX, CogVideo, HunyuanVideo, FramePack)
+  and video APIs (xAI, BytePlus, MiniMax, Kling, Runway, Veo by model name only - the Gemini host
+  also serves text). The tools catalogue offers Wan 2.2 TI2V-5B (fits 8 GB through ComfyUI
+  offloading), Wan 2.1 FLF2V-14B (first and last frame) and LTX-2 (flagged: a paid licence at
+  $10M revenue), lists HunyuanVideo 1.5, FramePack, CogVideoX, Sora 2, Wan 3 and the
+  non-commercial pose tools as not offered, and gets an on-request `pose` tool (rtmlib in its
+  own venv: a new `venv` source kind, installed only on the user's yes). Settings, setup,
+  doctor, the session line, the manifest template and the gpu-server skill follow.
+- **Video reference for animation.** New animation `video_ref.py`: `frames` (ffmpeg), `pose`
+  (RTMPose through rtmlib, from the on-request `pose` venv), `gate` (confidence, scale and limb
+  drift one cycle apart, camera drift, held frames, loop seam), `period` (cycle and loop cut by
+  autocorrelation), `keys` (contacts as the ankle reaching the ground band, swing knee peaks),
+  `compare` (our render against the reference: circular phase, DTW, sagittal joint angles,
+  PCK, period, key timing within one source frame) and `noise` (the estimator measured against
+  true joints, widening thresholds to 2 sigma). New reference `video-reference.md` (sources and
+  licences, the input render, the prompt, the rule that Kiln's limits win), an animation section
+  and acceptance row, the animator's loop, reads-wrong 15 and 16. Checked live on a
+  public-domain Muybridge walk: keypoints on all frames, a 1.0 s period at correlation 1.0, and
+  `compare` against itself shifted passes; a held-frame mp4 and moving cameras fail their gates.
+- **Install audit leftovers.** The `.gitignore` template anchors engine folders to the project
+  root (`/export/`, `/Saved/`, `/Binaries/`, ... and Unreal plugins' build folders), so a code
+  folder of the same name elsewhere is no longer ignored (checked with `git check-ignore`). A
+  `manifest.md` saved in another encoding (cp1251, cp1252) no longer makes every hook crash and
+  fail open: it is read with replacement characters (a BOM is fine too) and listed once in
+  kiln-report.md; task files, GAME.md, backlog and handoffs are read the same way. The guard
+  refuses `Remove-Item -Recurse` over a folder that holds a junction (Windows PowerShell follows
+  it into the shared Godot AI addon or the Kiln clone) and names the link to remove first;
+  setup says how to remove a link, doctor lists junctions, unanchored ignores and a non-UTF-8
+  manifest.
+- **Roles preload the new skills.** The modeler, animator, artist-2d, sound-designer and
+  music-producer preload `api-generators`; the art-director, modeler, level-designer,
+  lighting-artist, sound-designer, ui-designer and artist-2d preload `asset-libraries` (all
+  runtimes: the Copilot agents are regenerated, Codex, Gemini CLI and OpenCode read the same
+  role files). Doctor checks paid service keys and balances and that the free libraries answer;
+  setup's generator step leads to the key page and asks for `asset_libraries`.
+- **Hooks: state-file lock on Windows.** A lock file that its holder was deleting
+  (`PermissionError`) made a hook go ahead unlocked, so parallel agent starts could be lost
+  (1 in 5 runs of the 20-agent test); it is now waited for.
+- **Guard for paid generators and keys.** `gen_api.py` commands follow the generator policy
+  (`services`, `balance` and `jobs` always; the rest only with `model_generators=api`); `submit` is
+  refused while autopilot runs (spending waits for the user). No command may print or pass a key
+  variable (`echo $MESHY_API_KEY`, `printenv`, `Get-ChildItem env:`, ...), and no file of the
+  project may hold a value that looks like an API key (`msy_`, `tsk_`, `sk-`, ...).
+- **Paid generators in `/kiln:settings`.** New settings `gen_services`, `gen_spend_cap_usd`,
+  `gen_daily_cap_usd`; a table of the services (key set or not - never the key -, plan, where to
+  get a key) from `keys.py status`, the plan (`keys.py plan`, it decides the output licence), a
+  free key check (`keys.py check`), and step-by-step instructions for setting the key as an
+  environment variable on Windows, macOS and Linux. Kiln never asks for a key in the chat.
+- **`/kiln:settings api`: the key page.** `keys.py serve` opens a page on 127.0.0.1 (random token
+  path, stops on Done or after 30 minutes): per service where to get a key, a hidden field, the
+  user's plan, Check (a free balance call), Save (to the user's environment: Windows user
+  variables, elsewhere `~/.kiln/keys.env` mode 600) and Remove; the key never reaches the chat,
+  a project or the output. Manual steps for setting the variable stay for users who prefer them.
+  Tested against the fake Meshy API (and the reset Windows gives when a request body is left
+  unread: the page reads every body first).
+- **The key page** stops 10 minutes after its tab is closed; it is in English, like Kiln's other
+  pages.
+- **Free asset libraries (`asset-libraries`, Poly Haven and ambientCG).** `assets_api.py`
+  `sources` / `search` (by words, licence-filtered) / `info` / `fetch` (checksums checked, files
+  into `art/library/<source>/<id>/` with `provenance.json` of kind `library` and the item's API
+  record as evidence; ambientCG zips extracted safely). The manifest setting `asset_libraries`
+  (`off` / `cc0` / `attribution`, default / `sharealike`) is the licence allow-list: anything
+  else is refused before a download. `licenses.py` lists library assets by source and page, with
+  their credit line. Checked live without keys: a Poly Haven texture and HDRI and an ambientCG
+  material.

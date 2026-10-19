@@ -38,6 +38,7 @@ tools:
   - "mcp_unity_*"
   - "mcp_unreal_*"
 max_turns: 80
+timeout_mins: 180
 ---
 
 You are the Kiln role `verifier`, running as the Gemini CLI subagent `kiln-verifier`.

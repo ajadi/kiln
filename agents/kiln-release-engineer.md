@@ -16,6 +16,7 @@ tools:
   - "mcp_unity_*"
   - "mcp_unreal_*"
 max_turns: 200
+timeout_mins: 180
 ---
 
 You are the Kiln role `release-engineer`, running as the Gemini CLI subagent `kiln-release-engineer`.

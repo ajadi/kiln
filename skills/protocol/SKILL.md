@@ -113,6 +113,8 @@ task touches its area, instead of guessing:
 | `playtest` / `acceptance` | you must prove behaviour in the running game / measure it with probes |
 | `art-2d` | `dimension=2d`, sprites, tiles, pixel art, 2D animation or 2D lighting |
 | `image-to-model` | a model's reference is photos or 1–3 images instead of a full model sheet |
+| `asset-libraries` | a task needs an HDRI, PBR textures, a prop or kit, sprites, UI art, icons, a font or SFX a free library (Poly Haven, ambientCG, Kenney, KayKit, game-icons, Google Fonts) may have, or the user downloaded assets by hand |
+| `api-generators` | a task would use a paid generator (Meshy, ...) on the user's account (`model_generators` / `audio_generators` = `api`) |
 | `animation` / `human-biomechanics` / `creature-locomotion` | motion, poses, gait, reactions |
 | `rigid-body-physics` / `destruction-vfx` | bodies, joints, breaking, debris, impact effects |
 | `elements-materials` | heat, cold, fire, water/wetness, electricity changing objects; freeze, melt, burn, conduct |

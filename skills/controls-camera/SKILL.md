@@ -78,6 +78,11 @@ Camera:
 17. FOV is a setting: first person 70–110° horizontal at 16:9 (PC default ~90°, TV 70–80°),
     third person ~50–60° vertical; gameplay FOV changes (sprint, damage) ≤ ±10° over ≥ 0.15 s
     (working; Nesky #41, #42). Store FOV with its axis — engines differ (camera.md §3).
+18. A character's on-screen height (the character spec's `on_screen_height_px`, which sizes
+    its rig and textures): `h_px = H_m / (2 · d · tan(fov_v / 2)) · screen_h` for a
+    perspective camera at distance d (closest gameplay distance), vertical FOV fov_v;
+    orthographic: `h_px = H_m / ortho_height · screen_h`. Example: 1.8 m at 10 m, 50°, 1080 p
+    → 208 px.
 18. Head bob ≤ 1–2 cm with a 0–100% slider; shake rotation-only with a slider; sway optional
     (XAG 117).
 19. A cut keeps the control frame until the stick is released (Nesky #18) and respects the 180°
