@@ -155,5 +155,18 @@ class SkillLinks(unittest.TestCase):
                                 f"no tests/test_{f}")
 
 
+
+class Descriptions(unittest.TestCase):
+    def test_every_description_fits_the_agent_skills_limit(self):
+        # Agent Skills spec: description at most 1024 characters (agent platform research
+        # 2026-10-19 found six over it; some agents cut or reject them).
+        import glob
+        import re
+        root = os.path.join(os.path.dirname(__file__), "..", "plugins")
+        for path in glob.glob(os.path.join(root, "*", "skills", "*", "SKILL.md")):
+            text = open(path, encoding="utf-8").read()
+            desc = re.search(r"^description:\s*(.+)$", text, re.M).group(1).strip().strip('"')
+            self.assertLessEqual(len(desc), 1024, path)
+
 if __name__ == "__main__":
     unittest.main()

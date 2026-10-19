@@ -96,6 +96,7 @@ def agent_file(path):
         lines += [f"  - {json.dumps(t)}" for t in tools]
     if fm.get("maxTurns"):
         lines.append(f"max_turns: {int(fm['maxTurns'])}")
+    lines.append(f"timeout_mins: {k.GEMINI_ROLE_TIMEOUT_MIN}")  # default 10 min stops long roles
     lines.append("---")
     skills = fm.get("skills[]", [])
     zone = cx.zone_paths(cx.guard.ZONES[role]) if role in cx.guard.ZONES else []
@@ -134,6 +135,24 @@ def hooks_json():
     return {"description": "Kiln hooks for Gemini CLI (the Claude Code hooks, --runtime gemini). "
                            "No-ops outside projects whose manifest.md says framework=kiln.",
             "hooks": hooks}
+
+
+def user_policy(skills):
+    """Rules for ~/.gemini/policies/kiln.toml (user tier; extensions may not allow anything):
+    Plan Mode may start Kiln's read-only roles (by default only codebase_investigator and
+    cli_help), and Kiln's skills activate without asking (headless runs denied them)."""
+    roles = "|".join(sorted(k.READ_ONLY_ROLES))
+    names = "|".join(sorted(skills))
+    rules = [("Kiln read-only roles in Plan Mode", "invoke_agent",
+              r'"agent_name":\s*"kiln-(' + roles + r')"', ["plan"]),
+             ("Kiln skills", "activate_skill", r'"name":\s*"(' + names + r')"', None)]
+    text = "# Kiln for Gemini CLI: copy to ~/.gemini/policies/kiln.toml (setup does it).\n"
+    for name, tool, pattern, modes in rules:
+        text += (f'\n[[rule]]\nname = "{name}"\ntoolName = "{tool}"\n'
+                 f"argsPattern = '{pattern}'\ndecision = \"allow\"\npriority = 100\n")
+        if modes:
+            text += f"modes = {json.dumps(modes)}\n"
+    return text
 
 
 def build(out):
@@ -177,6 +196,7 @@ def build(out):
         write(os.path.join(out, "commands", "kiln", name + ".toml"),
               f"description = {json.dumps(desc[:300])}\nprompt = {json.dumps(prompt)}\n")
         commands.append(name)
+    write(os.path.join(out, "user-policy", "kiln.toml"), user_policy(skills))
     return {"out": os.path.abspath(out), "version": meta["version"], "agents": len(agents),
             "skills": len(skills), "commands": len(commands)}
 

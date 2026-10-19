@@ -9,21 +9,22 @@
             "type": "command",
             "command": "python3 \"$PLUGIN_ROOT/hooks/guard.py\" --runtime codex",
             "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" guard.py --runtime codex",
-            "timeout": 10
+            "timeout": 10,
+            "statusMessage": "Protect Kiln project tools"
           }
         ]
       }
     ],
     "SessionStart": [
       {
-        "matcher": "startup|resume|clear|compact",
+        "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
           {
             "type": "command",
             "command": "python3 \"$PLUGIN_ROOT/hooks/session.py\" start --runtime codex",
             "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" session.py start --runtime codex",
             "timeout": 10,
-            "statusMessage": "Loading Kiln project state"
+            "statusMessage": "Load Kiln project state"
           }
         ]
       }
@@ -37,7 +38,8 @@
             "command": "python3 \"$PLUGIN_ROOT/hooks/session.py\" subagent --runtime codex",
             "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" session.py subagent --runtime codex",
             "timeout": 10,
-            "additionalContextLimit": 6000
+            "additionalContextLimit": 6000,
+            "statusMessage": "Add engine rules to Kiln agents"
           }
         ]
       }
@@ -49,7 +51,8 @@
             "type": "command",
             "command": "python3 \"$PLUGIN_ROOT/hooks/session.py\" end --runtime codex",
             "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" session.py end --runtime codex",
-            "timeout": 3
+            "timeout": 3,
+            "statusMessage": "Save session handoff and release locks"
           }
         ]
       }
@@ -61,7 +64,8 @@
             "type": "command",
             "command": "python3 \"$PLUGIN_ROOT/hooks/stop.py\" stop --runtime codex",
             "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" stop.py stop --runtime codex",
-            "timeout": 10
+            "timeout": 10,
+            "statusMessage": "Manage Kiln autopilot and release locks"
           }
         ]
       }
@@ -74,7 +78,8 @@
             "type": "command",
             "command": "python3 \"$PLUGIN_ROOT/hooks/stop.py\" subagent --runtime codex",
             "commandWindows": "python -c \"import os,runpy,sys;h=os.path.join(os.environ['PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);sys.argv=sys.argv[1:];runpy.run_path(os.path.join(h,sys.argv[0]),run_name='__main__')\" stop.py subagent --runtime codex",
-            "timeout": 10
+            "timeout": 10,
+            "statusMessage": "Clean up Kiln agent state"
           }
         ]
       }

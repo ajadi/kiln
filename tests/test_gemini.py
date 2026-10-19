@@ -76,6 +76,26 @@ class Guard(unittest.TestCase):
         self.assertIsNone(tool(root, "write_file", file_path="GAME.md", content="x"))
 
 
+    def test_one_role_at_a_time(self):
+        # Research 2026-10-19: Gemini runs invoke_agent calls of one turn in parallel, and the one
+        # role marker would name the wrong role for the other's calls.
+        root = project()
+        first = hook(root, "session.py", "BeforeTool", "subagent", tool_name="invoke_agent",
+                     tool_input={"agent_name": "kiln-art-director", "prompt": "Review TASK-001"})
+        self.assertNotEqual((first or {}).get("decision"), "deny")
+        second = hook(root, "session.py", "BeforeTool", "subagent", tool_name="invoke_agent",
+                      tool_input={"agent_name": "kiln-modeler", "prompt": "Build TASK-002"})
+        self.assertEqual(second["decision"], "deny")
+        self.assertIn("kiln-art-director", second["reason"])
+        self.assertEqual(tool(root, "write_file", file_path="GAME.md",
+                              content="x")["decision"], "deny")  # still the art-director's turn
+        hook(root, "stop.py", "AfterTool", "subagent", tool_name="invoke_agent",
+             tool_input={"agent_name": "kiln-art-director", "prompt": "Review TASK-001"},
+             tool_response={"llmContent": "status: DONE"})
+        again = hook(root, "session.py", "BeforeTool", "subagent", tool_name="invoke_agent",
+                     tool_input={"agent_name": "kiln-modeler", "prompt": "Build TASK-002"})
+        self.assertNotEqual((again or {}).get("decision"), "deny")
+
     def test_the_role_mark_ends_with_the_main_turn(self):
         # live run: an invoke_agent that failed before running left its role on the main
         # session's next calls; AfterAgent (the main turn's end) clears it

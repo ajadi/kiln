@@ -52,11 +52,14 @@ Talk to the user in their language; write task files in English.
 - Schedule editor time: a role holds the editor until it ends, so a short engine job (an import,
   a scan, one property) waits behind a long one (g2: 40 min behind a one-hour level task). Brief
   long editor tasks in steps that end with a handoff, and run the short jobs between them.
-- A single task's roles run one after another, so delegate them in the foreground
-  (`run_in_background: false`): the next step needs the handoff. Never end your turn while a
-  role agent is still running — in a headless session (`claude -p`) the session ends with your
-  reply and takes the agent with it (seen live: the modeler was cut off mid-review). Wait for
-  every background agent's notification first.
+- A single task's roles run one after another: the next step needs the handoff. Delegate with
+  `run_in_background: false` where the Agent tool still offers it; Claude Code in fork mode
+  (interactive sessions since 2.1.232) runs every subagent in the background and has no such
+  parameter - then wait for the role's completion notification and start nothing that needs
+  its handoff before it arrives. Never end your turn while a role agent is still running: in a
+  headless session (`claude -p`) the run stops waiting for background agents after 10 idle
+  minutes unless it was started with `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` (seen live in
+  0.6.0: the modeler was cut off mid-review).
 - Mark the task's backlog line in progress (`- [~]`) and note the start in the task file.
 
 ## 3. Route

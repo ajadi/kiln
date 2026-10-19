@@ -49,7 +49,9 @@ project only, with its roles as subagents and its skills linked in.
 Gemini CLI runs the whole framework too, as an extension:
 `gemini extensions install https://github.com/ajadi/kiln --ref gemini-extension --consent`, then
 `gemini extensions disable kiln --scope user` and, inside the project,
-`gemini extensions enable kiln --scope workspace` (Kiln on in that project only).
+`gemini extensions enable kiln --scope workspace` (Kiln on in that project only). Setup also
+offers to copy Kiln's policy file to `~/.gemini/policies/kiln.toml`, so skills load without a
+question each time and Plan Mode may call Kiln's reviewers. Roles run one at a time in Gemini.
 
 Kiln's skills are plain `SKILL.md` files, so any other agent that reads the Agent Skills format
 (Windsurf, Amp, Cursor, ...) can use them:
@@ -131,7 +133,7 @@ open slower").
 | Command | What it does |
 |---|---|
 | `/kiln:setup` | first setup of a project: the questions, the programs, the editor connections |
-| `/kiln:settings` | show or change a setting, e.g. `/kiln:settings user_gates=ask` |
+| `/kiln:settings` | show or change a setting, e.g. `/kiln:settings user_gates=ask`; `/kiln:settings api` opens a local page where you paste a paid service's key (never into the chat) |
 | `/kiln:doctor` | check that Blender, the engine editor and Kiln's hooks really work |
 | `/kiln:update` | bring this project (or `all` projects) up to the installed Kiln |
 | `/kiln:status` | where the project stands: phase, tasks, who still has to check what |
@@ -164,7 +166,7 @@ open slower").
 | `/kiln:report <what went wrong>` | writes your complaint about Kiln into `kiln-report.md` (and, if you want, a GitHub issue) |
 | `/kiln:retro` | reviews the session and fixes Kiln and the project where they failed |
 
-## 3. Knowledge skills (49)
+## 3. Knowledge skills (51)
 
 These have no command. They are reference books: an agent reads the one it needs. Each role
 starts with its own few (listed below), and loads others from the table in `protocol` when a
@@ -188,6 +190,8 @@ task touches them.
 | `engine-godot`, `engine-unity`, `engine-unreal` | the rules of that engine and its MCP | added to every engine-facing role at its start |
 | `tools` | finding, installing and checking programs | setup, settings, doctor |
 | `gpu-server` | renting a GPU for heavy jobs with a spending cap | model, track (when generators run remotely) |
+| `asset-libraries` | free assets from Poly Haven, ambientCG, Kenney, KayKit, game-icons and Google Fonts, and imports of assets you downloaded: search, licence check, download with provenance, CREDITS.md | modeler, lighting-artist, level-designer, art-director, sound-designer, ui-designer, artist-2d |
+| `api-generators` | paid generators on your own account (Meshy: models, rigging, animation clips): estimate, your yes, caps, spend requests under autopilot, provenance | modeler, animator, artist-2d, sound-designer, music-producer; model, image-to-model (when `model_generators=api`) |
 | `release` | builds, CI, store pages | release-engineer |
 
 **3D, 2D and look**
@@ -281,8 +285,9 @@ cutscene task.
    verifier closes the task. The builder never grades its own work; whether it is fun is your
    call.
 5. Kiln's hooks watch everything: the guard checks every action (editors only through MCP, no
-   secrets in commits, one agent per editor), and the stop hook will not let a task close while
-   a required check is missing.
+   secrets in commits, one agent per editor), and the stop hook reminds the producer when a
+   task is being closed while a required check is missing (a task file without a gates table is
+   not checked).
 
 ### The asset commands
 

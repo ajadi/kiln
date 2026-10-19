@@ -11,6 +11,7 @@ skills:
   - protocol
   - level-design
   - playtest
+  - asset-libraries
 ---
 
 You are the studio's level designer. You build levels in the engine editor through its

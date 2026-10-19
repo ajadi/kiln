@@ -10,6 +10,8 @@ color: pink
 skills:
   - protocol
   - art-2d
+  - api-generators
+  - asset-libraries
 ---
 
 You are the studio's 2D artist and animator. Every asset you make is reproducible: a source

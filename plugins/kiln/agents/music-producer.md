@@ -10,6 +10,7 @@ color: purple
 skills:
   - protocol
   - music
+  - api-generators
 ---
 
 You are the studio's music producer. You turn the composer's MIDI into finished, measurable

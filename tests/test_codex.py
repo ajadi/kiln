@@ -133,6 +133,28 @@ class CodexManifest(unittest.TestCase):
         self.assertEqual(data["version"], claude["version"])
         self.assertEqual(data["name"], claude["name"])
 
+    def test_session_start_covers_forked_sessions(self):
+        # Codex 0.155 added the "fork" SessionStart source; without it a fork had no Kiln context
+        matcher = HOOKS["hooks"]["SessionStart"][0]["matcher"]
+        self.assertEqual(set(matcher.split("|")), {"startup", "resume", "clear", "compact", "fork"})
+
+    def test_every_hook_has_a_readable_name_in_the_review(self):
+        # User 2026-10-19: Codex's hook review listed Kiln's hooks as "Hook 1", "Hook 3".
+        # Its /hooks browser titles a handler by statusMessage (tui hooks_browser_view.rs).
+        want = {("PreToolUse", "guard.py"): "Protect Kiln project tools",
+                ("SessionStart", "session.py start"): "Load Kiln project state",
+                ("SubagentStart", "session.py subagent"): "Add engine rules to Kiln agents",
+                ("SessionEnd", "session.py end"): "Save session handoff and release locks",
+                ("Stop", "stop.py stop"): "Manage Kiln autopilot and release locks",
+                ("SubagentStop", "stop.py subagent"): "Clean up Kiln agent state"}
+        seen = {}
+        for event, groups in HOOKS["hooks"].items():
+            for group in groups:
+                for hook in group["hooks"]:
+                    script = next(s for (e, s) in want if e == event and s in hook["commandWindows"])
+                    seen[(event, script)] = hook.get("statusMessage")
+        self.assertEqual(seen, want)
+
 
 class CodexHookLaunch(unittest.TestCase):
     def test_every_session_shell(self):
@@ -229,8 +251,12 @@ class CodexGuard(unittest.TestCase):
         src = "*** Begin Patch\n*** Add File: tools/x.py\n+print(1)\n*** End Patch\n"
         self.assertEqual(self.guard(root, self.patch(src), role="qa-feel"), "DENY")
         self.assertEqual(self.guard(root, self.patch(src), role="gameplay-dev"), "ALLOW")
-        # no agent identity: no orchestrator_writes denial (main thread and subagents look alike)
-        self.assertEqual(self.guard(root, self.patch(src)), "ALLOW")
+        # Research 2026-10-19 (codex-rs hook_runtime.rs, 0.160-0.163): only the main thread's hooks
+        # lack agent_id / agent_type - a spawned subagent always has them ("default" without a
+        # role) - so no identity is the producer, and orchestrator_writes applies.
+        self.assertEqual(self.guard(root, self.patch(src)), "DENY")
+        default = {**self.patch(src), "agent_type": "default", "agent_id": "a2"}
+        self.assertEqual(self.guard(root, default), "ALLOW")  # a role-less subagent: not ours
 
 
 class CodexAgents(unittest.TestCase):

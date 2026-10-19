@@ -135,3 +135,22 @@ session, in this form - the next character must not need the user's eye:
 - **Caught by:** idle ↔ walk transitions + `analyze.py stance`: slip per stance ≤ 20 mm in starts
   and stops.
 - **Taught in:** add start / stop / turn clips to the animation batch.
+
+### 15. Copied generator artefact
+- **Looks like:** "The feet slide like in the AI video" / "the legs swap for a frame".
+- **Why:** a video reference was keyed frame by frame, its foot slide, limb swap or morphing
+  hand included.
+- **Fix principle:** the reference gives timing and key poses only; contacts, slip and joint
+  limits come from Kiln's rules, and frames the gate flags are not used.
+- **Caught by:** `video_ref.py gate` on the reference (limb drift, confidence), then the slip and
+  joint-limit rows on our clip.
+- **Taught in:** animation "Video reference", references/video-reference.md.
+
+### 16. Unfolding from the rest pose
+- **Looks like:** "Every attack starts with the arms coming out of the T-pose."
+- **Why:** the reference clip (or the clip itself) starts in the rest pose, so the first 0.3-0.5 s
+  unfold out of it.
+- **Fix principle:** a clip starts in the move's own key pose; a generator gets a posed first
+  frame, never the A- or T-pose.
+- **Caught by:** no check yet (candidate: the first frame's pose distance to the rest pose).
+- **Taught in:** references/video-reference.md §1.

@@ -11,6 +11,8 @@ Checks, in order:
 Denials are returned as JSON (permissionDecision=deny) so the reason reaches the model.
 """
 
+import datetime
+import glob
 import json
 import os
 import re
@@ -240,6 +242,9 @@ def godot_bootstrap(rel, root, role):
 def check_write(data, root, policy):
     tool_input = data.get("tool_input") or {}
     path = tool_input.get("file_path") or tool_input.get("notebook_path")
+    if KEY_VALUE.search(str(tool_input.get("content") or "") + str(tool_input.get("new_string") or "")):
+        k.deny("That text holds an API key. Keys live in the user's environment (/kiln:settings), "
+               "never in a file of the project.")
     if str(path or "").replace("\\", "/").lower().endswith(".codex/config.toml"):
         # field report 2026-10-19: an appended block without a final newline got Codex's next
         # table glued to it and Codex would not start
@@ -305,12 +310,8 @@ def check_write(data, root, policy):
         if hits:
             k.deny(scene_first_reason(hits, "#"))
 
-    if not role:  # main session
-        if k.runtime() == "codex":
-            # Codex's documented PreToolUse input has no agent identity, so a role-less call may
-            # come from the main thread or a subagent: role rules live in the agent files
-            # (permission profiles, MCP tool lists) instead.
-            return
+    if not role:  # main session (Codex too: its subagents' hooks always carry agent_id and
+        # agent_type, "default" without a role - codex-rs hook_runtime.rs, 0.160-0.163)
         state = STATE_FILES + notes_files(policy) + policy_list(policy, "state_paths")
         # shell output of the producer's own tools (reports, logs, recipes) is not policed here;
         # the engine-file rules above still apply to it
@@ -366,10 +367,24 @@ def check_patch(data, root, policy):
 MODEL_LOCAL = re.compile(r"\b(trellis|pixal3d|hunyuan3d|triposg|triposr|instantmesh|step1x-3d|"
                          r"direct3d-s2|hi3dgen|stable-fast-3d|sf3d|spar3d|partcrafter|omnipart|"
                          r"comfyui|diffusers|stable[-_]?diffusion|sdxl|flux\.?[12]|qwen-image)")
-MODEL_API = re.compile(r"(api\.tripo3d\.ai|api\.meshy\.ai|hyper3d\.ai|api\.stability\.ai|"
-                       r"api\.retrodiffusion|pixellab\.ai)")
-AUDIO_LOCAL = re.compile(r"\b(audiocraft|musicgen|ace-?step|stable[-_]audio|riffusion|yue)\b")
-AUDIO_API = re.compile(r"(suno\.com|udio\.com|api\.elevenlabs\.io|stableaudio\.com)")
+# Hosts checked 2026-10-19 (generator connectors research): Rodin moved to api.hyper3d.com;
+# fal, Replicate, Tencent and 3D AI Studio host the same models. Stability's /audio/ endpoints
+# are music and sound, the rest of api.stability.ai is image/3D.
+MODEL_API = re.compile(r"(api\.tripo3d\.ai|api\.meshy\.ai|hyper3d\.(ai|com)|"
+                       r"api\.stability\.ai(?!/v\w+/audio)|api\.retrodiffusion|pixellab\.ai|"
+                       r"fal\.run|api\.replicate\.com|tencentcloudapi\.com|api\.sloyd\.ai|"
+                       r"api\.3daistudio\.com|cloud\.leonardo\.ai|api\.cloud\.scenario\.com|"
+                       r"api\.app\.layer\.ai)")
+AUDIO_LOCAL = re.compile(r"\b(audiocraft|musicgen|ace-?step|stable[-_]audio|riffusion|yue|"
+                         r"diffrhythm)")
+AUDIO_API = re.compile(r"(suno\.com|udio\.com|api\.elevenlabs\.io|stableaudio\.com|"
+                       r"api\.stability\.ai/v\w+/audio)")
+# Video models (animation reference clips; research 2026-10-19): their own policy, so a yes to
+# image-to-3D does not cover them. The Gemini host also serves text models: only Veo counts.
+VIDEO_LOCAL = re.compile(r"(\bwan2\.[12]\b|wan-?video|\bwan2[._-]?[12]?-|hunyuanvideo|framepack|"
+                         r"\bltx-?2\b|ltx-video|cogvideo)")
+VIDEO_API = re.compile(r"(api\.x\.ai/\S*video|bytepluses\.com|api\.minimax\.io|klingai|"
+                       r"api\.dev\.runwayml\.com|generativelanguage\.googleapis\.com/\S*veo-)")
 
 
 # Programs that only read or print: a generator's name in their arguments is not a run of it
@@ -407,9 +422,13 @@ def runs_gpu_job(command):
                for words in shell_segments(command))
 
 
+GENERATOR_RULES = (("model_generators", MODEL_LOCAL, MODEL_API, "image/3D"),
+                   ("audio_generators", AUDIO_LOCAL, AUDIO_API, "music/sound"),
+                   ("video_generators", VIDEO_LOCAL, VIDEO_API, "video"))
+
+
 def check_generators(low, policy):
-    for key, local, api, what in (("model_generators", MODEL_LOCAL, MODEL_API, "image/3D"),
-                                  ("audio_generators", AUDIO_LOCAL, AUDIO_API, "music/sound")):
+    for key, local, api, what in GENERATOR_RULES:
         if policy.get(key) == "remote" and not runs_gpu_job(low):
             text = executed_text(low)
             if local.search(text) or api.search(text):
@@ -417,14 +436,199 @@ def check_generators(low, policy):
                        "through the gpu-server skill's gpu_job.py (spend cap, provenance, stop "
                        "after the job), not on this machine and not through paid APIs.")
     low = executed_text(low)
-    for key, local, api, what in (("model_generators", MODEL_LOCAL, MODEL_API, "image/3D"),
-                                  ("audio_generators", AUDIO_LOCAL, AUDIO_API, "music/sound")):
+    for key, local, api, what in GENERATOR_RULES:
         mode = policy.get(key, "off")
         if mode == "off" and (local.search(low) or api.search(low)):
             k.deny(f"{what} generators are off for this project ({key}=off in manifest.md). "
                    "Make the asset with the normal pipeline, or ask the user to change the policy.")
         if mode == "local" and api.search(low):
             k.deny(f"{key}=local allows only local open-weight models, not paid APIs.")
+
+
+# api-generators: gen_api.py hides the service hosts from the rules above, so its commands map
+# to the policy here. services/balance are free reads; spending is never done under autopilot.
+GEN_SERVICES = {"meshy": "model_generators"}
+KEY_VARS = re.compile(r"\b(MESHY_API_KEY|TRIPO_API_KEY|HYPER3D_API_KEY|STABILITY_API_KEY|FAL_KEY|"
+                      r"REPLICATE_API_TOKEN|ELEVENLABS_API_KEY|PIXELLAB_API_KEY|"
+                      r"RETRODIFFUSION_API_KEY|RUNWAY_API_KEY|KLING_API_KEY|GEMINI_API_KEY|"
+                      r"OPENAI_API_KEY|TENCENTCLOUD_SECRET_(ID|KEY))\b")
+KEY_VALUE = re.compile(r"\b(msy_|tsk_|r8_|rdpk-|layer_pat_)[A-Za-z0-9_-]{16,}|\bsk-[A-Za-z0-9_-]{20,}")
+
+
+def check_gen_api(command, root, policy, data=None):
+    for words in shell_segments(command):
+        at = next((i for i, w in enumerate(words[:3]) if os.path.basename(w).lower() == "gen_api.py"),
+                  None)
+        if at is None or len(words) <= at + 1:
+            continue
+        verb = words[at + 1].lower()
+        arg = words[at + 2].lower() if len(words) > at + 2 else ""
+        if verb in ("services", "balance", "jobs", "actions"):
+            continue
+        service = arg.split("-", 1)[0]
+        key = GEN_SERVICES.get(service, "model_generators")
+        if policy.get(key, "off") != "api":
+            k.deny(f"{key} is {policy.get(key, 'off')} in manifest.md: paid generators run only with "
+                   f"{key}=api, which the user sets (/kiln:settings).")
+        if verb == "submit" and os.path.exists(os.path.join(root, ".kiln", "autopilot")):
+            k.deny("Spending money is never decided under autopilot: `gen_api.py request <job> "
+                   "--why ...` puts the estimate into production/SPEND_REQUESTS.md for the user's "
+                   "yes; go on with work that needs no money.")
+        if verb == "submit" and not user_spoke_after(data or {}, root, arg):
+            k.deny("The user has not answered since this estimate. Show them its ask_the_user "
+                   "text and submit only after their yes.")
+
+
+def user_spoke_after(data, root, job):
+    """True unless the transcript shows no user message newer than the job's estimate (Claude
+    Code passes transcript_path; without it, or unreadable, the check fails open)."""
+    path = data.get("transcript_path") or ""
+    try:
+        with open(os.path.join(root, ".kiln", "gen", "jobs", job + ".json"), encoding="utf-8") as fh:
+            since = float(json.load(fh).get("estimated_at") or 0)
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            lines = fh.readlines()
+    except (OSError, ValueError, TypeError, AttributeError):
+        return True
+    for line in reversed(lines):
+        try:
+            row = json.loads(line)
+            stamp = row.get("timestamp") or ""
+            when = datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+        except (ValueError, AttributeError, TypeError):
+            continue
+        if when <= since:
+            return False
+        content = (row.get("message") or {}).get("content") if row.get("type") == "user" else None
+        if row.get("isMeta") or content is None:
+            continue
+        if isinstance(content, str) or any(isinstance(b, dict) and b.get("type") == "text"
+                                           for b in content):
+            return True
+    return False
+
+
+# Vendor MCP servers of paid generators (a server name like meshy, claude_ai_ElevenLabs): the
+# same policy as gen_api.py; under autopilot only their read calls (balance, status, lists).
+VENDOR_MCP = {"model_generators": r"meshy|tripo|rodin|hyper3d|stability|fal|replicate|leonardo|"
+                                  r"scenario|sloyd|pixellab|3daistudio",
+              "audio_generators": r"elevenlabs|suno|udio|stableaudio"}
+VENDOR_READ = re.compile(r"^(get|list|search|check|retrieve|read|download|fetch)|"
+                         r"(balance|status|credits)", re.I)
+
+
+def vendor_policy_key(tool):
+    server = tool.split("__")[1].lower() if tool.count("__") >= 2 else ""
+    # the vendor's own server name (meshy, fal-ai, elevenlabs-mcp, claude_ai_Meshy), not any
+    # server that merely contains the word (a project's scenario-runner is not Scenario)
+    return next((key for key, names in VENDOR_MCP.items()
+                 if re.fullmatch(rf"(claude_ai_)?({names})([_-]?(mcp|ai|api|server|official))*",
+                                 server)), None)
+
+
+def check_vendor_mcp(data, root, policy):
+    tool = data.get("tool_name") or ""
+    key = vendor_policy_key(tool)
+    if not key:
+        return
+    if policy.get(key, "off") != "api":
+        k.deny(f"{tool} is a paid generator and {key} is {policy.get(key, 'off')} in manifest.md "
+               f"(only {key}=api, which the user sets with /kiln:settings).")
+    if os.path.exists(os.path.join(root, ".kiln", "autopilot")) and \
+            not VENDOR_READ.search(tool.rsplit("__", 1)[-1]):
+        k.deny("Spending money is never decided under autopilot: list the request in "
+               "production/SPEND_REQUESTS.md (asset, service, cost, why) for the user's yes.")
+
+
+def check_asset_libraries(command, policy):
+    if policy.get("asset_libraries", "attribution") != "off":
+        return
+    for words in shell_segments(command):
+        at = next((i for i, w in enumerate(words[:3])
+                   if os.path.basename(w).lower() == "assets_api.py"), None)
+        if at is not None and len(words) > at + 1 and words[at + 1].lower() in ("fetch", "import"):
+            k.deny("asset_libraries=off in manifest.md: nothing is downloaded from free "
+                   "libraries in this project (the user changes it with /kiln:settings).")
+
+
+REMOVERS = {"remove-item", "ri", "rm", "del", "erase", "rd", "rmdir"}
+
+
+def is_junction(path):
+    if hasattr(os.path, "isjunction"):
+        return os.path.isjunction(path)
+    try:
+        return bool(os.lstat(path).st_file_attributes & 0x400) and not os.path.islink(path)
+    except (OSError, AttributeError):
+        return False
+
+
+def holds_junction(path, limit=20000):
+    """The first junction at or under `path` (not followed), or None."""
+    if is_junction(path):
+        return path
+    seen = 0
+    for dirpath, dirnames, _ in os.walk(path):
+        for d in list(dirnames):
+            full = os.path.join(dirpath, d)
+            if is_junction(full):
+                return full
+        seen += len(dirnames)
+        if seen > limit:
+            return None
+    return None
+
+
+def check_junction_remove(data, root):
+    """Windows PowerShell 5.1 `Remove-Item -Recurse` walks into a junction and deletes the
+    target's files (install audit 2026-10-19: the shared Godot AI addon, the Kiln clone)."""
+    if os.name != "nt":
+        return
+    tool = data.get("tool_name") or ""
+    command = (data.get("tool_input") or {}).get("command") or ""
+    base = data.get("cwd") or root
+    for words in shell_segments(command):
+        prog = program(words).removesuffix(".exe").lower()
+        if prog not in REMOVERS or (tool != "PowerShell" and prog != "remove-item"):
+            continue
+        if prog in ("rd", "rmdir") and tool != "PowerShell":
+            continue
+        flags = [w.lower() for w in words[1:] if w.startswith("-")]
+        if not any(f in ("-r", "-recurse", "-rf", "-fr") or f.startswith("-rec") for f in flags):
+            continue
+        paths, skip = [], False
+        for w in words[1:]:
+            if skip:
+                paths.append(w)
+                skip = False
+            elif w.lower() in ("-path", "-literalpath", "-lp"):
+                skip = True
+            elif not w.startswith("-"):
+                paths.append(w)
+        for p in paths:
+            full = p if os.path.isabs(p) else os.path.join(base, p)
+            for target in glob.glob(full) or [full]:
+                found = holds_junction(target) if os.path.isdir(target) else None
+                if found:
+                    k.deny(f"{found} is a junction (a link to a folder shared outside this "
+                           "project): Remove-Item -Recurse in Windows PowerShell follows it and "
+                           "deletes the shared files. Remove the link itself first: "
+                           f"cmd /c rmdir \"{found}\" (or [IO.Directory]::Delete(...)), then the "
+                           "rest.")
+
+
+def check_key_exposure(command):
+    """No command shows an API key: the keys stay in the environment, out of every transcript."""
+    for words in shell_segments(command):
+        prog = program(words).removesuffix(".exe").lower()
+        if prog in ("git", "gh"):
+            continue
+        text = " ".join(words)
+        if (prog in ("printenv", "env", "set") and len(words) == 1) or \
+                re.search(r"\b(get-childitem|gci|dir|ls)\s+env:", text, re.I) or KEY_VARS.search(text):
+            k.deny("API keys stay in the environment and out of the conversation: no command may "
+                   "print or pass a key variable. gen_api.py reads the key itself; `gen_api.py "
+                   "services` says whether one is set.")
 
 
 PYTHON_EXE = re.compile(r"^(?:.*/)?(python[\d.]*w?|py)(\.exe)?$", re.I)
@@ -702,6 +906,10 @@ def check_shell(data, root, policy):
     if windowed and policy.get("on_screen") == "slot" and not screen_free(root):
         k.deny(SLOT_REASON)
     check_generators(low, policy)
+    check_gen_api(command, root, policy, data)
+    check_asset_libraries(command, policy)
+    check_key_exposure(command)
+    check_junction_remove(data, root)
     if role and re.search(r"pipeline\.py\b.*\b(tick|skip)\b.*--by\s+(user|proxy)\b", low):
         k.deny("User gates are closed by the main session after the user decides (or as PROXY "
                "on autopilot), never by a role. Report the evidence in your handoff instead.")
@@ -799,9 +1007,17 @@ def check_shell(data, root, policy):
                            "make sure it is git-ignored.")
 
 
+SECRET_NAME = re.compile(r"\.env(\..+)?|.+\.(key|pem|p12|pfx)|credentials\.json|"
+                         r"client_secret.*\.json", re.I)
+
+
 def is_secret_file(name):
-    base = name.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
-    return bool(re.fullmatch(r"\.env(\..+)?", base)) and base != ".env.example"
+    """The user's commit policy: .env files, keys and certificates, credentials, secrets/."""
+    path = name.replace("\\", "/").rstrip("/")
+    base = path.rsplit("/", 1)[-1]
+    if base == ".env.example":
+        return False
+    return bool(SECRET_NAME.fullmatch(base)) or "secrets" in path.lower().split("/")[:-1]
 
 
 def git_words(segment):
@@ -1223,6 +1439,8 @@ def main(data):
     elif tool.startswith(("mcp__blender__", "mcp__godot-ai__", "mcp__unity__")) or \
             UNREAL_PREFIX.match(tool):
         check_mcp(data, root, policy)
+    elif tool.startswith("mcp__"):
+        check_vendor_mcp(data, root, policy)
 
 
 if __name__ == "__main__":

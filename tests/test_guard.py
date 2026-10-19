@@ -407,6 +407,14 @@ class GodotTests(GuardCase):
             fh.write("KEY=2\n")
         self.check(shell("git commit -am update"), "DENY", root)
 
+    def test_secret_files_beyond_env(self):
+        # Gap audit 2026-10-19: README promises no secrets in commits, only .env* was refused.
+        for name in ("server.key", "certs/site.pem", "store.p12", "credentials.json",
+                     "secrets/api.txt", "config/client_secret.json"):
+            self.check(shell(f"git add {name}"), "DENY")
+        for name in ("src/keyboard.gd", "assets/key_item.png", "docs/secrets-policy.md"):
+            self.check(shell(f"git add {name}"), "ALLOW")
+
     def test_generator_words_in_reads_are_not_runs(self):
         # g2 row 33: reading the image-to-model skill and a hardware check were denied as
         # generator runs while model_generators=off.
@@ -508,6 +516,145 @@ class GodotTests(GuardCase):
         root = make_project("godot", "model_generators=local\n")
         self.check(shell("python run.py --model trellis2 photo.png"), "ALLOW", root)
         self.check(shell("curl https://api.tripo3d.ai/v2/task"), "DENY", root)
+
+    def test_gen_api_policy_autopilot_and_keys(self):
+        # api-generators: the script hides the service hosts from the generator rules, so the
+        # guard maps its commands to the policy; spending is never done under autopilot.
+        gen = "python plugins/kiln/skills/api-generators/scripts/gen_api.py"
+        self.check(shell(f"{gen} services"), "ALLOW")
+        self.check(shell(f"{gen} balance meshy"), "ALLOW")
+        self.check(shell(f"{gen} estimate meshy image-to-3d --asset a --image r.png"), "DENY")
+        root = make_project("godot", "model_generators=api\n")
+        self.check(shell(f"{gen} estimate meshy image-to-3d --asset a --image r.png"), "ALLOW", root)
+        self.check(shell(f"{gen} submit meshy-1"), "ALLOW", root)
+        os.makedirs(os.path.join(root, ".kiln"), exist_ok=True)
+        open(os.path.join(root, ".kiln", "autopilot"), "w").close()
+        self.check(shell(f"{gen} submit meshy-1"), "DENY", root)
+        self.check(shell(f"{gen} status meshy-1 --wait"), "ALLOW", root)
+        for cmd in ("echo $MESHY_API_KEY", "printenv", "Get-ChildItem env:", "echo %FAL_KEY%",
+                    "python -c \"import os; print(os.environ['MESHY_API_KEY'])\""):
+            self.check(shell(cmd), "DENY")
+        self.check(write("GAME.md", content="key: msy_abcdefghijklmnopqrstuvwx"), "DENY")
+        self.check(write("GAME.md", content="set MESHY_API_KEY in /kiln:settings"), "ALLOW")
+
+    def test_gen_api_submit_needs_a_user_message_after_the_estimate(self):
+        # Integration plan §5: the user's yes is a user message newer than the estimate. Read
+        # from the Claude Code transcript; without one (other agents) the rule fails open.
+        gen = "python plugins/kiln/skills/api-generators/scripts/gen_api.py"
+        root = make_project("godot", "model_generators=api\n")
+        jobs = os.path.join(root, ".kiln", "gen", "jobs")
+        os.makedirs(jobs)
+        with open(os.path.join(jobs, "meshy-2.json"), "w", encoding="utf-8") as fh:
+            json.dump({"job": "meshy-2", "estimated_at": 1_800_000_100, "state": "estimated"}, fh)
+        transcript = os.path.join(root, "t.jsonl")
+
+        def say(ts, content, **extra):
+            with open(transcript, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"type": "user", "timestamp": ts,
+                                     "message": {"role": "user", "content": content},
+                                     **extra}) + "\n")
+
+        say("2027-01-15T08:00:00Z", "make a crate")                      # before the estimate
+        call = dict(shell(f"{gen} submit meshy-2"), transcript_path=transcript)
+        self.check(call, "DENY", root)
+        say("2027-01-15T08:30:00Z", [{"type": "tool_result", "content": "x"}])  # not the user
+        say("2027-01-15T08:31:00Z", "<system-reminder>x</system-reminder>", isMeta=True)
+        self.check(call, "DENY", root)
+        say("2027-01-15T08:32:00Z", [{"type": "text", "text": "yes"}])
+        self.check(call, "ALLOW", root)
+        self.check(shell(f"{gen} submit meshy-2"), "ALLOW", root)            # no transcript
+
+    def test_gen_api_free_calls_vendor_mcp_and_libraries(self):
+        gen = "python plugins/kiln/skills/api-generators/scripts/gen_api.py"
+        self.check(shell(f"{gen} actions meshy --search walk"), "ALLOW")    # free library list
+        # vendor MCP servers follow the same policy (integration plan §5)
+        self.check(mcp("mcp__meshy__text_to_3d", prompt="crate"), "DENY")
+        self.check(mcp("mcp__claude_ai_ElevenLabs__text_to_speech", text="hi"), "DENY")
+        root = make_project("godot", "model_generators=api\n")
+        self.check(mcp("mcp__meshy__text_to_3d", prompt="crate"), "ALLOW", root)
+        self.check(mcp("mcp__claude_ai_ElevenLabs__text_to_speech", text="hi"), "DENY", root)
+        os.makedirs(os.path.join(root, ".kiln"), exist_ok=True)
+        open(os.path.join(root, ".kiln", "autopilot"), "w").close()
+        self.check(mcp("mcp__meshy__text_to_3d", prompt="crate"), "DENY", root)
+        self.check(mcp("mcp__meshy__get_balance"), "ALLOW", root)
+        self.check(mcp("mcp__player-stats__add"), "ALLOW", root)            # not a vendor
+        self.check(mcp("mcp__scenario-runner__run"), "ALLOW", root)
+        self.check(mcp("mcp__fal-ai__generate"), "DENY", root)
+        # free libraries: asset_libraries=off allows search, refuses downloads
+        lib = "python plugins/kiln/skills/asset-libraries/scripts/assets_api.py"
+        self.check(shell(f"{lib} fetch polyhaven brick_wall"), "ALLOW")
+        root = make_project("godot", "asset_libraries=off\n")
+        self.check(shell(f"{lib} search all brick"), "ALLOW", root)
+        self.check(shell(f"{lib} fetch polyhaven brick_wall"), "DENY", root)
+
+    def test_manifest_in_another_encoding_still_guards(self):
+        # Install audit 2026-10-19: a cp1251 manifest made every hook crash and fail open.
+        root = tempfile.mkdtemp(prefix="kiln-cp1251-")
+        with open(os.path.join(root, "manifest.md"), "wb") as fh:
+            word = "".join(chr(c) for c in (0x437, 0x430, 0x43C, 0x435, 0x442, 0x43A, 0x430))
+            fh.write(f"project_name={word}\nframework=kiln\nengine=godot\n# {word}\n"
+                     .encode("cp1251"))
+        self.check(write(os.path.join(root, "scenes", "level.tscn"), "level-designer",
+                         content="[gd_scene]"), "DENY", root)
+        with open(os.path.join(root, "kiln-report.md"), encoding="utf-8") as fh:
+            self.assertIn("manifest.md is not UTF-8", fh.read())
+
+    @unittest.skipUnless(os.name == "nt", "junctions are a Windows feature")
+    def test_recursive_remove_over_a_junction_is_denied(self):
+        # Install audit 2026-10-19: Windows PowerShell 5.1 Remove-Item -Recurse follows a
+        # junction and empties its target (the shared Godot AI addon, the Kiln clone).
+        import _winapi
+        root = make_project("godot")
+        shared = tempfile.mkdtemp(prefix="kiln-shared-")
+        os.makedirs(os.path.join(root, "addons"))
+        os.makedirs(os.path.join(root, "build"))
+        _winapi.CreateJunction(shared, os.path.join(root, "addons", "godot_ai"))
+
+        def ps(command):
+            return {"tool_name": "PowerShell", "tool_input": {"command": command}, "cwd": root}
+
+        self.check(ps("Remove-Item -Recurse -Force addons"), "DENY", root)
+        self.check(ps("Remove-Item -LiteralPath addons/godot_ai -Recurse"), "DENY", root)
+        self.check(ps("rm -r -fo addons"), "DENY", root)
+        self.check(ps("Remove-Item -Recurse -Force build"), "ALLOW", root)
+        self.check(ps("cmd /c rmdir addons\\godot_ai"), "ALLOW", root)
+
+    def test_video_generators_have_their_own_policy(self):
+        # research 2026-10-19 video reference: a yes to image-to-3D must not cover video models
+        self.check(shell("python generate.py --task ti2v-5B --ckpt_dir ./Wan2.2-TI2V-5B"), "DENY")
+        self.check(shell("curl https://api.minimax.io/v1/video_generation"), "DENY")
+        root = make_project("godot", "model_generators=api\n")
+        self.check(shell("curl https://api.minimax.io/v1/video_generation"), "DENY", root)
+        root = make_project("godot", "video_generators=local\n")
+        self.check(shell("python generate.py --task ti2v-5B --ckpt_dir ./Wan2.2-TI2V-5B"), "ALLOW", root)
+        self.check(shell("curl https://api.dev.runwayml.com/v1/image_to_video"), "DENY", root)
+        root = make_project("godot", "video_generators=api\n")
+        self.check(shell("curl https://api.dev.runwayml.com/v1/image_to_video"), "ALLOW", root)
+        self.check(shell("curl https://generativelanguage.googleapis.com/v1beta/models/"
+                         "veo-3.1-fast-generate-preview:predictLongRunning"), "ALLOW", root)
+        # the Gemini host also serves text models: only a Veo model name counts as video
+        self.check(shell("curl https://generativelanguage.googleapis.com/v1beta/models/"
+                         "gemini-2.5-flash:generateContent"), "ALLOW")
+        self.check(shell("curl https://generativelanguage.googleapis.com/v1beta/models/"
+                         "veo-3.1-generate-preview:predictLongRunning"), "DENY")
+
+    def test_generator_hosts_and_models_2026_10(self):
+        # Research 2026-10-19: DiffRhythm ran under audio_generators=off; Rodin moved to
+        # api.hyper3d.com; fal, Replicate and Tencent host the same models.
+        self.check(shell("python infer.py --model diffrhythm-1.2 --lrc a.lrc"), "DENY")
+        for url in ("https://api.hyper3d.com/api/v2/rodin", "https://queue.fal.run/fal-ai/trellis",
+                    "https://api.replicate.com/v1/predictions",
+                    "https://hunyuan.intl.tencentcloudapi.com/",
+                    "https://api.sloyd.ai/api/jobs/text-to-3d",
+                    "https://api.3daistudio.com/v1/3d-models/tencent/generate/pro/"):
+            self.check(shell(f"curl {url}"), "DENY")
+        root = make_project("godot", "model_generators=local\n")
+        self.check(shell("curl https://api.hyper3d.com/api/v2/rodin"), "DENY", root)
+        # Stable Audio is audio even though api.stability.ai also serves 3D and images.
+        root = make_project("godot", "model_generators=api\naudio_generators=off\n")
+        self.check(shell("curl https://api.stability.ai/v2beta/3d/stable-fast-3d"), "ALLOW", root)
+        self.check(shell("curl https://api.stability.ai/v2beta/audio/stable-audio/text-to-audio"),
+                   "DENY", root)
 
     def test_user_gates_and_cli(self):
         self.check({**shell("python pipeline.py tick 'User locked the style' --by user"),

@@ -120,11 +120,15 @@ def machine_lines(root, policy, version):
         spawn_update_check()
     if not version:
         return lines
-    here = os.path.normcase(os.path.abspath(root).replace("\\", "/"))
-    behind = []
+    here = k.registry_key(root)
+    behind, seen = [], {here}
     for path, entry in sorted(k.load_json(k.projects_path(), {}).items()):
+        key = k.registry_key(path)
+        if key in seen:  # older registries hold d:/x and D:/x for one folder
+            continue
+        seen.add(key)
         other = k.manifest_version(path)
-        if os.path.normcase(path) != here and other and k_version(other) < k_version(version):
+        if other and k_version(other) < k_version(version):
             behind.append(entry.get("name") or os.path.basename(path))
     if behind:
         lines.append(f"{len(behind)} other Kiln project{'s' if len(behind) > 1 else ''} on "
@@ -203,7 +207,7 @@ def end(data, root, policy):
     handoff = os.path.join(root, "memory", "session-handoff.md")
     auto = os.path.join(root, "memory", "session-handoff.auto.md")
     try:
-        with open(handoff, encoding="utf-8") as fh:
+        with open(handoff, encoding="utf-8", errors="replace") as fh:
             written = fh.readline().strip() != AUTO_MARK
     except OSError:
         written = False
@@ -227,7 +231,7 @@ def engine_profile(policy):
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                         "skills", f"engine-{engine}", "SKILL.md")
     try:
-        text = open(path, encoding="utf-8").read()
+        text = open(path, encoding="utf-8", errors="replace").read()
     except OSError:
         return None
     if text.startswith("---"):
@@ -240,10 +244,19 @@ def subagent(data, root, policy):
     k.agent_started(root, data)
     role = k.role_of(data)
     if k.runtime() == "gemini" and role in k.KILN_ROLES:
-        k.save_json(k.gemini_agent_marker(root), {"agent_type": data.get("agent_type"),
-                                                  "agent_id": data.get("agent_id"),
-                                                  "session": data.get("session_id"),
-                                                  "ts": time.time()})
+        # Gemini runs one turn's invoke_agent calls in parallel, and its hook payloads name no
+        # subagent: with two roles running, the marker would name the wrong one. One at a time.
+        path = k.gemini_agent_marker(root)
+        with k.locked(path):
+            running = k.load_json(path, {})
+            if running.get("session") == data.get("session_id") and \
+                    time.time() - running.get("ts", 0) < k.GEMINI_ROLE_TIMEOUT_MIN * 60 + 60:
+                k.deny(f"{running.get('agent_type')} is still running. In Gemini CLI Kiln runs one "
+                       f"role at a time: start {data.get('agent_type')} again after it returns.")
+                return
+            k.save_json(path, {"agent_type": data.get("agent_type"),
+                               "agent_id": data.get("agent_id"),
+                               "session": data.get("session_id"), "ts": time.time()})
     if role not in k.KILN_ROLES:
         return
     engine = policy.get("engine", "godot")
@@ -251,7 +264,8 @@ def subagent(data, root, policy):
     head = (f"Kiln project: engine={engine}, dimension={dimension}, "
             f"mcp_only={policy.get('mcp_only')}, scene_first={policy.get('scene_first')}, "
             f"model_generators={policy.get('model_generators', 'off')}, "
-            f"audio_generators={policy.get('audio_generators', 'off')}.")
+            f"audio_generators={policy.get('audio_generators', 'off')}, "
+            f"video_generators={policy.get('video_generators', 'off')}.")
     if engine == "none":
         k.add_context("SubagentStart", head + " No game engine (asset mode): deliver files and "
                                               "Blender scenes into out/<asset>/; no engine work.")

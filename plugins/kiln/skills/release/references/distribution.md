@@ -106,7 +106,7 @@ provenance files), tools whose output carries terms. Rules:
 - No registry row (name, source, licence, attribution text, where used) → the item does not ship.
   `audit` + a grep of the export file list against the registry before every release candidate.
 - Credits screen and a `CREDITS.txt`/`LICENSES.txt` next to the executable are generated from the
-  registry, not hand-written; CC-BY items show the attribution text exactly as the licence asks.
+  registry (`licenses.py build` writes `production/CREDITS.md`), not hand-written; CC-BY items show the attribution text exactly as the licence asks.
 - Engine notices:
   - **Godot** (MIT): include the Godot licence text ("This game uses Godot Engine, available
     under the following license: ...") in the credits, a licences screen, or a file shipped with

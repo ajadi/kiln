@@ -1,11 +1,13 @@
 # --- kiln ---
-.godot/
-.import/
+# folders anchored to the project root (a leading /), so a code folder named export/ or
+# Saved/ elsewhere in the tree is not ignored
+/.godot/
+/.import/
 *.blend1
 *.blend2
-.kiln/
-tools/audio/out/
-export/
+/.kiln/
+/tools/audio/out/
+/export/
 # Unity
 /[Ll]ibrary/
 /[Tt]emp/
@@ -13,11 +15,13 @@ export/
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
 /[Bb]uild/
-# Unreal
-Binaries/
-Intermediate/
-Saved/
-DerivedDataCache/
+# Unreal (and its plugins' build output)
+/Binaries/
+/Intermediate/
+/Saved/
+/DerivedDataCache/
+/Plugins/*/Binaries/
+/Plugins/*/Intermediate/
 .vs/
 # Python tool environments live outside the project (~/.local/share/kiln/venvs)
 .venv/

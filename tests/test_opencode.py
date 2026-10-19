@@ -27,7 +27,9 @@ import { pathToFileURL } from "node:url"
 const [, , pluginPath, stepsJson] = process.argv
 const mod = await import(pathToFileURL(pluginPath).href)
 const prompted = []
-const client = { session: { prompt: async (req) => { prompted.push(req.body.parts[0].text) } } }
+const client = { session: { prompt: async (req) => {
+  prompted.push((req.body.agent ? req.body.agent + ": " : "") + req.body.parts[0].text)
+  return { data: { parts: [{ type: "text", text: "DONE: handoff appended to TASK-001" }] } } } } }
 const plugin = await Object.values(mod)[0]({ directory: process.env.PROJ, client })
 const out = []
 for (const step of JSON.parse(stepsJson)) {
@@ -39,6 +41,10 @@ for (const step of JSON.parse(stepsJson)) {
     } else if (step.kind === "event") {
       await plugin.event({ event: step.event })
       out.push({ ok: true, note: prompted.length ? "prompted: " + prompted[prompted.length - 1] : "" })
+    } else if (step.kind === "after") {
+      const output = step.output
+      await plugin["tool.execute.after"]({ tool: step.tool, sessionID: step.sid, callID: "c", args: step.args }, output)
+      out.push({ ok: true, output, note: prompted.length ? "prompted: " + prompted[prompted.length - 1] : "" })
     } else if (step.kind === "system") {
       const output = { system: [] }
       await plugin["experimental.chat.system.transform"]({ sessionID: step.sid }, output)
@@ -129,6 +135,27 @@ class OpenCode(unittest.TestCase):
             if set(os.listdir(skills)) == {"release"}:
                 shutil.rmtree(proj, ignore_errors=True)
 
+    def test_agent_model_from_the_manifest_goes_into_every_role(self):
+        # Research 2026-10-19: the guard's model rewrite never reached OpenCode (the task tool has
+        # no model field); OpenCode takes `model: provider/model` in the agent file instead.
+        for value, expected in (("anthropic/claude-sonnet-5-5", "model: anthropic/claude-sonnet-5-5"),
+                                ("sonnet", None)):
+            proj = tempfile.mkdtemp(prefix="kiln-ocm-")
+            with open(os.path.join(proj, "manifest.md"), "w", encoding="utf-8") as fh:
+                fh.write(f"framework=kiln\nengine=godot\nagent_model={value}\n")
+            p = subprocess.run([sys.executable, "-B", SETUP, "--project", proj, "--no-skills"],
+                               capture_output=True, text=True, timeout=120)
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+            text = open(os.path.join(proj, ".opencode", "agents", "kiln-modeler.md"),
+                        encoding="utf-8").read()
+            head = text.split("---")[1]
+            if expected:
+                self.assertIn(expected, head)
+            else:
+                self.assertNotIn("model:", head)
+                self.assertIn("agent_model=sonnet", json.loads(p.stdout)["notes"][0])
+            shutil.rmtree(proj, ignore_errors=True)
+
     def test_guard_denies_by_throwing(self):
         res = self.run_steps([
             {"kind": "tool", "tool": "bash", "sid": "ses_main",
@@ -144,6 +171,43 @@ class OpenCode(unittest.TestCase):
         self.assertTrue(res[1]["ok"])
         self.assertFalse(res[2]["ok"])
         self.assertFalse(res[3]["ok"])
+
+    def test_apply_patch_goes_through_the_guard(self):
+        # Research 2026-10-19: OpenCode 1.x gives GPT models apply_patch {patchText} instead of
+        # write/edit (tool/registry.ts), and kiln.js passed it through unchecked.
+        scene = "*** Begin Patch\n*** Add File: level.tscn\n+[gd_scene]\n*** End Patch"
+        script = "*** Begin Patch\n*** Add File: GAME.md\n+# Game\n*** End Patch"
+        res = self.run_steps([
+            {"kind": "tool", "tool": "apply_patch", "sid": "ses_p", "args": {"patchText": scene}},
+            {"kind": "tool", "tool": "apply_patch", "sid": "ses_p", "args": {"patchText": script}}])
+        self.assertFalse(res[0]["ok"], res[0])
+        self.assertTrue(res[1]["ok"], res[1])
+
+    def test_a_role_without_its_handoff_is_sent_back_once(self):
+        # Research 2026-10-19: stop.py subagent never fired in OpenCode (no transcript, no last
+        # message); the task tool's result carries the child session (metadata.sessionId).
+        args = {"description": "art", "prompt": "Review TASK-001", "subagent_type": "kiln-art-director"}
+        result = ('<task id="ses_c2" state="completed">\n<task_result>\nI looked at it.\n'
+                  '</task_result>\n</task>')
+        res = self.run_steps([
+            {"kind": "tool", "tool": "task", "sid": "ses_m2", "args": dict(args)},
+            {"kind": "event", "event": {"type": "session.created", "properties": {
+                "sessionID": "ses_c2", "info": {"id": "ses_c2", "parentID": "ses_m2"}}}},
+            {"kind": "after", "tool": "task", "sid": "ses_m2", "args": args,
+             "output": {"title": "art", "output": result, "metadata": {"sessionId": "ses_c2"}}}])
+        self.assertIn("prompted: kiln-art-director: Kiln protocol", res[2]["note"])
+        self.assertIn("## handoff", res[2]["note"])
+        self.assertIn("DONE: handoff appended", res[2]["output"]["output"])
+        self.assertNotIn("I looked at it.", res[2]["output"]["output"])
+        ok = result.replace("I looked at it.", "DONE: all gates pass")
+        res = self.run_steps([
+            {"kind": "tool", "tool": "task", "sid": "ses_m3", "args": dict(args)},
+            {"kind": "event", "event": {"type": "session.created", "properties": {
+                "sessionID": "ses_c3", "info": {"id": "ses_c3", "parentID": "ses_m3"}}}},
+            {"kind": "after", "tool": "task", "sid": "ses_m3", "args": args,
+             "output": {"title": "art", "output": ok, "metadata": {"sessionId": "ses_c3"}}}])
+        self.assertEqual(res[2]["note"], "")
+        self.assertIn("DONE: all gates pass", res[2]["output"]["output"])
 
     def test_a_subagent_is_its_role_in_its_child_session(self):
         game = os.path.join(self.proj, "GAME.md")

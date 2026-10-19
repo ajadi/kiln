@@ -56,7 +56,7 @@ def release_locks(root, owner, session):
 
 def ready_backlog_items(root):
     try:
-        text = open(os.path.join(root, "backlog.md"), encoding="utf-8").read()
+        text = open(os.path.join(root, "backlog.md"), encoding="utf-8", errors="replace").read()
     except OSError:
         return []
     return re.findall(r"^\s*- \[ \]\s*(.+)$", text, re.M)
@@ -65,7 +65,7 @@ def ready_backlog_items(root):
 def in_progress_ids(root):
     """TASK ids marked in progress in the backlog (`- [~] TASK-NNN`)."""
     try:
-        text = open(os.path.join(root, "backlog.md"), encoding="utf-8").read()
+        text = open(os.path.join(root, "backlog.md"), encoding="utf-8", errors="replace").read()
     except OSError:
         return []
     return re.findall(r"^\s*- \[~\]\s*(TASK-\d+)", text, re.M)
@@ -87,7 +87,7 @@ def porcelain_paths(root):
 
 def closed_ids(root):
     try:
-        text = open(os.path.join(root, "backlog.md"), encoding="utf-8").read()
+        text = open(os.path.join(root, "backlog.md"), encoding="utf-8", errors="replace").read()
     except OSError:
         return []
     return re.findall(r"^\s*- \[[xX]\]\s*(TASK-\d+)", text, re.M)
@@ -222,7 +222,7 @@ def open_phase_gates(root):
     """(phase title, open gate lines) of the first pipeline phase that still has open gates."""
     path = os.path.join(root, "production", "PIPELINE.md")
     try:
-        lines = open(path, encoding="utf-8").read().splitlines()
+        lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
     except OSError:
         return "", []
     phase, gates = "", []
@@ -237,13 +237,16 @@ def open_phase_gates(root):
 
 
 def delegated_task(data):
-    """True if the subagent's delegation prompt pointed at a task file (TASK-NNN)."""
+    """True if the subagent's delegation prompt pointed at a task file (TASK-NNN). OpenCode has
+    no transcript file: its plugin passes the prompt as delegation_prompt."""
+    head = data.get("delegation_prompt") or ""
     path = data.get("agent_transcript_path") or ""
-    try:
-        with open(path, encoding="utf-8") as fh:
-            head = fh.read(20000)
-    except OSError:
-        return False
+    if not head:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                head = fh.read(20000)
+        except OSError:
+            return False
     return re.search(r"TASK-\d+", head) is not None
 
 

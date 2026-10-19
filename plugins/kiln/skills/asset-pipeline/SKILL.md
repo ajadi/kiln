@@ -17,6 +17,8 @@ and Unreal in `engine-unity` / `engine-unreal`.
 |---|---|
 | `art/source/<asset>.blend` (+ `art/source/<asset>/parts.py`) | editable Blender source and its build script |
 | `ref/` | reference sheets (read-only inputs) |
+| `art/library/<source>/<id>/` | free library assets as downloaded, with `provenance.json` (`asset-libraries` skill); they follow this contract like any other asset |
+| `art/generated/<asset>/` | generated assets with `provenance.json` (`image-to-model`, `api-generators`) |
 | engine asset folder (`assets/models/<category>/` in Godot) | exported runtime files |
 | `memory/pipeline.md` | budgets, texel density, deviations, part tables |
 
@@ -67,6 +69,68 @@ and Unreal in `engine-unity` / `engine-unreal`.
 | Small prop | 0.5k–3k (working) | 1 |
 
 Power-of-two textures; 2048 max for hero assets unless the task allows more.
+
+## LOD chain
+
+Every engine switches levels by screen size, not distance, and calls about 1 px of error
+lossless (Godot's automatic LOD threshold, Nanite, Simplygon). Decide per asset class
+(the tech-designer, from the budget):
+
+| Case | LODs |
+|---|---|
+| LOD0 under 256 triangles | none: a cull distance (Godot `visibility_range_end`, Unity Culled, Unreal cull distance) |
+| LOD0 under ~1,000 triangles | no authored chain: the engine's automatic LOD (Godot `meshes/generate_lods`) or one level and a cull |
+| small detail parts (bolts, rivets, cables) | not their own LODs: joined into the parent and dropped at the first level where they are under 2 px |
+| Unreal with Nanite | none: export LOD0, check the fallback mesh |
+| foliage, aggregates, many loose pieces | 1-2 mesh levels, then a billboard or impostor (Godot: a visibility range swapping to a Sprite3D) |
+| never seen small (first-person weapon, cockpit) | none |
+| everything else | an authored chain |
+
+1. blender-modeling `lod_build.py`: levels at ~50 % of the previous level's triangles (a level
+   must cut at least 25 %), the chain stops under 1,000 triangles or a switch size of 0.02.
+   `collapse` for organic and generated meshes (protect the face, hands and joints with a vertex
+   group), `planar` for flat hard-surface panels, or the asset's `parts.py` recipe with fewer
+   segments and bevels. LOD1-2 keep LOD0's UVs and materials; far levels use one material
+   (shading cost does not drop with triangles). Skinned levels keep the armature.
+2. The switch size per level comes from its error, not a guess: e = two-sided Hausdorff distance
+   to LOD0, s = p · D / (e · H) (D bounding diameter, H screen height, p = 1 px, 2-4 in a
+   performance profile). It is stored on each level as `kiln_lod_screen`, `kiln_lod_error_m`,
+   `kiln_lod_diameter_m` and travels as glTF extras (`export_extras=True`).
+3. `lod_shots.py` in Blender, then `python ${CLAUDE_SKILL_DIR}/scripts/lod_check.py <asset.glb>
+   --shots <dir>`: triangle ratio, chain length, silhouette outline distance at the switch
+   size (p95 ≤ 1 px, max ≤ 2 px), mean boundary shift, shading and triangle size (warn until
+   calibrated), materials per level. `asset_budget.py` counts LOD0 only and checks
+   `"lod_ratio": 0.5` when the budget sets it.
+4. Naming `<mesh>_LOD<n>` under one parent. Engine import:
+
+| Engine | Route |
+|---|---|
+| Godot | glb with the extras; engine-godot `kiln_lod_ranges.gd` as the file's import script turns the levels into visibility ranges (distance from s and the camera FOV, 5 % margins, fade off); `meshes/generate_lods=false` for that file so automatic LODs are not stacked on authored ones |
+| Unity | FBX with `_LOD<n>` names → LOD Group; transition heights = s per level; not together with Mesh LOD |
+| Unreal | Nanite on → LOD0 only. Otherwise import LOD0, then "Import LOD Level N" per level file, screen size = s per level |
+
+glTF `MSFT_lod` is read by none of the three engines; do not rely on it.
+
+## Series: one style across many assets
+
+A set of assets that must read as one family (a faction's vehicles, a dungeon kit, the enemy
+roster) is a **series**; art tasks name it with a `series: <name>` line. The first member the
+art-director approves becomes the anchor in `art/anchors/<series>/`: the glb, a lineup render,
+`style.json`, a style sheet of 5-8 written principles (TF2's form: "high-frequency detail
+omitted", "bevels 2 cm on every outer edge", ...) and the anchor's `parts.py` helpers (bevel
+widths, segment counts, panel and bolt modules) that followers import instead of re-inventing.
+
+- `python ${CLAUDE_SKILL_DIR}/scripts/style_anchor.py extract <anchor.glb> --views <views dir>
+  --out art/anchors/<series>/style.json` once; views are `silhouette_shot.py` renders at one fixed
+  object height plus a flat-lit colour render per view.
+- Each follower: `style_anchor.py check art/anchors/<series>/style.json <member.glb> --views
+  <dir>` compares style statistics, never the silhouette (members are meant to differ in
+  shape): triangle and texel density, edge sharpness (bevels), part sizes, flat-surface share,
+  material count, palette (CIEDE2000), values, silhouette solidity. A hard metric fails the gate;
+  soft ones go to the art-director, whose **lineup** of the member next to the anchor (same
+  scale, light and camera) decides.
+- Tolerances are starting values: after two approved followers, `calibrate` widens them to the
+  spread the art-director accepted.
 
 ## Export (through the Blender MCP, in the connected Blender)
 
@@ -155,4 +219,7 @@ import fps (Godot `animation/fps` default 30).
    largest texture, VRAM with mips; images count once per glb, so a "shared" atlas in many glbs
    shows its real cost). The tech-designer writes `production/budgets.json` from the performance
    budget (globs per asset class, `*` last).
-5. Numbers (triangles, materials, texture sizes, texel density) in the handoff.
+6. LOD: `lod_check.py` passed, or the reason the asset has no authored chain (the table in
+   "LOD chain").
+7. A series member: `style_anchor.py check` against its anchor and the art-director's lineup.
+8. Numbers (triangles, materials, texture sizes, texel density) in the handoff.

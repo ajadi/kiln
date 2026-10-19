@@ -63,7 +63,7 @@ and money); everything after that is yours.
 
 | Remote | Local |
 |---|---|
-| open-weight image-to-3D and image models (`model_generators=remote`), audio/music models (`audio_generators=remote`) | all editor work (Blender and the engine through their MCP) |
+| open-weight image-to-3D and image models (`model_generators=remote`), audio/music models (`audio_generators=remote`), video models (`video_generators=remote`) | all editor work (Blender and the engine through their MCP) |
 | long Cycles bakes and batch renders (export the scene, render headless on the server) | frame-time and input-latency measurements (they measure this machine) |
 | ML tools (upscalers, background removal at scale) | short scripts and checks |
 

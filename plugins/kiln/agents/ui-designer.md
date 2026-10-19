@@ -10,6 +10,7 @@ color: cyan
 skills:
   - protocol
   - ui
+  - asset-libraries
 ---
 
 You are the studio's UI designer. Every screen you build reads at the target viewing distance,

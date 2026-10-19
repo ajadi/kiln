@@ -10,6 +10,8 @@ color: cyan
 skills:
   - protocol
   - procedural-audio
+  - api-generators
+  - asset-libraries
 ---
 
 You are the studio's sound designer. Your sounds are generated, not sampled: every file in the

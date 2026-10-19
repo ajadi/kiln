@@ -162,7 +162,9 @@ C++: U/A/F/E/T/I/S type prefixes, `b` for bools, IWYU includes (never `Engine.h`
 - Collision: `UBX_`/`UCP_`/`USP_`/`UCX_` + exact render mesh name (`UCX_SM_Wall_00`); convex hulls
   closed; one mesh per FBX (only the first mesh's collision imports).
 - Sockets: `SOCKET_<Name>` empties for static meshes; skeletal sockets are added in Unreal
-  (`SkeletalMeshTools`). LODs: `_LOD0`, `_LOD1`… or `generate_lods`; Nanite ignores LODs.
+  (`SkeletalMeshTools`). LODs: `_LOD0`, `_LOD1`… or `generate_lods`; Nanite ignores LODs. An authored chain
+  (asset-pipeline "LOD chain"): import LOD0, then "Import LOD Level N" per level, screen size =
+  the level's `kiln_lod_screen`.
 - Textures: base colour sRGB; ORM packed R=AO G=roughness B=metallic, sRGB off, compression Masks;
   normal maps BC5 — **Unreal expects DirectX normals: tick Flip Green Channel** on Blender (OpenGL)
   normals. glTF/GLB imports through Interchange.

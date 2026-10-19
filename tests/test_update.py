@@ -137,6 +137,44 @@ class AllProjects(unittest.TestCase):
         code, res = run_all(self.home, "projects")       # remembered after the scan
         self.assertEqual([os.path.basename(r["path"]) for r in res["projects"]], ["g3"])
 
+    def test_scan_skips_a_kiln_checkout_template_and_fixtures(self):
+        # Gap audit 2026-10-19: a scan over the dev folder registered the project template and
+        # the test fixture, and apply-all --yes would have migrated the fixture.
+        parent = tempfile.mkdtemp(prefix="kiln-scan-")
+        checkout = os.path.join(parent, "kiln")
+        os.makedirs(os.path.join(checkout, "plugins", "kiln", ".claude-plugin"))
+        with open(os.path.join(checkout, "plugins", "kiln", ".claude-plugin", "plugin.json"),
+                  "w", encoding="utf-8") as fh:
+            fh.write('{"name": "kiln", "version": "0.8.0"}')
+        for sub, text in ((("plugins", "kiln", "templates", "project"),
+                           "project_name={{PROJECT_NAME}}\nframework=kiln\nframework_version=0.8.0\n"),
+                          (("tests", "fixtures", "tiny"), "framework=kiln\nframework_version=0.1.0\n")):
+            folder = os.path.join(checkout, *sub)
+            os.makedirs(folder)
+            with open(os.path.join(folder, "manifest.md"), "w", encoding="utf-8") as fh:
+                fh.write(text)
+        game = os.path.join(parent, "game")
+        os.makedirs(game)
+        with open(os.path.join(game, "manifest.md"), "w", encoding="utf-8") as fh:
+            fh.write("framework=kiln\nframework_version=0.5.0\n")
+        code, res = run_all(self.home, "projects", "--scan", parent)
+        self.assertEqual([os.path.basename(r["path"]) for r in res["projects"]], ["game"])
+
+    @unittest.skipUnless(os.name == "nt", "drive letters")
+    def test_one_row_per_project_whatever_the_drive_letter_case(self):
+        # The real registry listed one project twice, as d:/... and D:/...
+        path = self.old.replace("\\", "/")
+        os.makedirs(self.home, exist_ok=True)
+        with open(os.path.join(self.home, "projects.json"), "w", encoding="utf-8") as fh:
+            json.dump({path[0].lower() + path[1:]: {"name": "t", "seen": "2026-10-01"},
+                       path[0].upper() + path[1:]: {"name": "t", "seen": "2026-10-02"}}, fh)
+        code, res = run_all(self.home, "projects")
+        self.assertEqual(len(res["projects"]), 1, res)
+        self.assertTrue(res["projects"][0]["path"][0].isupper())
+        start_session(self.old, self.home)  # a session from a lower-case cwd adds no second row
+        code, res = run_all(self.home, "projects")
+        self.assertEqual(len(res["projects"]), 1, res)
+
     def test_apply_all_asks_first_then_migrates_every_project_behind(self):
         start_session(self.old, self.home)
         start_session(self.current, self.home)

@@ -1,6 +1,6 @@
 project_name={{PROJECT_NAME}}
 framework=kiln
-framework_version=0.8.2
+framework_version=0.9.0
 repo_access=private-solo
 runtimes={{RUNTIMES}}
 engine={{ENGINE}}
@@ -9,6 +9,7 @@ mcp_only=on
 scene_first=on
 model_generators=off
 audio_generators=off
+video_generators=off
 llm_npc=off
 problem_reports=on
 godot_files_via_mcp=scenes,resources,scripts

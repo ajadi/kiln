@@ -7,7 +7,8 @@ Writes, from this Kiln checkout (checked live with OpenCode 1.19.0):
   this Kiln folder written into it). OpenCode loads project plugins only in that project, so
   Kiln stays off elsewhere.
 - .opencode/agents/kiln-<role>.md: every Kiln role as a subagent (`mode: subagent`); the body
-  is the role's own, led by the skills it activates first.
+  is the role's own, led by the skills it activates first. manifest agent_model in OpenCode's
+  `provider/model` form becomes each role's `model:` (re-run after changing it).
 - .opencode/skills/<name>: a directory junction (Windows) or symlink to each Kiln skill, so
   skills stay current with the checkout.
 The project rules go to AGENTS.md (setup, as for Codex); OpenCode reads it, and CLAUDE.md.
@@ -25,6 +26,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import codex_agents as cx  # noqa: E402  (role frontmatter)
+sys.path.insert(0, os.path.join(PLUGIN, "hooks"))
+import kiln_hooklib as k  # noqa: E402  (manifest)
 
 
 def link(src, dst):
@@ -48,11 +51,14 @@ def is_junction(path):
         return False
 
 
-def agent_file(path):
+def agent_file(path, model=""):
     fm, body = cx.frontmatter(path)
     role = fm["name"]
     skills = fm.get("skills[]", [])
-    lines = ["---", f"description: {json.dumps(fm['description'])}", "mode: subagent", "---", "",
+    head = [f"description: {json.dumps(fm['description'])}", "mode: subagent"]
+    if model:
+        head.append(f"model: {model}")
+    lines = ["---", *head, "---", "",
              f"You are the Kiln role `{role}`, running as the OpenCode subagent `kiln-{role}`."]
     if skills:
         lines.append("Before you start, load these Kiln skills with the skill tool and follow them: "
@@ -62,9 +68,22 @@ def agent_file(path):
     return f"kiln-{role}.md", text.strip() + "\n"
 
 
-def setup(project):
+def role_model(project):
+    """manifest agent_model for every role: OpenCode takes `provider/model` in the agent file
+    (its task tool has no model field, so the guard's per-call rewrite cannot reach it)."""
+    value = ((k.read_manifest(project) or {}).get("agent_model") or "").strip()
+    if not value:
+        return "", []
+    if "/" in value:
+        return value, []
+    return "", [f"agent_model={value} is not an OpenCode model id (provider/model, e.g. "
+                "anthropic/claude-sonnet-5-5): the roles use OpenCode's default model"]
+
+
+def setup(project, skills_too=True):
     project = os.path.abspath(os.path.normpath(project))  # mklink /J reads "/" as a switch
     oc = os.path.join(project, ".opencode")
+    model, notes = role_model(project)
     for sub in ("plugins", "agents", "skills"):
         os.makedirs(os.path.join(oc, sub), exist_ok=True)
     with open(os.path.join(PLUGIN, "opencode", "kiln.js"), encoding="utf-8") as fh:
@@ -74,28 +93,33 @@ def setup(project):
     agents = 0
     for fn in sorted(os.listdir(os.path.join(PLUGIN, "agents"))):
         if fn.endswith(".md"):
-            name, text = agent_file(os.path.join(PLUGIN, "agents", fn))
+            name, text = agent_file(os.path.join(PLUGIN, "agents", fn), model)
             with open(os.path.join(oc, "agents", name), "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(text)
             agents += 1
     skills, kept = 0, []
-    for name in sorted(os.listdir(os.path.join(PLUGIN, "skills"))):
+    for name in sorted(os.listdir(os.path.join(PLUGIN, "skills")) if skills_too else []):
         src = os.path.join(PLUGIN, "skills", name)
         if os.path.isfile(os.path.join(src, "SKILL.md")):
             if link(src, os.path.join(oc, "skills", name)):
                 skills += 1
             else:
                 kept.append(name)
+    if kept:
+        notes.append("kept your own .opencode/skills folders (Kiln's skill of the same name is "
+                     "not linked): " + ", ".join(kept))
     return {"project": os.path.abspath(project), "kiln": PLUGIN, "agents": agents,
-            "skills": skills, "plugin": os.path.join(oc, "plugins", "kiln.js"), "kept": kept}
+            "skills": skills, "plugin": os.path.join(oc, "plugins", "kiln.js"),
+            "model": model, "notes": notes, "kept": kept}
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--project", default=".")
+    ap.add_argument("--no-skills", action="store_true", help="skip the skill links (tests)")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
-    print(json.dumps(setup(a.project), indent=1))
+    print(json.dumps(setup(a.project, not a.no_skills), indent=1))
 
 
 if __name__ == "__main__":

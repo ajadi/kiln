@@ -19,7 +19,7 @@ SCRIPT = os.path.join(os.path.dirname(__file__), "..", "plugins", "kiln", "skill
                       "asset-pipeline", "scripts", "asset_budget.py")
 
 
-def make_glb(path, tris=12, tex=(64, 32), joints=3):
+def make_glb(path, tris=12, tex=(64, 32), joints=3, names=None):
     png = io.BytesIO()
     Image.new("RGBA", tex, (200, 100, 50, 255)).save(png, "PNG")
     png = png.getvalue()
@@ -42,7 +42,8 @@ def make_glb(path, tris=12, tex=(64, 32), joints=3):
             "meshes": [{"primitives": [{"attributes": {"POSITION": 1}, "indices": 0,
                                         "material": 0}]}],
             "skins": [{"joints": list(range(joints))}],
-            "nodes": [{"mesh": 0}, {"mesh": 0}], "scenes": [{"nodes": [0, 1]}]}
+            "nodes": [{"mesh": 0, **({"name": n} if n else {})} for n in (names or [None, None])],
+            "scenes": [{"nodes": [0, 1]}]}
     js = json.dumps(gltf).encode()
     js += b" " * (-len(js) % 4)
     body = struct.pack("<II", len(js), 0x4E4F534A) + js + struct.pack("<II", len(blob), 0x004E4942) + blob
@@ -64,6 +65,17 @@ class AssetBudget(unittest.TestCase):
         make_glb(os.path.join(self.root, "assets", "npc", "goran.glb"), tris=12, tex=(64, 32))
         make_glb(os.path.join(self.root, "assets", "props", "cup.glb"), tris=4, tex=(16, 16),
                  joints=0)
+
+    def test_lod_levels_count_once(self):
+        # LOD research 2026-10-19: a glb with crate_LOD0 and crate_LOD1 counted both levels as
+        # drawn (about 1.9x the real cost); only one level is drawn at a time.
+        path = os.path.join(self.root, "assets", "props", "crate.glb")
+        make_glb(path, tris=12, joints=0, names=["crate_LOD0", "crate_LOD1"])
+        code, res = run(self.root, "assets/props/crate.glb")
+        row = res["assets"][0]
+        self.assertEqual(row["triangles"], 12)
+        self.assertEqual(row["draw_calls"], 1)
+        self.assertEqual(row["lods"], {"crate": [12, 12]})
 
     def test_counts(self):
         code, res = run(self.root, "assets/**/*.glb")

@@ -11,7 +11,11 @@ framing differences do not count — proportions and shape do. Reports, per pair
   iou           fitted silhouette IoU (shape agreement)
   raw_iou       IoU without fitting (framing check for matched cameras)
   aspect_delta  relative difference of bbox height/width (proportion drift)
-  verdict       pass if iou >= --min and |aspect_delta| <= --max-aspect
+  top_disagree / bottom_disagree / side_disagree   share of the outline that differs by more
+                than 2 % of the height (view_consistency.py): IoU barely moves when a part sits
+                a few percent off (a 4 % wheelbase error scored 0.985), the outlines do
+  verdict       pass if iou >= --min and |aspect_delta| <= --max-aspect (and every disagree
+                <= --max-disagree when given: use 0.08 for hard-surface assets)
 The --diff image paints reference-only pixels red, render-only blue, shared white — read it to see
 where the model is too thin, too wide or missing a part. Thresholds are starting points: calibrate
 them on a model the art-director accepted.
@@ -19,10 +23,14 @@ them on a model the art-director accepted.
 
 import argparse
 import json
+import os
 import sys
 
 import numpy as np
 from PIL import Image
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from view_consistency import profile_disagreement  # noqa: E402
 
 CUT = 128
 
@@ -63,7 +71,7 @@ def iou(a, b):
     return float(np.logical_and(a, b).sum() / union) if union else 0.0
 
 
-def compare(ref_path, render_path, min_iou, max_aspect, diff_path=None):
+def compare(ref_path, render_path, min_iou, max_aspect, diff_path=None, max_disagree=None):
     ref = mask_of(ref_path)
     ren = mask_of(render_path)
     if ren.shape != ref.shape:
@@ -85,9 +93,14 @@ def compare(ref_path, render_path, min_iou, max_aspect, diff_path=None):
         out[~ref & fitted] = (40, 90, 230)
         out[ref & fitted] = (255, 255, 255)
         Image.fromarray(out).save(diff_path)
-    ok = score >= min_iou and abs(aspect_delta) <= max_aspect
+    prof = profile_disagreement(ref, ren)
+    prof.pop("_masks")
+    outline = {k: prof[k] for k in ("top_disagree", "bottom_disagree", "side_disagree")}
+    ok = score >= min_iou and abs(aspect_delta) <= max_aspect and (
+        max_disagree is None or max(outline.values()) <= max_disagree)
     return {"ref": ref_path, "render": render_path, "iou": round(score, 4),
             "raw_iou": round(iou(ref, ren), 4), "aspect_delta": round(float(aspect_delta), 4),
+            **outline,
             "ref_only_px": int((ref & ~fitted).sum()), "render_only_px": int((~ref & fitted).sum()),
             "threshold": min_iou, "verdict": "pass" if ok else "fail", "diff": diff_path}
 
@@ -101,14 +114,16 @@ def main(argv=None):
     parser.add_argument("--min", type=float, default=0.90)
     parser.add_argument("--max-aspect", type=float, default=0.05)
     parser.add_argument("--diff", default=None, help="diff image (single pair only)")
+    parser.add_argument("--max-disagree", type=float, default=None,
+                        help="also gate on the outline profiles (0.08 for hard surface)")
     args = parser.parse_args(argv)
     pairs = [p.rsplit(":", 1) for p in args.pairs]
     if args.ref and args.render:
         pairs.insert(0, [args.ref, args.render])
     if not pairs:
         parser.error("give ref and render, or --pairs")
-    results = [compare(r, n, args.min, args.max_aspect, args.diff if len(pairs) == 1 else None)
-               for r, n in pairs]
+    results = [compare(r, n, args.min, args.max_aspect, args.diff if len(pairs) == 1 else None,
+                       args.max_disagree) for r, n in pairs]
     sys.stdout.reconfigure(encoding="utf-8")
     print(json.dumps(results if len(results) > 1 else results[0], indent=1))
     sys.exit(0 if all(r["verdict"] == "pass" for r in results) else 1)

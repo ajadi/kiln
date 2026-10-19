@@ -1,11 +1,12 @@
 # Kiln
 
-Version 0.8.2. Kiln turns your AI coding agent into a small game studio.
+Version 0.9.0. Kiln turns your AI coding agent into a small game studio.
 
 You talk to one producer: your normal agent session. It plans the work and hands each piece to a
 specialist (modeler, animator, level designer, sound designer, ...). Other specialists check the
-result with real measurements, and you get a short report. Kiln works with Godot 4, Unity 6 or
-Unreal 5, plus Blender, and drives the editors through MCP, in 3D and 2D.
+result with real measurements, and you get a short report. Kiln works with Godot 4 and Blender
+(checked in real projects) and drives the editors through MCP, in 3D and 2D. Unity 6 and
+Unreal 5.8 are described and their rules tested, but not yet run in a real editor.
 
 You don't have to make a whole game. Kiln can also make one thing:
 
@@ -165,7 +166,7 @@ Copilot CLI and OpenCode name the command in words ("run the Kiln pipeline").
   - each role writes only its own files;
   - one agent per editor at a time;
   - no secrets in commits;
-  - no task closes while a required check is missing.
+  - a reminder when a task is closed while a required check is missing.
 - **Decides for you, openly.** By default small decisions are taken for you, marked and listed, so
   you can say "redo #3". Publishing, spending money and deleting your work always wait for you.
 - **Reports its own problems.** When Kiln gets in the way, the agents write it into
@@ -182,10 +183,10 @@ and the decisions taken for you.
 | Part | What it does |
 |---|---|
 | 31 roles (`kiln:<role>`) | 2 designers, 14 builders, 8 acceptors, 4 reviewers, 3 experts (consultants) (below) |
-| 49 knowledge skills | engines (Godot / Unity / Unreal), Blender modelling, a model from 1-3 photos, assets, animation, human biomechanics, creature locomotion, rigid-body physics, destruction and effects (3D and 2D), shaders, optimisation, lighting, level design, procedural generation, 2D art and sprite sheets, UI, accessibility, localisation, controls and camera, game AI, saving, balance, narrative, LLM NPCs (opt-in), procedural audio, music, release and builds, tech design, playtest, acceptance, protocol; also doors and vehicles, fields and forces, fluids and granular matter, flight, riding, hands and grips, soft bodies, elements and materials, sky and weather, traversal, the implications of a new thing; project tools (find, install, verify), rented GPU servers |
+| 51 knowledge skills | engines (Godot / Unity / Unreal), Blender modelling, a model from 1-3 photos, assets, animation, human biomechanics, creature locomotion, rigid-body physics, destruction and effects (3D and 2D), shaders, optimisation, lighting, level design, procedural generation, 2D art and sprite sheets, UI, accessibility, localisation, controls and camera, game AI, saving, balance, narrative, LLM NPCs (opt-in), procedural audio, music, release and builds, tech design, playtest, acceptance, protocol; also doors and vehicles, fields and forces, fluids and granular matter, flight, riding, hands and grips, soft bodies, elements and materials, sky and weather, traversal, the implications of a new thing; project tools (find, install, verify), rented GPU servers, paid generators on your own account (models, rigging, animation clips), free asset libraries (Poly Haven, ambientCG, Kenney, KayKit, game-icons, Google Fonts) |
 | 18 process commands | `/kiln:setup`, `/kiln:update`, `/kiln:settings`, `/kiln:doctor`, `/kiln:pipeline`, `/kiln:concept`, `/kiln:plan`, `/kiln:run`, `/kiln:autopilot`, `/kiln:stop`, `/kiln:status`, `/kiln:gym`, `/kiln:model`, `/kiln:sprites`, `/kiln:track`, `/kiln:cinematic`, `/kiln:report`, `/kiln:retro` |
 | Hooks (Python) | "MCP only", "scenes are built in the editor", write zones per role (also for shell writes), read-only acceptors in all three engines, one driver per editor with a queue and a lease, required roles per task (`touches:` + gates), git hygiene, state at session start, the engine profile in every agent, autopilot continuation, model and effort per project, new-version notice, problem reports |
-| Check scripts | meshes, contacts, back faces and gaps in Blender; silhouettes; model-vs-photo silhouettes; hair card atlases; sprites and sprite-sheet packing; 2D maps into a deduplicated tileset and Tiled map; readability; UI and focus; subtitles; cinematic continuity (180-degree line, 30-degree rule); localisation; audio (loudness, true peak, loop seams, stems, RT60); motion, camera and AI probes for Godot / Unity / Unreal; animation that is only the whole character moved (a similarity fit per frame); pops on transitions; attacks that miss their targets; a scene QA contract (named states re-checked by one command into one report); dialogue; saves; balance; procgen; performance; build audit and smoke; licences; pipeline gates; rented GPU jobs; project tools; visual regression; frozen effects and sweeps on a state change; fidelity to a reference image in numbers (values, light pools, tones, palette, per region); asset budgets |
+| Check scripts | meshes, contacts, back faces and gaps in Blender; silhouettes; model-vs-photo silhouettes and outlines; whether several views of one object agree before a multi-view generation; hair card atlases; sprites and sprite-sheet packing; 2D maps into a deduplicated tileset and Tiled map; readability; UI and focus; subtitles; cinematic continuity (180-degree line, 30-degree rule); localisation; audio (loudness, true peak, loop seams, stems, RT60); motion, camera and AI probes for Godot / Unity / Unreal; animation that is only the whole character moved (a similarity fit per frame); pops on transitions; attacks that miss their targets; a scene QA contract (named states re-checked by one command into one report); dialogue; saves; balance; procgen; performance; build audit and smoke; licences; pipeline gates; rented GPU jobs; project tools; visual regression; frozen effects and sweeps on a state change; fidelity to a reference image in numbers (values, light pools, tones, palette, per region); asset budgets; one style across a series of assets (style statistics against an anchor); LOD chains (built in Blender, switch sizes from the measured error, outlines checked at the switch size, Godot visibility ranges at import); rig deformation in stress poses (volume, candy-wrapper, shoulders, weights); edge loops around joints and a bend test before rigging; a video reference for a clip (cycle, key poses, gates on the clip, our render compared in pose space) |
 </details>
 
 <details>
@@ -226,8 +227,10 @@ checkers a task needs follows from its `touches:` line (humanoid, creature, phys
 | `engine` | `godot` | `godot` / `unity` / `unreal` / `none` (asset mode) |
 | `dimension` | `3d` | `3d` / `2d` |
 | `runtimes` | `claude` | the agent apps: `claude`, `codex`, `gemini`, `copilot`, `opencode`, comma-separated |
-| `model_generators` | `off` | 3D and image generators: `off` / `local` / `remote` (a rented GPU) / `api`; only commercially safe licences |
+| `model_generators` | `off` | 3D and image generators: `off` / `local` / `remote` (a rented GPU) / `api` (your own paid service, e.g. Meshy: Kiln shows the cost in credits and dollars and waits for your yes before each generation; `/kiln:settings api` opens a local page where you paste the key, never into the chat); only commercially safe licences |
 | `audio_generators` | `off` | music and sound generators: `off` / `local` / `remote` / `api` |
+| `video_generators` | `off` | video models for animation reference clips: `off` / `local` / `remote` / `api` (Kiln's own joint limits and contact rules win over the clip) |
+| `asset_libraries` | `attribution` | free libraries (Poly Haven, ambientCG, Kenney, KayKit, game-icons, Google Fonts) and assets you downloaded by hand: which licences may be used — `off` / `cc0` / `attribution` (CC0 + CC BY, credits generated) / `sharealike` |
 | `llm_npc` | `off` | NPCs that talk through a language model: `off` / `local` (Ollama) / `api` |
 | `problem_reports` | `on` | Kiln's own problems into `kiln-report.md` (agents, and crashed hooks by themselves); `off` stops both |
 | `mcp_only` | `on` | Blender and the engine editor only through MCP |
@@ -261,7 +264,7 @@ Copilot CLI 1.0.97 and OpenCode 1.18.
 | Role skills loaded up front | yes | the role reads them first | the role activates them first | yes | the role loads them first |
 | Safety guard | hook on every tool call | hook; `apply_patch` checked per file | hook (shell, `write_file`, `replace`, MCP tools) | hook (shell, `create`, `edit`, `task`, MCP tools) | project plugin `.opencode/plugins/kiln.js` (shell, `write`, `edit`, `task`, MCP tools) |
 | How the guard knows the role | the agent type in the hook call | the agent type in the hook call | the `invoke_agent` call that starts it | the subagent's own session, named when it starts | the subagent's child session |
-| The producer does not write game content | guard | a rule in `AGENTS.md` (the main thread is not told apart) | guard | guard | guard |
+| The producer does not write game content | guard | guard (the main thread is the call without an agent id) | guard | guard | guard |
 
 Project rules live in `AGENTS.md`; `CLAUDE.md` and `GEMINI.md` import it. Codex, Copilot CLI and
 OpenCode read `AGENTS.md` themselves.

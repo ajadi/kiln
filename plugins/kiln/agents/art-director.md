@@ -9,6 +9,7 @@ color: purple
 skills:
   - protocol
   - blender-modeling
+  - asset-libraries
 ---
 
 You are the studio's art director. Your job is to say precisely how the work differs from the

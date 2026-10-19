@@ -27,6 +27,10 @@ the content with `execute_blender_code`; results come back in `result`:
 | `silhouette_shot.py` | ortho flat silhouette of the targets at a stated px/m + sidecar JSON (camera recorded); read-only roles may run it |
 | `silhouette_measure.py` | normal Python (Bash): `deltoid`, `contour`, `chord-angle`, `width`, `gap`, `holes` on a silhouette shot — one metric definition for builder and reviewer |
 | `card_atlas.py` | normal Python (Bash): hair/beard card atlas (`make`: tiles + mass strip, colour dilated under alpha) and `check` (light edge texels, fill colour) |
+| `joint_topology.py` | deforming meshes: closed edge loops around each joint (elbow, knee, wrist, ankle, neck, shoulder, hip from the bone names), poles and triangles in the joint band - where to add or move loops |
+| `joint_bend.py` | the bend test behind it: a temporary copy on automatic weights, elbows and knees bent 90/120°, shoulders and hips abducted 90°, cross-section area kept (≥ 0.75 / ≥ 0.60) |
+| `lod_build.py` | authored LOD chain: `<name>_LOD1..n` at ~50 % triangles each, sub-pixel parts left out, the screen-error switch size per level stored for the engine (asset-pipeline "LOD chain") |
+| `lod_shots.py` | LOD0 and each level rendered at the level's switch size from 8 azimuths, for asset-pipeline `lod_check.py` |
 | `mesh_qa.py` | mesh health per object, per-part bounding boxes, connected groups (floating parts), crossing pairs; on the joined set: back faces seen from 8 azimuths and daylight (background enclosed by the front/side/back silhouette, with its z range) — these catch holes and garment gaps inside one joined mesh |
 
 ## 0. Ground rules for code through the MCP
@@ -55,6 +59,10 @@ described): block out **three** structurally different options under deliberatel
 constraints (e.g. compact and hugging the body / mechanical and exposed / strongest silhouette),
 render each from the views that matter, and let the art-director pick with a reason; keep the
 others in the captures. Three tweaks of one idea are not three options.
+
+Series follower (the task has `series:` and `art/anchors/<series>/` exists): import the anchor's
+`parts.py` helpers; copy bevel widths, segment counts and the palette from its `style.json` and
+style sheet; differ in silhouette, not in style vocabulary (asset-pipeline "Series").
 
 1. Crop each view of the sheet (`crop_ref.py --grid`, then tight crops: lowest point on the
    bottom edge, highest on the top). Read small details from the `_zoom` crops.
@@ -169,6 +177,14 @@ and pick by direct comparison with the reference instead of nudging one version.
 loose verts, zero-area faces, duplicates or inside-out meshes, scale applied, origin per
 contract, one connected group (or exactly the groups the damage split intends), every crossing
 pair explained. Put the numbers and the views you compared into the handoff.
+
+**Deforming meshes** (a character, a creature, anything skinned) also pass `joint_topology.py`
+and `joint_bend.py` on the quad source mesh before rigging, with the rig or a proxy armature at
+the joints. The bend test is the gate (cross-section area at 90° and 120°); the loop count says
+where to fix: three loops at elbows and knees for mid and hero meshes, two for low-poly, no
+poles in an elbow or knee band, poles moved to flat areas. Generated quads (Tripo, Rodin) and
+automatic retopology are unproven until both pass; QuadriFlow is not a final topology for a mesh
+that deforms.
 
 **Worn and articulated gear** (armour, clothing, kits on a character) also needs a joint sweep
 before handoff: pose each joint of the rig or a proxy skeleton until parts collide (elbow,

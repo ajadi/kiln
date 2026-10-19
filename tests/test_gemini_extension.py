@@ -57,6 +57,9 @@ class Build(unittest.TestCase):
                     if re.match(r"^[a-z_]+:", line)}
             self.assertLessEqual(keys, AGENT_KEYS, path)
             self.assertTrue(re.search(r"^name: kiln-[a-z0-9-]+$", head, re.M), path)
+            # Research 2026-10-19: without it Gemini stops every subagent after 10 minutes
+            # (DEFAULT_MAX_TIME_MINUTES); modelling and build roles run far longer.
+            self.assertIn("timeout_mins: 180", head, path)
             self.assertIn("activate_skill", body)
         for path in roles:                           # a role writes in Gemini iff it does in Claude
             claude, _ = frontmatter(path)
@@ -100,6 +103,22 @@ class Build(unittest.TestCase):
             text = open(path, encoding="utf-8").read()
             self.assertNotIn("${CLAUDE_PLUGIN_ROOT}", text, path)
             self.assertNotIn("${CLAUDE_SKILL_DIR}", text, path)
+
+    def test_user_policy_for_plan_mode_and_skills(self):
+        # Research 2026-10-19 (gemini-cli 0.64 policies/plan.toml, write.toml): Plan Mode allows
+        # only two built-in subagents, and activate_skill asks every time (headless: denied).
+        # Extensions may not ship allow rules, so setup copies this file to ~/.gemini/policies.
+        path = os.path.join(self.out, "user-policy", "kiln.toml")
+        with open(path, "rb") as fh:
+            rules = tomllib.load(fh)["rule"]
+        plan = [r for r in rules if r["toolName"] == "invoke_agent"]
+        self.assertEqual((plan[0]["decision"], plan[0]["modes"]), ("allow", ["plan"]))
+        self.assertRegex('"agent_name": "kiln-verifier"', plan[0]["argsPattern"])
+        self.assertNotRegex('"agent_name": "kiln-modeler"', plan[0]["argsPattern"])
+        skill = [r for r in rules if r["toolName"] == "activate_skill"][0]
+        self.assertEqual(skill["decision"], "allow")
+        self.assertRegex('"name":"protocol"', skill["argsPattern"])
+        self.assertNotRegex('"name":"someone-elses"', skill["argsPattern"])
 
     @unittest.skipUnless(shutil.which("gemini"), "gemini-cli not installed")
     def test_the_real_gemini_cli_accepts_it(self):

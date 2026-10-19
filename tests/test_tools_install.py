@@ -223,6 +223,30 @@ class Plan(unittest.TestCase):
         self.assertIn("triposg", offers)
         self.assertNotIn("ace-step-1.5", offers)
 
+    def test_video_offers_follow_video_generators_and_pose_is_on_request(self):
+        # research 2026-10-19 video reference: own policy; the pose library only when asked
+        e = Env()
+        e.run("root", "--set", os.path.join(e.root, "kt"))
+        proj = os.path.join(e.root, "anim")
+        os.makedirs(proj)
+        with open(os.path.join(proj, "manifest.md"), "w", encoding="utf-8") as fh:
+            fh.write("framework=kiln\nengine=godot\nmodel_generators=local\n")
+        code, res = e.run("offers", "--project", proj)
+        self.assertNotIn("wan22-ti2v-5b", {o["offer"] for o in res["offers"]})
+        self.assertIn("hunyuanvideo-1.5", res["not_offered"])
+        with open(os.path.join(proj, "manifest.md"), "a", encoding="utf-8") as fh:
+            fh.write("video_generators=local\n")
+        code, res = e.run("offers", "--project", proj)
+        offers = {o["offer"]: o for o in res["offers"]}
+        self.assertTrue(offers["wan22-ti2v-5b"]["fits"])          # 8 GB on this "machine"
+        self.assertFalse(offers["wan21-flf2v-14b"]["fits"])
+        self.assertEqual(offers["ltx2"]["commercial"], "under $10M annual revenue")
+        code, res = e.run("plan", "--project", proj, extra_env={"PATH": ""})
+        self.assertNotIn("pose", {r["tool"] for r in res["tools"]})
+        code, res = e.run("install", "pose")
+        self.assertEqual(code, 3, res)                               # asks first
+        self.assertIn("rtmlib==0.0.16", res["would_install"]["packages"])
+
     def test_unity_project_names_the_manual_step(self):
         e = Env()
         proj = os.path.join(e.root, "u")

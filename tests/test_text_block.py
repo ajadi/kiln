@@ -77,6 +77,27 @@ class TextBlock(unittest.TestCase):
         self.assertEqual(raw.count(b"\xef\xbb\xbf"), 0)
         self.assertEqual(raw.decode().splitlines(), ["* text=auto eol=lf", "*.psd binary"])
 
+    def test_gitignore_template_anchors_engine_folders(self):
+        # Install audit 2026-10-19: unanchored export/, Saved/, Binaries/ ignored same-named code
+        # folders anywhere in the tree.
+        template = os.path.join(os.path.dirname(SCRIPT), "..", "templates", "project",
+                                "gitignore.tmpl")
+        repo = tempfile.mkdtemp(prefix="kiln-gi-")
+        subprocess.run(["git", "init", "-q", repo], check=True)
+        with open(template, encoding="utf-8") as src, \
+                open(os.path.join(repo, ".gitignore"), "w", encoding="utf-8") as dst:
+            dst.write(src.read())
+
+        def ignored(path):
+            return subprocess.run(["git", "-C", repo, "check-ignore", "-q", path]).returncode == 0
+
+        for path in ("export/game.exe", "Saved/log.txt", "Binaries/Win64/a.dll", ".godot/x",
+                     "Plugins/Fx/Binaries/Win64/b.dll", ".kiln/autopilot", "scene.blend1", ".env"):
+            self.assertTrue(ignored(path), path)
+        for path in ("src/export/exporter.gd", "scripts/Saved/save_slot.cs",
+                     "Source/Game/Binaries/readme.md", "addons/x/.godot_notes.md"):
+            self.assertFalse(ignored(path), path)
+
 
 if __name__ == "__main__":
     unittest.main()

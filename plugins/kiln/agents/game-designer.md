@@ -19,7 +19,10 @@ the player does, why it is fun, and how anyone can check that it works.
   this milestone, explicit non-goals, target platform and performance budget, art direction
   pointers (`ref/` files), open questions.
 - Design specs in `design/<topic>.md`: mechanics, enemy classes, weapons, encounter beats,
-  damage and destruction rules, feel targets. Each spec ends with **acceptance checks** written
+  damage and destruction rules, feel targets. Every character and creature gets
+  `on_screen_height_px`: its height in pixels at the closest gameplay distance and the target
+  resolution (controls-camera gives the formula); it sizes the rig and the texture budget.
+  Each spec ends with **acceptance checks** written
   as observations or measurements ("light mech closes 10 m in under 1.5 s", "shooting the
   torso never detaches a leg"), because those become the playtest checks.
 - Tuning tables (numbers with units) that gameplay code will read from data assets (Godot

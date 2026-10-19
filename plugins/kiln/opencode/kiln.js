@@ -28,6 +28,9 @@ function toKiln(tool, args) {
   if (tool === "bash") return ["Bash", { command: args.command }]
   if (tool === "write") return ["Write", { file_path: args.filePath, content: args.content }]
   if (tool === "edit") return ["Edit", { file_path: args.filePath, old_string: args.oldString, new_string: args.newString }]
+  // GPT models get apply_patch instead of write/edit (OpenCode 1.x tool/registry.ts); same
+  // patch grammar as Codex, so the guard checks it per file.
+  if (tool === "apply_patch") return ["apply_patch", { command: args.patchText }]
   if (tool === "task") return ["Agent", { subagent_type: args.subagent_type, prompt: args.prompt, description: args.description }]
   for (const server of SERVERS) {
     if (tool.startsWith(server + "_")) return [`mcp__${server}__${tool.slice(server.length + 1)}`, args]
@@ -37,7 +40,8 @@ function toKiln(tool, args) {
 
 export const Kiln = async ({ directory, client }) => {
   const roles = {}      // child session -> its role (kiln-<role>)
-  const pending = []    // roles started by task calls, waiting for their child session
+  const pending = []    // {role, prompt} of task calls, waiting for their child session
+  const delegations = {} // child session -> {role, prompt}: checked when the task returns
   let main = null
   const start = hook(directory, "session.py", ["start"], {
     session_id: "", cwd: directory, hook_event_name: "SessionStart", source: "startup" })
@@ -67,7 +71,7 @@ export const Kiln = async ({ directory, client }) => {
       const spec = res?.hookSpecificOutput || {}
       if (spec.permissionDecision === "deny") throw new Error(spec.permissionDecisionReason)
       if (name === "Agent") {
-        pending.push(output.args.subagent_type)
+        pending.push({ role: output.args.subagent_type, prompt: output.args.prompt || "" })
         const ctx = hook(directory, "session.py", ["subagent"], {
           ...payload, agent_type: output.args.subagent_type, hook_event_name: "SubagentStart" })
         const extra = ctx?.hookSpecificOutput?.additionalContext
@@ -75,11 +79,37 @@ export const Kiln = async ({ directory, client }) => {
       }
     },
 
+    // A role's reply is the task tool's result (child session in metadata.sessionId, text in
+    // <task_result>). Without its handoff status line the role gets one more turn, as
+    // SubagentStop does in Claude Code, and the parent sees the second reply.
+    "tool.execute.after": async (input, output) => {
+      const child = output?.metadata?.sessionId
+      const job = child && delegations[child]
+      if (input.tool !== "task" || !job || output.metadata.background) return
+      delete delegations[child]
+      const text = /<task_result>\n?([\s\S]*?)\n?<\/task_result>/.exec(output.output || "")?.[1] || ""
+      const res = hook(directory, "stop.py", ["subagent"], { session_id: main, cwd: directory,
+        hook_event_name: "SubagentStop", agent_type: job.role, agent_id: child,
+        last_assistant_message: text, delegation_prompt: job.prompt, stop_hook_active: false })
+      if (res?.decision !== "block" || !client?.session?.prompt) return
+      roles[child] = job.role  // session.idle forgot it; the extra turn is still the role's
+      // without `agent` OpenCode answers as its build agent (live 1.18.18)
+      const again = await client.session.prompt({ path: { id: child },
+        body: { agent: job.role, parts: [{ type: "text", text: res.reason }] } })
+      const parts = again?.data?.parts || again?.parts || []
+      const reply = parts.filter((p) => p.type === "text").map((p) => p.text).join("\n").trim()
+      if (reply) output.output = output.output.replace(text, reply)
+    },
+
     event: async ({ event }) => {
       const props = event.properties || {}
       if (event.type === "session.created") {
         const sid = props.info?.id || props.sessionID
-        if (props.info?.parentID && pending.length) roles[sid] = pending.shift()
+        if (props.info?.parentID && pending.length) {
+          const next = pending.shift()
+          roles[sid] = next.role
+          delegations[sid] = next
+        }
         else if (!props.info?.parentID && !main) main = sid  // the producer (live: a text-only turn names no tool)
       } else if (event.type === "session.idle") {
         const sid = props.sessionID

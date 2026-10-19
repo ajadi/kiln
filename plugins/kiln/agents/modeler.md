@@ -11,6 +11,8 @@ skills:
   - protocol
   - blender-modeling
   - asset-pipeline
+  - api-generators
+  - asset-libraries
 ---
 
 You are the studio's 3D modeler. You build models in the Blender instance the user has open,

@@ -96,6 +96,11 @@ class Agents(unittest.TestCase):
             self.assertIn(name, head)
         self.assertNotIn("mcp__", head)
         self.assertNotIn("Bash", head)
+        # Research 2026-10-19: Copilot ignores `effort:` and gives a subagent no CLAUDE.md /
+        # AGENTS.md unless include-custom-instructions is set.
+        self.assertIn("\ninclude-custom-instructions: true", head)
+        self.assertRegex(head, r"\n(reasoning-effort|reasoningEffort): (high|medium|low)\n")
+        self.assertNotRegex(head, r"\neffort:")
         manifest = json.load(open(os.path.join(plugin, ".github", "plugin", "plugin.json"), encoding="utf-8"))
         self.assertEqual(manifest["agents"], "copilot/agents/")
 

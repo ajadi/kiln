@@ -27,9 +27,9 @@ measurement or the user's ear.
      vocals up to 10 min; DiffRhythm 1.2: Apache-2.0, 8 GB, songs from timed lyrics), install
      on the yes; `remote` through `gpu_job.py`. `api`: name the service's terms before the first
      call (ElevenLabs Music: commercial use except film, TV, radio and big-studio games, no
-     downloads on the free plan; Suno: commercial only on paid plans and only for tracks
-     downloaded within the plan's cap); the key comes from an environment variable. Never
-     offered: MusicGen and YuE (non-commercial weights), Udio (no downloads). Record prompt,
+     downloads on the free plan; Stable Audio: commercial use); the key comes from an
+     environment variable. Never offered: MusicGen and YuE (non-commercial weights), Udio (no
+     downloads), Suno (no public API; its free plan is non-commercial). Record prompt,
      seed, model and commit.
 4. **Gates** (`audio_check.py`, music skill §4), in the task file:
    - standalone or video: integrated loudness -14 LUFS ±1, true peak ≤ -1 dBTP;
