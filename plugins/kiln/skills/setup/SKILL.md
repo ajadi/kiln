@@ -20,6 +20,9 @@ installed and started, what is still missing.
 
 ## 1. Look before writing
 
+- `python "${CLAUDE_PLUGIN_ROOT}/scripts/folder_check.py"` first: exit 1 (the home folder, a
+  folder above it, a drive root) → stop and tell the user what it printed; change nothing. A
+  project install there is the user's whole setup, and `git init` would take in the profile.
 - `manifest.md` with a different `framework=` value → another framework owns this project. Stop
   and ask whether to convert it; two frameworks' rules in one project conflict.
 - `manifest.md` with `framework=kiln` → already set up: only fill what is missing (never
@@ -125,15 +128,18 @@ decisions", "this is a prototype now", in their own language); the agent changes
   create them when first needed. A project with sound or music roles gets the audio venv now:
   `python -m venv <venvs>/audio` + `pip install numpy scipy soundfile pyloudnorm` (soundfile
   reads Ogg Vorbis; ffmpeg is then optional).
-- Line endings: put `* text=auto eol=lf` at the top of `.gitattributes` (before the LFS block)
-  and, in an existing repo, `git add --renormalize .` once. On Windows with
+- Line endings: `python "${CLAUDE_PLUGIN_ROOT}/scripts/text_block.py" include --file
+  .gitattributes --line "* text=auto eol=lf"` (first line, the user's lines kept) and, in an
+  existing repo, `git add --renormalize .` once. On Windows with
   `core.autocrlf=true` a repo without it showed 1045 files as modified by CRLF alone, which made
   "check git status after every agent" useless (g2 row 24).
 - `repo_access` and `kind` come from the questionnaire (§1b); keep existing values.
-- Append the block from `gitignore.tmpl` to `.gitignore` unless its `# --- kiln ---` marker is
-  already there.
-- If `git lfs version` works, append `gitattributes.tmpl` to `.gitattributes` (marker check) and
-  run `git lfs install --local`; otherwise tell the user binary assets will be stored in plain
+- `.gitignore`: `python "${CLAUDE_PLUGIN_ROOT}/scripts/text_block.py" block --file .gitignore
+  --source "${CLAUDE_PLUGIN_ROOT}/templates/project/gitignore.tmpl" --marker kiln` - never append
+  with a text tool (a file without a final newline turned `.env` + the block into
+  `.env# --- kiln ---`, and that pattern stopped working).
+- If `git lfs version` works, the same for `.gitattributes` with `gitattributes.tmpl`, then
+  `git lfs install --local`; otherwise tell the user binary assets will be stored in plain
   git and how to enable LFS later.
 
 ## 4. Engine project and its MCP
@@ -192,7 +198,9 @@ MCP once the editor is connected (not by editing `project.godot`).
    `https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#<tag>` (latest tag:
    `gh api repos/CoplayDev/unity-mcp/releases/latest`) — before the first open as a
    `dependencies` entry in `Packages/manifest.json` (package name from the repo's
-   `MCPForUnity/package.json`). Start its HTTP server (Window → MCP for Unity; use its auto-start
+   `MCPForUnity/package.json`), only with `python "${CLAUDE_PLUGIN_ROOT}/scripts/json_config.py"
+   merge --file Packages/manifest.json --json '{"dependencies": {"<name>": "<git url>"}}'` (a
+   broken manifest stops Unity at package resolution). Start its HTTP server (Window → MCP for Unity; use its auto-start
    if it has one, otherwise this is the one handed-over click, with that reason); enable only the
    core, testing, scripting_ext and profiling tool groups (asset_gen off).
 3. Register once per user: `claude mcp add --scope user --transport http unity http://localhost:8080/mcp`.
@@ -208,6 +216,8 @@ MCP once the editor is connected (not by editing `project.godot`).
    Epic launcher is the fallback, handed to the user with the reason.
 2. Enable **Unreal MCP**, **AllToolsets** and **Python Editor Script Plugin** yourself: `Plugins`
    entries (`{"Name": "<plugin>", "Enabled": true}`) in the `.uproject` before the first open,
+   with `json_config.py merge --file <name>.uproject --json '{"Plugins": [...]}'` (lists are
+   joined; a broken `.uproject` does not open),
    then start or restart the editor yourself. Per user: MCP auto-start on, port 8000, path `/mcp`
    (engine-unreal skill).
 3. Register once per user: `claude mcp add --scope user --transport http unreal http://127.0.0.1:8000/mcp`
@@ -221,8 +231,10 @@ MCP once the editor is connected (not by editing `project.godot`).
 ## 5. Project files
 
 Copy from the templates without overwriting existing files: `manifest.md`, `GAME.md`,
-`backlog.md`, `memory/**` (including `memory/out-of-scope/README.md`), `.claude/settings.json` (merge: add the template's allow/deny
-entries to existing arrays and its `enabledPlugins` keys, keep everything else), `tasks/archive/`,
+`backlog.md`, `memory/**` (including `memory/out-of-scope/README.md`), `.claude/settings.json` (merge with
+`python "${CLAUDE_PLUGIN_ROOT}/scripts/json_config.py" merge --file .claude/settings.json --json
+'<the template's object>'`: lists joined, keys added, everything else kept; an invalid file would
+turn Kiln and the user's permissions off), `tasks/archive/`,
 `design/`.
 
 Godot only: an empty `.gdignore` file in every folder that holds working material, not game
@@ -242,10 +254,14 @@ Project rules (the `CLAUDE.md` template is the Kiln rules block for both runtime
   `<!-- kiln:begin -->` and `<!-- kiln:end -->` markers (replace that block on re-runs).
 - Codex in `runtimes`: Codex reads `AGENTS.md`, not `CLAUDE.md`, so the block goes to `AGENTS.md`
   between the same markers (after any requirements the user already wrote there), and
-  `CLAUDE.md` (Claude Code too) contains only `@AGENTS.md` — one copy of the rules, read by both.
+  `CLAUDE.md` (Claude Code too) imports it: `python "${CLAUDE_PLUGIN_ROOT}/scripts/text_block.py"
+  include --file CLAUDE.md --line "@AGENTS.md"` (adds the line first, keeps the user's text; if
+  `CLAUDE.md` holds an older Kiln block between the markers, remove only that block) — one copy
+  of the rules, read by both.
   Keep the combined `AGENTS.md` under Codex's 32 KiB `project_doc_max_bytes`.
 - Gemini CLI in `runtimes`: the block goes to `AGENTS.md` the same way, and `GEMINI.md` (the
-  context file Gemini reads) contains only `@AGENTS.md` (Gemini's import syntax).
+  context file Gemini reads) imports it the same way: `text_block.py include --file GEMINI.md
+  --line "@AGENTS.md"` (Gemini's import syntax; the user's text in `GEMINI.md` stays).
 
 Show the user the added section.
 
@@ -264,7 +280,7 @@ Codex session the workspace `.codex/` folder is read-only to commands.
 1. Marketplace and plugin, once per machine: `codex plugin marketplace add <kiln repo path or
    owner/repo>` (Codex reads the repo's `.agents/plugins/marketplace.json`), then
    `codex plugin add kiln@kiln` (or install it from `/plugins`).
-2. Enable it for this project only, only with `python ${CLAUDE_PLUGIN_ROOT}/scripts/codex_config.py`
+2. Enable it for this project only, only with `python "${CLAUDE_PLUGIN_ROOT}/scripts/codex_config.py"` (Python 3.11+; if it fails, stop and say so, never hand-edit)
    (never edit a Codex `config.toml` by hand or with a text tool: a value glued to the next
    table header stops Codex from starting): `--file .codex/config.toml --on`, then
    `--file .codex/config.toml --plugin mattpocock-skills@mattpocock --off` and the same for any
@@ -310,8 +326,8 @@ the same Python hooks (`hooks/copilot-hooks.json`, `--runtime copilot`). It also
 
 1. Once per machine: `copilot plugin marketplace add ajadi/kiln`, then
    `copilot plugin install kiln@kiln`, then `copilot plugin disable kiln@kiln` (off elsewhere).
-2. This project only: `.github/copilot/settings.json` gets `{"enabledPlugins": {"kiln@kiln":
-   true}}` (merge with what is there).
+2. This project only: `python "${CLAUDE_PLUGIN_ROOT}/scripts/json_config.py" merge --file
+   .github/copilot/settings.json --json '{"enabledPlugins": {"kiln@kiln": true}}'`.
 3. MCP servers, once per machine, with the same names: the `copilot` command in each tool's
    `register` (`copilot mcp add godot-ai -- <path> attach`, `copilot mcp add --transport http
    unity http://localhost:8080/mcp`, ...).
@@ -326,7 +342,9 @@ project plugin, so it is on in this project only:
    (links to Kiln's skills). Re-run it after updating Kiln.
 2. Project rules: the block goes to `AGENTS.md` (OpenCode reads it, and `CLAUDE.md`).
 3. MCP servers: merge each server's `register` entry (`mcp_check.py required --runtime
-   opencode`) into `"mcp"` in the project's `opencode.json`.
+   opencode`) into the project's `opencode.json` with `json_config.py merge --file opencode.json
+   --json '{"mcp": {...}}'` (it reads JSONC; comments are not kept, the original stays as
+   `opencode.json.kiln-backup` - tell the user if it had comments).
 4. The autopilot continues only in a running OpenCode (TUI or `opencode serve`): a one-shot
    `opencode run` exits after its first answer.
 

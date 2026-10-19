@@ -43,6 +43,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 import zipfile
 
@@ -64,10 +65,15 @@ def machine_path():
 def load_machine():
     data = {}
     try:
-        with open(machine_path(), encoding="utf-8") as fh:
+        with open(machine_path(), encoding="utf-8-sig") as fh:  # a BOM from PowerShell is fine
             data = json.load(fh)
-    except (OSError, ValueError):
+    except OSError:
         pass
+    except ValueError:  # keep a broken file: the next save would leave only one key
+        try:
+            os.replace(machine_path(), machine_path() + time.strftime(".broken-%Y%m%d-%H%M%S"))
+        except OSError:
+            pass
     old_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
     if old_dir and not data.get("_migrated"):
         try:

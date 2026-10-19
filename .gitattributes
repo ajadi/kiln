@@ -1,0 +1,2 @@
+# shell scripts run by bash on every system: always LF (a CRLF checkout breaks POSIX shells)
+*.sh text eol=lf

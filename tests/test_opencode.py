@@ -97,6 +97,38 @@ class OpenCode(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(oc, "skills", "protocol", "SKILL.md")))
         self.assertEqual(self.report["skills"], len(os.listdir(os.path.join(PLUGIN, "skills"))))
 
+    def test_a_users_own_skill_folder_is_kept(self):
+        # Install audit 2026-10-19: link() removed a real .opencode/skills/<name> folder with the
+        # name of a Kiln skill (release, run, status, ...) and put Kiln's link in its place.
+        proj = tempfile.mkdtemp(prefix="kiln-ocu-")
+        with open(os.path.join(proj, "manifest.md"), "w", encoding="utf-8") as fh:
+            fh.write("framework=kiln\nengine=godot\n")
+        mine = os.path.join(proj, ".opencode", "skills", "release")
+        os.makedirs(mine)
+        with open(os.path.join(mine, "SKILL.md"), "w", encoding="utf-8") as fh:
+            fh.write("my own release skill")
+        try:
+            p = subprocess.run([sys.executable, "-B", SETUP, "--project", proj.replace("\\", "/")],
+                               capture_output=True, text=True, timeout=120)
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)  # forward slashes work too
+            with open(os.path.join(mine, "SKILL.md"), encoding="utf-8") as fh:
+                self.assertEqual(fh.read(), "my own release skill")
+            report = json.loads(p.stdout)
+            self.assertIn("release", report["kept"])
+            self.assertTrue(os.path.isfile(os.path.join(proj, ".opencode", "skills", "protocol",
+                                                        "SKILL.md")))
+        finally:
+            skills = os.path.join(proj, ".opencode", "skills")
+            for name in os.listdir(skills):
+                path = os.path.join(skills, name)
+                if name != "release":
+                    if os.name == "nt":
+                        subprocess.run(["cmd", "/c", "rmdir", path], capture_output=True)
+                    elif os.path.islink(path):
+                        os.remove(path)
+            if set(os.listdir(skills)) == {"release"}:
+                shutil.rmtree(proj, ignore_errors=True)
+
     def test_guard_denies_by_throwing(self):
         res = self.run_steps([
             {"kind": "tool", "tool": "bash", "sid": "ses_main",

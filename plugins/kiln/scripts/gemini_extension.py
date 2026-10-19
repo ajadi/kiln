@@ -121,7 +121,10 @@ def hooks_json():
         hooks[event] = []
         for matcher, script, timeout in entries:
             file, _, args = script.partition(" ")
-            command = (f'python "${{extensionPath}}${{/}}hooks${{/}}{file}"'
+            # node runs Kiln's Python launcher: Gemini CLI is a node program, and plain
+            # `python` is missing on macOS / most Linux (py.cjs finds python, python3 or py -3)
+            command = ('node "${extensionPath}${/}hooks${/}py.cjs" '
+                       f'"${{extensionPath}}${{/}}hooks${{/}}{file}"'
                        + (f" {args}" if args else "") + " --runtime gemini")
             entry = {"hooks": [{"type": "command", "name": f"kiln-{file[:-3]}-{event}",
                                 "command": command, "timeout": timeout}]}

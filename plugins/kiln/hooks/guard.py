@@ -618,6 +618,8 @@ def check_shell_writes(data, root, policy):
     command = (data.get("tool_input") or {}).get("command") or ""
     for target, mode in shell_write_targets(command):
         path = target if os.path.isabs(target) else os.path.join(root, target)
+        if path.replace("\\", "/").lower().endswith(".codex/config.toml"):
+            check_write({**data, "tool_input": {"file_path": path, "content": ""}}, root, policy)
         if k.rel_path(root, path) is None:
             continue
         check_write({**data, "tool_name": "ShellWrite", "shell_mode": mode,
@@ -740,7 +742,12 @@ def check_shell(data, root, policy):
                not any(a in ("--version", "--help") for a in w[1:]) for w in calls):
             k.deny("Calling the Godot AI server from the shell bypasses the MCP connection. "
                    "Use the mcp__godot-ai__* tools.")
-        if re.search(r"(127\.0\.0\.1|localhost):(9876|9500|8000|8080)\b", low):
+        # an agent CLI registering the server (`claude|codex|gemini|copilot|opencode mcp add ...
+        # http://localhost:8080/mcp`, setup §6) names the port without connecting to it
+        connecting = " ".join(" ".join(w) for w in calls if not (
+            re.sub(r"\.(exe|cmd)$", "", program(w)) in ("claude", "codex", "gemini", "copilot",
+                                                         "opencode") and "mcp" in w[1:3]))
+        if re.search(r"(127\.0\.0\.1|localhost):(9876|9500|8000|8080)\b", connecting.lower()):
             k.deny("Direct connections to the editors' MCP ports (Blender, Godot, Unity, Unreal) "
                    "are not allowed; use the MCP tools.")
         if re.search(r"-batchmode\b", low) and \

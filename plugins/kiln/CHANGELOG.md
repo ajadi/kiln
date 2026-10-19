@@ -566,3 +566,37 @@ Fixes from a code review of the whole project, each with a test:
   with a newline, parses the result before writing and keeps `config.toml.kiln-backup`;
   `--check` / `--repair` find and fix a value glued to a table header. README, GUIDE,
   `/kiln-start:here` and setup use it; the guard refuses hand edits of any `.codex/config.toml`.
+
+## 0.8.2 — 2026-10-19
+
+Install fixes from an audit of everything Kiln writes outside its own files.
+
+- **Hooks find Python on every system.** Claude Code and Gemini CLI started every Kiln hook as
+  plain `python`; macOS and many Linux systems have only `python3`, so every hook failed quietly
+  and nothing was guarded. Claude Code now runs them through `hooks/py.sh` (bash; Git Bash on
+  Windows), Gemini through `hooks/py.cjs` (node): both pick the first working Python 3.10+
+  (`python`, `python3`, on Windows also `py -3`; a Microsoft Store stub is skipped) and cache it.
+- **Codex config, the rest.** `codex_config.py` reads a file saved with a BOM, handles the inline
+  `[plugins]` / `"kiln@kiln" = { enabled = ... }` form, and says it needs Python 3.11+. README,
+  GUIDE and `/kiln-start:here` say where `<kiln>` is for a Codex install
+  (`~/.codex/plugins/cache/kiln/kiln/<version>`). The guard also refuses shell writes to the user's
+  `~/.codex/config.toml`.
+- **Other programs' JSON is merged by a script.** New `scripts/json_config.py merge` (deep merge,
+  lists joined, BOM and JSONC read, the result parsed before an atomic write, a `.kiln-backup`
+  kept, a broken file left alone) for `.claude/settings.json`, `.github/copilot/settings.json`,
+  `opencode.json`, Unity's `Packages/manifest.json`, an Unreal `.uproject` and
+  `~/.kiln/machine.json`. Kiln's own `~/.kiln/*.json` read a BOM, and a file that does not parse is
+  kept as `<name>.broken-<time>` instead of being replaced on the next save.
+- **The project's own text files.** New `scripts/text_block.py`: Kiln's `.gitignore` /
+  `.gitattributes` part goes between marker lines with a newline before it (appending to a file
+  without a final newline turned `*.keystore` + the block into `*.keystore# --- kiln ---`), and
+  `@AGENTS.md` is added to `CLAUDE.md` / `GEMINI.md` instead of replacing what is there.
+- **OpenCode setup keeps the user's own skills** with a Kiln skill's name (they were deleted),
+  and a `--project` path with forward slashes works.
+- **No Kiln in the home folder or a drive root**: `folder_check.py` stops `/kiln-start:here` and
+  `/kiln:setup` there (a project install would be the user's whole setup).
+- **The guard lets setup register Unity and Unreal** (`<agent> mcp add ... localhost:8080`); a
+  real connection to the editors' ports is still refused.
+- **README: what to do in each new project.** "Set up the project" is now one table per agent:
+  turn Kiln on in this folder (Claude Code `/kiln-start:here`, and the equivalent in Codex, Gemini
+  CLI, Copilot CLI and OpenCode), then set it up.

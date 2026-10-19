@@ -1,6 +1,6 @@
 # Kiln
 
-Version 0.8.1. Kiln turns your AI coding agent into a small game studio.
+Version 0.8.2. Kiln turns your AI coding agent into a small game studio.
 
 You talk to one producer: your normal agent session. It plans the work and hands each piece to a
 specialist (modeler, animator, level designer, sound designer, ...). Other specialists check the
@@ -71,8 +71,10 @@ copilot plugin install kiln@kiln
 copilot plugin disable kiln@kiln                    # off everywhere ...
 ```
 
-... and on in your project: `.github/copilot/settings.json` with
-`{"enabledPlugins": {"kiln@kiln": true}}`. The roles are Copilot agents
+... and on in your project, merged into `.github/copilot/settings.json` (keeps what is there):
+`python "<kiln>/scripts/json_config.py" merge --file .github/copilot/settings.json --json
+'{"enabledPlugins": {"kiln@kiln": true}}'` (`<kiln>`: the installed plugin,
+`~/.copilot/installed-plugins/kiln/kiln`; in a clone, `plugins/kiln`). The roles are Copilot agents
 `kiln:<role>`, and the same safety hooks run. Python must be on PATH. Checked with Copilot CLI
 1.0.97 against a local test model. A session with a real Copilot model has not been run yet.
 </details>
@@ -106,16 +108,19 @@ Kiln's hooks could not be checked against a test model, and Kiln does not ship t
 
 ### 2. Set up the project
 
-Ask your agent to set up Kiln in the project: say **"set up Kiln here"**, or call the setup
-command the way your agent calls commands:
+Kiln is off in every folder until you turn it on there. In each new game folder (its own folder,
+not your home folder) do two things, in the agent you use:
 
-| Agent | Command |
-|---|---|
-| Claude Code, Gemini CLI | `/kiln:setup` |
-| OpenAI Codex | `$kiln:setup` (or pick it in `/skills`) |
-| GitHub Copilot CLI, OpenCode | say it: "set up Kiln here" (the skill loads by its description) |
+| Agent | 1. Turn Kiln on in this folder | 2. Set it up |
+|---|---|---|
+| Claude Code | `/kiln-start:here`, then restart Claude Code in the folder | `/kiln:setup` |
+| OpenAI Codex | `python "<kiln>/scripts/codex_config.py" --file .codex/config.toml --on`, then `python "<kiln>/scripts/codex_agents.py"`; new session, trust the Kiln hooks in `/hooks` | `$kiln:setup` (or pick it in `/skills`) |
+| Gemini CLI | `gemini extensions enable kiln --scope workspace`, then restart Gemini | `/kiln:setup` |
+| GitHub Copilot CLI | `python "<kiln>/scripts/json_config.py" merge --file .github/copilot/settings.json --json '{"enabledPlugins": {"kiln@kiln": true}}'`, then restart Copilot | say "set up Kiln here" |
+| OpenCode | `python <kiln clone>/plugins/kiln/scripts/opencode_setup.py --project .`, then restart OpenCode | say "set up Kiln here" |
 
-It asks one round of questions, each with a recommended answer you can accept with "yes":
+`<kiln>` is where your agent installed Kiln (step 1 and the "OpenAI Codex" section say where).
+After step 1 you can also just say **"set up Kiln here"**. Setup asks one round of questions, each with a recommended answer you can accept with "yes":
 
 - a game, a prototype or just assets;
 - which engine;
@@ -263,7 +268,11 @@ OpenCode read `AGENTS.md` themselves.
 
 ## OpenAI Codex
 
-The same plugin works in Codex; `/kiln:setup` step 6 does this for you:
+The same plugin works in Codex; `/kiln:setup` step 6 does this for you. It needs Python 3.11 or
+newer. Below, `<kiln>` is the installed plugin folder: after step 1 it is
+`~/.codex/plugins/cache/kiln/kiln/<version>` (Windows:
+`%USERPROFILE%\.codex\plugins\cache\kiln\kiln\<version>`, the newest version folder); in a clone
+of this repository it is `plugins/kiln`.
 
 1. `codex plugin marketplace add ajadi/kiln`, then `codex plugin add kiln@kiln`.
 2. Turn it on in the project and off elsewhere with Kiln's script (never edit Codex's

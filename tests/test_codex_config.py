@@ -84,6 +84,30 @@ class CodexConfig(unittest.TestCase):
         self.assertTrue(os.path.isfile(path + ".kiln-backup"))
         self.assertIn("enabled = false[features]", self.read(path + ".kiln-backup"))
 
+    def test_a_bom_is_read_and_not_written_back(self):
+        # install audit 2026-10-19: PowerShell 5.1 writes a BOM; the script refused the file
+        path = self.file('﻿model = "gpt-6"\n')
+        code, out = run("--file", path, "--off")
+        self.assertEqual(code, 0, out)
+        with open(path, "rb") as fh:
+            raw = fh.read()
+        self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
+        self.assertFalse(tomllib.loads(raw.decode())["plugins"]["kiln@kiln"]["enabled"])
+
+    def test_the_inline_form_codex_may_write(self):
+        path = self.file('[plugins]\n"kiln@kiln" = { enabled = true }\n"other@x" = { enabled = true }\n')
+        code, out = run("--file", path, "--off")
+        self.assertEqual(code, 0, out)
+        data = tomllib.loads(self.read(path))
+        self.assertFalse(data["plugins"]["kiln@kiln"]["enabled"])
+        self.assertTrue(data["plugins"]["other@x"]["enabled"])
+
+    def test_it_names_its_python_minimum(self):
+        with open(SCRIPT, encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertIn("Python 3.11", text)
+        self.assertLess(text.index("version_info"), text.index("import tomllib"))
+
     def test_check_reports_ok_or_the_error(self):
         self.assertEqual(run("--file", self.file('[a]\nb = 1\n'), "--check")[0], 0)
         code, out = run("--file", self.file('b = 1[a]\n'), "--check")

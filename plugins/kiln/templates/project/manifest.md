@@ -1,6 +1,6 @@
 project_name={{PROJECT_NAME}}
 framework=kiln
-framework_version=0.8.1
+framework_version=0.8.2
 repo_access=private-solo
 runtimes={{RUNTIMES}}
 engine={{ENGINE}}

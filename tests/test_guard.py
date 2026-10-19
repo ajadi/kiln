@@ -84,6 +84,11 @@ class GodotTests(GuardCase):
         self.check(write(".codex/config.toml"), "DENY")
         self.check(write(os.path.join(os.path.expanduser("~"), ".codex", "config.toml")), "DENY")
         self.check(write(".codex/agents/kiln-modeler.toml"), "ALLOW")
+        # install audit: a shell append to the user config outside the project passed
+        for cmd in ("echo enabled = false >> C:/Users/x/.codex/config.toml",
+                    "Add-Content -Path C:/Users/x/.codex/config.toml -Value 'x = 1'",
+                    "echo x >> /home/x/.codex/config.toml"):
+            self.check(shell(cmd), "DENY")
         self.check(write("tools/audio/gen.py"), "DENY")
         self.check(write("tools/audio/gen.py", "sound-designer"), "ALLOW")
         self.check(write("tools/x.py", "qa-feel"), "DENY")
@@ -509,6 +514,14 @@ class GodotTests(GuardCase):
                     "agent_type": "kiln:qa-feel", "agent_id": "q"}, "DENY")
         self.check(shell("python pipeline.py tick 'User locked the style' --by user"), "ALLOW")
         self.check(shell("codex mcp add godot-ai -- godot-ai attach"), "ALLOW")
+        # install audit 2026-10-19: setup's own HTTP registrations (Unity, Unreal) were denied
+        for cmd in ("claude mcp add --scope user --transport http unity http://localhost:8080/mcp",
+                    "codex mcp add unreal --url http://127.0.0.1:8000/mcp",
+                    "gemini mcp add -s user -t http unity http://localhost:8080/mcp",
+                    "copilot mcp add --transport http unity http://localhost:8080/mcp"):
+            self.check(shell(cmd), "ALLOW")
+        self.check(shell("curl http://localhost:8080/mcp"), "DENY")
+        self.check(shell("claude mcp list; curl http://127.0.0.1:8000/mcp"), "DENY")
         self.check(shell("python mcp_check.py verify --available t.txt --probe blender=ok "
                          "--probe godot-ai=ok"), "ALLOW")
         self.check(shell("python mcp_check.py verify --probe godot-ai=ok; godot-ai attach"),

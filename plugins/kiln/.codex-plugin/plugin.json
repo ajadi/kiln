@@ -1,6 +1,6 @@
 {
   "name": "kiln",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Game development framework: a studio of design, art, 2D, animation, lighting, level, gameplay, audio and music roles with acceptance and expert roles; Godot, Unity or Unreal plus Blender through MCP; production pipeline with gates; MCP-only and scene-first guards.",
   "author": {
     "name": "David S"

@@ -18,7 +18,12 @@ import argparse
 import os
 import re
 import sys
-import tomllib
+
+if sys.version_info < (3, 11):
+    sys.exit("codex_config.py needs Python 3.11 or newer (tomllib); this is "
+             f"{sys.version.split()[0]}. Install Python 3.11+ - do not edit config.toml by hand.")
+
+import tomllib  # noqa: E402
 
 GLUED = re.compile(r'^(\s*[A-Za-z0-9_."@-]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s\[#]+))\s*(\[.*)$')
 
@@ -42,7 +47,11 @@ def set_enabled(text, value, plugin="kiln@kiln"):
     lines = text.splitlines()
     word = "true" if value else "false"
     start = next((i for i, line in enumerate(lines) if header_re.match(line)), None)
-    if start is None:
+    inline_re = re.compile(r'^(\s*"' + re.escape(plugin) + r'"\s*=\s*\{.*?\benabled\s*=\s*)(true|false)\b')
+    inline = next((i for i, line in enumerate(lines) if inline_re.match(line)), None)
+    if start is None and inline is not None:  # [plugins] / "<id>" = { enabled = ... }
+        lines[inline] = inline_re.sub(lambda m: m.group(1) + word, lines[inline])
+    elif start is None:
         while lines and not lines[-1].strip():
             lines.pop()
         lines += ([""] if lines else []) + [header, f"enabled = {word}"]
@@ -91,7 +100,7 @@ def main():
     a = ap.parse_args()
     old = None
     if os.path.isfile(a.file):
-        with open(a.file, encoding="utf-8") as fh:
+        with open(a.file, encoding="utf-8-sig") as fh:  # PowerShell 5.1 writes a BOM
             old = fh.read()
     error = parse_error(old) if old is not None else None
     if a.check:

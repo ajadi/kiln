@@ -91,6 +91,9 @@ class Build(unittest.TestCase):
                 for h in entry["hooks"]:
                     self.assertIn("--runtime gemini", h["command"])
                     self.assertIn("${extensionPath}", h["command"])
+                    # install audit 2026-10-19: plain `python` is missing on macOS / Linux
+                    self.assertTrue(h["command"].startswith('node "${extensionPath}${/}hooks${/}py.cjs" '),
+                                    h["command"])
 
     def test_skills_use_gemini_variables(self):
         for path in glob.glob(os.path.join(self.out, "skills", "*", "SKILL.md")):

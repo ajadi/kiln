@@ -4,53 +4,130 @@
     "PreToolUse": [
       {
         "matcher": "Write|Edit|NotebookEdit",
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/guard.py"], "timeout": 10}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\"",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
       },
       {
         "matcher": "Bash|PowerShell",
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/guard.py"], "timeout": 10}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\"",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
       },
       {
         "matcher": "mcp__blender__.*",
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/guard.py"], "timeout": 10}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\"",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
       },
       {
         "matcher": "mcp__unity__.*|mcp__unreal(-mcp(-proxy)?)?__.*",
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/guard.py"], "timeout": 10}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\"",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
       },
       {
         "matcher": "Agent|Task",
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/guard.py"], "timeout": 10}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\"",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
       },
       {
         "matcher": "mcp__godot-ai__.*",
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/guard.py"], "timeout": 10}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\"",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionStart": [
       {
         "matcher": "startup|resume|clear|compact",
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session.py", "start"], "timeout": 10}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/session.py\" start",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SubagentStart": [
       {
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session.py", "subagent"], "timeout": 10}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/session.py\" subagent",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionEnd": [
       {
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session.py", "end"], "timeout": 15}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/session.py\" end",
+            "shell": "bash",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/stop.py", "stop"], "timeout": 10}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/stop.py\" stop",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SubagentStop": [
       {
-        "hooks": [{"type": "command", "command": "python", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/stop.py", "subagent"], "timeout": 10}]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/stop.py\" subagent",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }

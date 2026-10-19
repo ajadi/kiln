@@ -28,15 +28,17 @@ import codex_agents as cx  # noqa: E402  (role frontmatter)
 
 
 def link(src, dst):
+    """Link dst to Kiln's skill src. A real folder at dst is the user's own skill: it is kept and
+    not linked (False). Only an old link is replaced; its target is never touched."""
     if os.path.lexists(dst):
         if os.path.isdir(dst) and not os.path.islink(dst) and not is_junction(dst):
-            shutil.rmtree(dst)
-        else:
-            os.remove(dst) if os.path.islink(dst) else os.rmdir(dst)
+            return False
+        os.remove(dst) if os.path.islink(dst) else os.rmdir(dst)
     if os.name == "nt":
         subprocess.run(["cmd", "/c", "mklink", "/J", dst, src], check=True, capture_output=True)
     else:
         os.symlink(src, dst, target_is_directory=True)
+    return True
 
 
 def is_junction(path):
@@ -61,6 +63,7 @@ def agent_file(path):
 
 
 def setup(project):
+    project = os.path.abspath(os.path.normpath(project))  # mklink /J reads "/" as a switch
     oc = os.path.join(project, ".opencode")
     for sub in ("plugins", "agents", "skills"):
         os.makedirs(os.path.join(oc, sub), exist_ok=True)
@@ -75,14 +78,16 @@ def setup(project):
             with open(os.path.join(oc, "agents", name), "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(text)
             agents += 1
-    skills = 0
+    skills, kept = 0, []
     for name in sorted(os.listdir(os.path.join(PLUGIN, "skills"))):
         src = os.path.join(PLUGIN, "skills", name)
         if os.path.isfile(os.path.join(src, "SKILL.md")):
-            link(src, os.path.join(oc, "skills", name))
-            skills += 1
+            if link(src, os.path.join(oc, "skills", name)):
+                skills += 1
+            else:
+                kept.append(name)
     return {"project": os.path.abspath(project), "kiln": PLUGIN, "agents": agents,
-            "skills": skills, "plugin": os.path.join(oc, "plugins", "kiln.js")}
+            "skills": skills, "plugin": os.path.join(oc, "plugins", "kiln.js"), "kept": kept}
 
 
 def main():

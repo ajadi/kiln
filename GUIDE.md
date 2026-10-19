@@ -34,7 +34,9 @@ README, "OpenAI Codex").
 
 Copilot CLI runs the whole framework from the same plugin: `copilot plugin marketplace add
 ajadi/kiln`, `copilot plugin install kiln@kiln`, `copilot plugin disable kiln@kiln`, and in the
-project `.github/copilot/settings.json` with `{"enabledPlugins": {"kiln@kiln": true}}`.
+project `{"enabledPlugins": {"kiln@kiln": true}}` merged into `.github/copilot/settings.json`
+with `python "<kiln>/scripts/json_config.py" merge --file .github/copilot/settings.json --json
+'{"enabledPlugins": {"kiln@kiln": true}}'` (never by hand: it keeps what is there).
 
 ### OpenCode
 
@@ -62,9 +64,9 @@ CLI, Copilot CLI and OpenCode run the whole framework.
    | Agent | How |
    |---|---|
    | Claude Code | `/kiln-start:here`, then restart Claude Code in the folder (commands load when a session starts) |
-   | OpenAI Codex | `python <kiln>/scripts/codex_config.py --file .codex/config.toml --on` (never edit Codex's config.toml by hand), then generate the roles (README, "OpenAI Codex") |
+   | OpenAI Codex | `python "<kiln>/scripts/codex_config.py" --file .codex/config.toml --on` (`<kiln>` = the newest folder under `~/.codex/plugins/cache/kiln/kiln/`; Python 3.11+; never edit Codex's config.toml by hand), then generate the roles (README, "OpenAI Codex") |
    | Gemini CLI | `gemini extensions enable kiln --scope workspace` in the folder |
-   | GitHub Copilot CLI | `.github/copilot/settings.json` with `{"enabledPlugins": {"kiln@kiln": true}}` |
+   | GitHub Copilot CLI | `python "<kiln>/scripts/json_config.py" merge --file .github/copilot/settings.json --json '{"enabledPlugins": {"kiln@kiln": true}}'` (keeps what is there) |
    | OpenCode | `python <kiln>/plugins/kiln/scripts/opencode_setup.py --project .` |
 
 2. Set up the project: say **"set up Kiln here"**, or call the setup command (`/kiln:setup` in

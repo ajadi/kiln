@@ -411,10 +411,19 @@ def path_matches(rel, patterns):
 
 
 def load_json(path, default):
+    """The file's JSON (a BOM is fine), or `default`. A file that does not parse is first kept as
+    <path>.broken-<time>: callers save right after reading, and a BOM or a stray comma once
+    turned machine.json into a one-key file (install audit 2026-10-19)."""
     try:
-        with open(path, encoding="utf-8") as fh:
+        with open(path, encoding="utf-8-sig") as fh:
             return json.load(fh)
-    except (OSError, json.JSONDecodeError):
+    except OSError:
+        return default
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        try:
+            os.replace(path, f"{path}.broken-{time.strftime('%Y%m%d-%H%M%S')}")
+        except OSError:
+            pass
         return default
 
 

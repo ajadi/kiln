@@ -10,6 +10,9 @@ allowed-tools: Bash, PowerShell, Read
 Kiln is installed per project: its hooks and rules must not reach other projects. This command is
 the one piece installed for the whole user, so it exists in every folder.
 
+0. **A project folder?** `python "${CLAUDE_SKILL_DIR}/scripts/folder_check.py"`: exit 1 (the
+   home folder, a folder above it, a drive root) → stop, tell the user what it printed and change
+   nothing; there a project install is the user's whole setup and `git init` takes in the profile.
 1. **Already Kiln here?** `manifest.md` with `framework=kiln` → only make sure the plugin is enabled
    (step 3), then go to step 4. `manifest.md` naming another framework → stop and tell the user;
    two frameworks' rules in one project conflict.
@@ -21,8 +24,10 @@ the one piece installed for the whole user, so it exists in every folder.
    plugins share). No `tools_root` in it → ask the user, in their language, where Kiln may install
    editors, MCP servers, Python environments and downloads: recommend a tools folder they already
    use if you can see one (a folder named `tools` / `_tools` next to their projects), else
-   `~/kiln-tools`. Create the folder and write `{"tools_root": "<path with forward slashes>"}`
-   into `~/.kiln/machine.json` (merge, keep other keys). It can be changed later in
+   `~/kiln-tools`. Create the folder and store it with `python
+   "${CLAUDE_SKILL_DIR}/scripts/json_config.py" merge --file ~/.kiln/machine.json --json
+   '{"tools_root": "<path with forward slashes>"}'` (keeps the other keys; never write the file
+   by hand). It can be changed later in
    `/kiln:setup`. Kiln installs nothing without a further yes; this only says where.
 3. **Enable for this project only.** In the project root:
    `claude plugin install kiln@kiln --scope project`; if it reports the plugin is already installed,
@@ -32,14 +37,18 @@ the one piece installed for the whole user, so it exists in every folder.
    (a line glued to the next block stops Codex from starting): `python
    <kiln>/scripts/codex_config.py --off` (user config: Kiln off in folders that are not connected)
    and here `python <kiln>/scripts/codex_config.py --file .codex/config.toml --on` (Codex reads it
-   for trusted projects). `<kiln>` is the installed kiln plugin folder.
+   for trusted projects). `<kiln>` is the installed kiln plugin folder, the newest version under
+   `~/.codex/plugins/cache/kiln/kiln/` (Windows: `%USERPROFILE%\.codex\plugins\cache\kiln\kiln\`);
+   quote it. The script needs Python 3.11+; if it fails, stop and tell the user - never fall back
+   to a hand edit.
    Gemini CLI as well (if the user works with it): the extension once per machine
    (`gemini extensions install https://github.com/ajadi/kiln --ref gemini-extension --consent`),
    then `gemini extensions disable kiln --scope user` and, here,
    `gemini extensions enable kiln --scope workspace` (setup §6). GitHub Copilot CLI as well:
    `copilot plugin marketplace add ajadi/kiln`, `copilot plugin install kiln@kiln` and
-   `copilot plugin disable kiln@kiln` once per machine, then `.github/copilot/settings.json` here
-   with `{"enabledPlugins": {"kiln@kiln": true}}` (setup §6). OpenCode: nothing per machine;
+   `copilot plugin disable kiln@kiln` once per machine, then here `python
+   "${CLAUDE_SKILL_DIR}/scripts/json_config.py" merge --file .github/copilot/settings.json --json
+   '{"enabledPlugins": {"kiln@kiln": true}}'` (keeps what is there; setup §6). OpenCode: nothing per machine;
    setup §6 writes the project's `.opencode/` Kiln parts.
 4. **Hand over.** Plugin commands load when a session starts. Tell the user, in their language and
    in two lines: restart Claude Code in this folder, then run **`/kiln:setup`** — it explores the
