@@ -243,6 +243,24 @@ On this computer, `~/.kiln/machine.json` holds the tools folder (`tools_root`, a
 `"update_check": "off"` turns off the new-version notice.
 </details>
 
+## How each agent runs Kiln
+
+Every agent gets the same roles, rules and checks; they differ in how commands are called and how
+the safety guard learns which role is acting. Checked live with Codex 0.160, Gemini CLI 0.64,
+Copilot CLI 1.0.97 and OpenCode 1.18.
+
+| Part | Claude Code | OpenAI Codex | Gemini CLI | GitHub Copilot CLI | OpenCode |
+|---|---|---|---|---|---|
+| Commands | `/kiln:<name>` | `$kiln:<name>` or `/skills` | `/kiln:<name>` | `/<skill>` or in words | in words |
+| Roles | subagents `kiln:<role>` | agents `kiln-<role>` (generated) | subagents `kiln-<role>` (in the extension) | agents `kiln:<role>` (generated) | subagents `kiln-<role>` (generated) |
+| Role skills loaded up front | yes | the role reads them first | the role activates them first | yes | the role loads them first |
+| Safety guard | hook on every tool call | hook; `apply_patch` checked per file | hook (shell, `write_file`, `replace`, MCP tools) | hook (shell, `create`, `edit`, `task`, MCP tools) | project plugin `.opencode/plugins/kiln.js` (shell, `write`, `edit`, `task`, MCP tools) |
+| How the guard knows the role | the agent type in the hook call | the agent type in the hook call | the `invoke_agent` call that starts it | the subagent's own session, named when it starts | the subagent's child session |
+| The producer does not write game content | guard | a rule in `AGENTS.md` (the main thread is not told apart) | guard | guard | guard |
+
+Project rules live in `AGENTS.md`; `CLAUDE.md` and `GEMINI.md` import it. Codex, Copilot CLI and
+OpenCode read `AGENTS.md` themselves.
+
 ## OpenAI Codex
 
 The same plugin works in Codex; `/kiln:setup` step 6 does this for you:
@@ -255,21 +273,6 @@ The same plugin works in Codex; `/kiln:setup` step 6 does this for you:
 4. Run `python <kiln>/scripts/codex_agents.py` in the project root: it generates 31 roles
    `kiln-<role>` in `.codex/agents/`; re-run it after updating Kiln or changing `agent_model`.
 5. Open a new session, go to `/hooks` and trust the Kiln hooks.
-
-<details>
-<summary>What differs from Claude Code</summary>
-
-| Part | Claude Code | Codex 0.160 | Gemini CLI 0.64 | Copilot CLI 1.0.97 |
-|---|---|---|---|---|
-| Commands | `/kiln:<name>` | `kiln:<skill>` through `$` or `/skills` | `/kiln:<name>` | `/<skill>` |
-| Roles | subagents `kiln:<role>` | agents `kiln-<role>`, made by the generator | subagents `kiln-<role>`, built into the extension | agents `kiln:<role>` (`copilot/agents/`, generated) |
-| Preloaded role skills | yes | no: the role's instructions say to read them first | no: the role activates them first | yes |
-| Safety hooks | guard hook | the same guard; `apply_patch` checked per file | the same guard (`run_shell_command`, `write_file`, `replace`, MCP tools) | the same guard (`powershell`/`bash`, `create`, `edit`, `task`, MCP tools) |
-| Write zones per role | the agent's `tools` + guard | guard (Codex passes `agent_type`) | guard; the role is known from the `invoke_agent` call that runs it | guard; a subagent runs in its own session, which its start names |
-| The producer does not write game content | guard | a rule in AGENTS.md (Codex does not tell the main thread apart) | guard | guard |
-
-Project rules for Codex and Gemini live in `AGENTS.md`; `CLAUDE.md` and `GEMINI.md` just import it. Copilot reads `CLAUDE.md` and `AGENTS.md` itself.
-</details>
 
 ## Developing Kiln
 
