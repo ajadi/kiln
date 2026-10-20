@@ -114,6 +114,17 @@ camera forward vector; `occ` = world-only ray camera → target chest hits; `ins
 overlap at the camera; `look_in` = look input magnitude. Prints JSON with `verdict`; exit 1 on
 FAIL.
 
+**Feel constants are tested values.** Forgiveness windows and hit-stop live in one resource,
+`scripts/feel_constants.gd` → `data/feel.tres` (coyote 0.1 s and variable jump 0.2 s from
+Celeste's Player.cs, jump buffer 0.08 s working, hit-stop 0.05 / 0.1 s, latency limits), which
+the controller reads - never literals in the movement script. A headless probe (acceptance
+`probe_base.gd` + `scripts/feel_windows.gd`, run with `--fixed-fps 60`) measures what the player
+gets: `window_after` (frames a jump still works after leaving the ground), `window_before`
+(frames a press before landing still jumps), `latency` (frames from press to response over
+varied press frames, with max − min as jitter: constant latency is tolerated far better than
+jitter). Each window must match its constant within ±1 frame. Live: a controller that ignored
+coyote time failed the window; one built on the resource passed (Godot 4.7.2).
+
 ## Engines (configure through the engine MCP; details in the references)
 
 - **Godot 4.6/4.7**: actions through `input_map_manage` (new-action dead zone 0.2, `ui_*` 0.5);

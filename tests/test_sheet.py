@@ -191,6 +191,17 @@ class Pack(unittest.TestCase):
         self.assertEqual(code, 0, chk)
         self.assertEqual(chk["distinct_rects"], 1)
 
+    def test_preview_gifs_at_game_speed_and_contact_sheet(self):
+        code, res = run("preview", os.path.join(self.root, "*.png"), os.path.join(self.root, "jump"),
+                        "--out", os.path.join(self.out, "prev"), "--tag-fps", "run=12", "--scale", "2")
+        self.assertEqual(code, 0, res)
+        anims = {a["tag"]: a for a in res["animations"]}
+        self.assertEqual((anims["run"]["frames"], anims["run"]["fps"]), (6, 12))
+        gif = Image.open(anims["run"]["gif"])
+        self.assertEqual((gif.n_frames, gif.info["duration"], gif.size), (6, 80, (48, 64)))  # GIF stores 1/100 s
+        sheet = Image.open(res["contact_sheet"])
+        self.assertGreater(sheet.width, 6 * 48)
+
     def test_no_frames_fails(self):
         code, res = run("pack", os.path.join(self.root, "nothing_*.png"), "--out",
                         os.path.join(self.out, "x.png"), "--data", os.path.join(self.out, "x.json"))

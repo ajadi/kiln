@@ -52,6 +52,11 @@ abilities; preview landmarks through sightlines and vistas.
   random-walk probe found one open ground edge; this static check found three gaps in minutes.
   Keep it as `tests/probes/probe_edges.gd` (acceptance `probe_base.gd`) and rerun it after every
   layout change.
+- **Winnable, both ways** (static): export the level as a layout (a room graph, a top-down grid,
+  or a side-view platformer grid with the controller's jump in tiles) and run procgen
+  `procgen_check.py`: every goal reachable, no softlock (a pit deeper than the jump, a one-way
+  drop, a key spent on the wrong door), and with `"return": true` the way back to the start.
+  Hand-made levels break the same way generated ones do; the check is the same.
 - **Landmark error, re-runnable:** a level whose composition is judged from a reference frame
   (the art director's RefCam) gets a probe that unprojects each landmark's world point through
   the RefCam and reports its frame position vs the target (fraction of frame), headless, JSON.

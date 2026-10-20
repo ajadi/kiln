@@ -24,11 +24,29 @@ Layout JSON, one file per seed, written by the generator:
                          "#########"]}
      default legend: '#' wall, ' ' void, '.' floor, '@' start, '>' exit, '$' goal, a-z key,
      A-Z door opened by the same letter; legend values wall|void|floor|start|exit|goal|key:<id>|
-     door:<id>. Moves are 4-neighbour (8 with "diagonal", no corner cutting).
+     door:<id>. Moves are 4-neighbour (8 with "diagonal", no corner cutting). "keys":
+     "consumed" makes every door use up one key of its kind (then it stays open): spending a
+     key on the wrong door is the classic softlock, and it is searched for.
+
+  platformer  {"seed": 7, "type": "platformer", "jump": {"height": 3, "width": 4},
+               "cells": ["#........>#", "#@...#####.", "####....###", ...]}
+     side view, y down: '#' solid, '.' or ' ' air, '-' one-way platform, 'H' ladder, '^' hazard,
+     '@' start, '>' exit, '$' goal (every one must be reachable), a-z key, A-Z door. The player
+     walks, climbs, falls straight down and jumps up to jump.height tiles, then up to jump.width
+     across (take both from the controller's feel constants). Optimistic model: a fail is a
+     real dead level; a pass still needs the autoplay run. Softlock = a place reached by falling
+     that the exit cannot be reached from (a pit deeper than the jump).
+
+  sokoban     {"seed": 3, "type": "sokoban", "cells": ["#####", "#@$.#", "#####"]}
+     standard push-box text; solved by search over pushes with dead squares pruned; past
+     --max-states (default 300000) the result is "unknown" (a warning), not unsolvable.
+
+  "return": true on any layout: the start must be reachable again from every goal and exit
+  (hubs, fetch quests).
 
 Per layout: one start; every exit, goal and key reachable from the start, collecting keys on the
-way; no lock whose key cannot be reached; no softlock (graph: every reachable state can still
-reach an exit, one-way edges included); critical path (start to the nearest exit, key detours
+way; no lock whose key cannot be reached; no softlock (every reachable state can still reach an
+exit: one-way edges, consumed keys, pits); critical path (start to the nearest exit, key detours
 included) inside --min-path/--max-path (rooms for graphs, cells for grids); dead-end ratio (graph:
 degree-1 rooms other than start/exit) and dead ends that pay off; unreachable rooms or floor cells;
 difficulty along the critical path (no step up larger than --max-step; the last third not easier
@@ -83,6 +101,276 @@ def path_to(prev, state):
 
 def summary_problem(res, text):
     res["problems"].append(text)
+
+
+def softlocked(dist, neighbours, is_exit):
+    """Reachable states from which no exit state can be reached (a softlock: the player is stuck
+    without dying - a pit too deep to jump out of, a key spent on the wrong door)."""
+    back = {}
+    for state in dist:
+        for nxt, _ in neighbours(state):
+            back.setdefault(nxt, []).append(state)
+    good = deque(s for s in dist if is_exit(s))
+    alive = set(good)
+    while good:
+        for p in back.get(good.popleft(), []):
+            if p not in alive:
+                alive.add(p)
+                good.append(p)
+    return [s for s in dist if s not in alive]
+
+
+def check_return(dist, neighbours, is_goal, is_start, res):
+    """Levels the player must leave again (hubs, fetch quests): from every reached goal or exit
+    state the start must be reachable."""
+    for g in [s for s in dist if is_goal(s)]:
+        seen, todo = {g}, deque([g])
+        found = is_start(g)
+        while todo and not found:
+            for nxt, _ in neighbours(todo.popleft()):
+                if nxt not in seen:
+                    seen.add(nxt)
+                    if is_start(nxt):
+                        found = True
+                        break
+                    todo.append(nxt)
+        if not found:
+            summary_problem(res, f"no way back to the start from {g[0]} (return: true)")
+            return
+
+
+# ---------------------------------------------------------------- platformer layouts
+
+PLATFORMER_ROLES = {"#": "solid", ".": "air", " ": "air", "@": "start", ">": "exit", "$": "goal",
+                    "H": "ladder", "^": "hazard", "-": "platform"}
+
+
+def check_platformer(layout, args, res):
+    """Side view, one tile per character, y down. The player stands on solid ground, a one-way
+    platform (-) or a ladder (H); walks, climbs, falls straight down, and jumps up to `height`
+    tiles and `width` tiles sideways (up, then across, then falls). Hazards (^) and falling off
+    the map kill. The model is optimistic (it allows a little more than most controllers): a
+    level it fails is unwinnable; one it passes still needs the autoplay run."""
+    rows = [str(r) for r in layout.get("cells") or []]
+    width = max((len(r) for r in rows), default=0)
+    rows = [r.ljust(width) for r in rows]
+    height = len(rows)
+    jump = layout.get("jump") or {}
+    jh, jw = int(jump.get("height", 3)), int(jump.get("width", 4))
+    legend = {str(k): str(v) for k, v in (layout.get("legend") or {}).items()}
+    role = {}
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            r = legend.get(ch) or PLATFORMER_ROLES.get(ch)
+            if r is None and "a" <= ch <= "z":
+                r = f"key:{ch}"
+            elif r is None and "A" <= ch <= "Z":
+                r = f"door:{ch.lower()}"
+            role[(x, y)] = r or "solid"
+    starts = [c for c, r in role.items() if r == "start"]
+    exits = {c for c, r in role.items() if r == "exit"}
+    goals = {c for c, r in role.items() if r == "goal"}
+    keys = {c: r[4:] for c, r in role.items() if r.startswith("key:")}
+    doors = {c: r[5:] for c, r in role.items() if r.startswith("door:")}
+    bit = {k: 1 << i for i, k in enumerate(sorted(set(keys.values())))}
+    if len(starts) != 1 or not exits:
+        summary_problem(res, f"{len(starts)} start cells and {len(exits)} exits (one start, one or "
+                             "more exits needed)")
+        return
+
+    def at(c):
+        return role.get(c, "out")
+
+    def passable(c, mask):
+        r = at(c)
+        if r in ("solid", "out"):
+            return False
+        if r.startswith("door:"):
+            return bool(mask & bit.get(r[5:], 0))
+        return True
+
+    def support(c, mask):
+        below = (c[0], c[1] + 1)
+        return at(c) == "ladder" or at(below) in ("solid", "platform", "ladder") or \
+            (at(below).startswith("door:") and not passable(below, mask))
+
+    def fall(c, mask):
+        """Where a player at c ends up standing, or None (hazard, out of the map)."""
+        while True:
+            if at(c) == "hazard" or at(c) == "out":
+                return None
+            if support(c, mask):
+                return c
+            c = (c[0], c[1] + 1)
+            if c[1] >= height:
+                return None
+            if not passable(c, mask):
+                return None
+
+    def pick(c, mask):
+        return mask | bit.get(keys.get(c), 0)
+
+    def neighbours(state):
+        (x, y), mask = state
+        out = set()
+        for dx in (-1, 1):
+            t = (x + dx, y)
+            if passable(t, mask):
+                land = fall(t, mask)
+                if land:
+                    out.add(land)
+        if at((x, y)) == "ladder" or at((x, y + 1)) == "ladder":
+            for t in ((x, y - 1), (x, y + 1)):
+                if passable(t, mask) and at(t) != "hazard":
+                    land = t if at(t) == "ladder" else fall(t, mask)
+                    if land:
+                        out.add(land)
+        for h in range(1, jh + 1):
+            col = (x, y - h)
+            if not passable(col, mask) or at(col) == "hazard":
+                break
+            for direction in (-1, 1):
+                for d in range(0, jw + 1):
+                    t = (x + direction * d, y - h)
+                    if not passable(t, mask) or at(t) == "hazard":
+                        break
+                    land = fall(t, mask)
+                    if land:
+                        out.add(land)
+        for land in out:
+            if land != (x, y):
+                yield (land, pick(land, mask)), 1
+
+    start = fall(starts[0], 0)
+    if start is None:
+        summary_problem(res, "the start has no ground under it")
+        return
+    init = (start, pick(start, 0))
+    dist, prev, best, capped = search(init, neighbours, lambda s: s[0] in exits)
+
+    def touched(target):
+        """Standing states that reach `target` (exits, goals and keys may be off the ground)."""
+        return any(s[0] == target or fall(target, s[1]) == s[0] for s in dist)
+
+    for c in sorted(exits | goals):
+        if not touched(c):
+            summary_problem(res, f"{at(c)} at x={c[0]} y={c[1]} unreachable with a jump of "
+                                 f"{jh} up / {jw} across")
+    for c, k in sorted(keys.items()):
+        if not touched(c):
+            summary_problem(res, f"key '{k}' at x={c[0]} y={c[1]} unreachable")
+    if best is not None and not capped:
+        stuck = softlocked(dist, neighbours, lambda s: s[0] in exits)
+        if stuck:
+            c = min(stuck, key=lambda s: dist[s])[0]
+            summary_problem(res, f"softlock: {len(stuck)} standing places from which the exit "
+                                 f"cannot be reached, e.g. x={c[0]} y={c[1]} (a pit deeper than "
+                                 f"the jump?)")
+        if layout.get("return"):
+            check_return(dist, neighbours, lambda s: s[0] in exits | goals,
+                         lambda s: s[0] == start, res)
+        res["critical_path"] = int(dist[best]) + 1
+    res["standing_places"] = len({s[0] for s in dist})
+    res["jump"] = {"height": jh, "width": jw}
+
+
+# ---------------------------------------------------------------- push-box puzzles
+
+def check_sokoban(layout, args, res):
+    """Standard Sokoban text (# wall, @ player, $ box, . goal, * box on goal, + player on goal,
+    space / - / _ floor). Solved by a breadth-first search over pushes with dead-square pruning
+    (a box on a square from which no goal can be reached is never pushed there); --max-states
+    bounds the search: past it the level is reported unknown, not unsolvable."""
+    rows = [str(r).replace("-", " ").replace("_", " ") for r in layout.get("cells") or []]
+    walls, goals, boxes, player = set(), set(), set(), None
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            c = (x, y)
+            if ch == "#":
+                walls.add(c)
+            if ch in ".*+":
+                goals.add(c)
+            if ch in "$*":
+                boxes.add(c)
+            if ch in "@+":
+                player = c
+    if player is None or not boxes or len(boxes) != len(goals):
+        summary_problem(res, f"{'no player, ' if player is None else ''}{len(boxes)} boxes and "
+                             f"{len(goals)} goals (one player, as many goals as boxes)")
+        return
+    floor = set()
+    todo = deque([player])
+    while todo:
+        c = todo.popleft()
+        if c in floor or c in walls:
+            continue
+        floor.add(c)
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            todo.append((c[0] + dx, c[1] + dy))
+    dirs = ((1, 0), (-1, 0), (0, 1), (0, -1))
+    live = set(goals)                       # squares from which a box can reach a goal (pulls)
+    todo = deque(goals)
+    while todo:
+        c = todo.popleft()
+        for dx, dy in dirs:
+            b, p = (c[0] + dx, c[1] + dy), (c[0] + 2 * dx, c[1] + 2 * dy)
+            if b in floor and p in floor and b not in live:
+                live.add(b)
+                todo.append(b)
+    if any(b not in live for b in boxes):
+        summary_problem(res, "a box starts on a dead square (it can never reach a goal)")
+        return
+
+    def reach(p, bx):
+        seen, todo = {p}, [p]
+        while todo:
+            c = todo.pop()
+            for dx, dy in dirs:
+                n = (c[0] + dx, c[1] + dy)
+                if n in floor and n not in bx and n not in seen:
+                    seen.add(n)
+                    todo.append(n)
+        return seen
+
+    limit = args.max_states
+    start_area = reach(player, boxes)
+    start = (min(start_area), frozenset(boxes))
+    seen, todo, solved = {start: 0}, deque([(start, start_area)]), None
+    while todo and solved is None:
+        (_, bx), area = todo.popleft()
+        pushes = seen[(min(area), bx)]
+        for b in bx:
+            for dx, dy in dirs:
+                stand, to = (b[0] - dx, b[1] - dy), (b[0] + dx, b[1] + dy)
+                if stand not in area or to not in live or to in bx:
+                    continue
+                nb = frozenset(bx - {b} | {to})
+                na = reach(b, nb)
+                key = (min(na), nb)
+                if key in seen:
+                    continue
+                seen[key] = pushes + 1
+                if nb == frozenset(goals):
+                    solved = pushes + 1
+                    break
+                if len(seen) >= limit:
+                    break
+                todo.append((key, na))
+            if solved is not None or len(seen) >= limit:
+                break
+        if len(seen) >= limit:
+            break
+    res["states"] = len(seen)
+    if solved is not None:
+        res["solution_pushes"] = solved
+        res["critical_path"] = solved
+    elif len(seen) >= limit:
+        res["warnings"].append(f"search stopped at {limit} states: solvability unknown "
+                               "(raise --max-states or simplify)")
+        res["unknown"] = True
+    else:
+        summary_problem(res, f"unsolvable: no push sequence puts every box on a goal "
+                             f"({len(seen)} states searched)")
 
 
 # ---------------------------------------------------------------- graph layouts
@@ -173,6 +461,9 @@ def check_graph(layout, args, res):
         held = [k for k in key_ids if mask & bit[k]]
         summary_problem(res, f"softlock: {len(dead)} reachable states cannot reach an exit, "
                              f"e.g. room {rid} holding keys {held or 'none'} (one-way edge?)")
+    if layout.get("return") and best is not None and not capped:
+        check_return(dist, neighbours, lambda s: s[0] in exits | goals,
+                     lambda s: s[0] == start, res)
     if best is not None:
         rooms_path = [s[0] for s in path_to(prev, best)]
         res["critical_path"] = len(rooms_path)
@@ -297,11 +588,52 @@ def check_grid(layout, args, res):
             yield (c, mask | bit.get(keys.get(c), 0)), 1
 
     start = starts[0]
-    init = (start, bit.get(keys.get(start), 0))
+    consumed = layout.get("keys") == "consumed"
+    if consumed:
+        # a door uses up one key of its kind and then stays open: state = (cell, keys held per
+        # kind, picked key cells, opened doors)
+        key_cells = sorted(keys)
+        door_cells = sorted(doors)
+        kbit = {c: 1 << i for i, c in enumerate(key_cells)}
+        dbit = {c: 1 << i for i, c in enumerate(door_cells)}
+
+        def held(picked, opened, kind):
+            have = sum(1 for c in key_cells if picked & kbit[c] and keys[c] == kind)
+            spent = sum(1 for c in door_cells if opened & dbit[c] and doors[c] == kind)
+            return have - spent
+
+        def neighbours(state):  # noqa: F811 - the consumed-keys variant
+            (x, y), picked, opened = state
+            for dx, dy in steps:
+                c = (x + dx, y + dy)
+                if not open_cell(c):
+                    continue
+                if dx and dy and not (free((x + dx, y)) and free((x, y + dy))):
+                    continue
+                o = opened
+                if c in doors and not opened & dbit[c]:
+                    if held(picked, opened, doors[c]) <= 0:
+                        continue
+                    o = opened | dbit[c]
+                yield (c, picked | kbit.get(c, 0), o), 1
+
+        init = (start, kbit.get(start, 0), 0)
+    else:
+        init = (start, bit.get(keys.get(start), 0))
     dist, prev, best, capped = search(init, neighbours, lambda s: s[0] in exits)
     if capped:
         res["warnings"].append(f"state space capped at {MAX_STATES}; results partial")
-    reached = {c for c, _ in dist}
+    if best is not None and not capped:
+        stuck = softlocked(dist, neighbours, lambda s: s[0] in exits)
+        if stuck:
+            c = min(stuck, key=lambda s: dist[s])[0]
+            summary_problem(res, f"softlock: {len(stuck)} reachable states cannot reach an exit, "
+                                 f"e.g. at x={c[0]} y={c[1]}" +
+                                 (" (a key spent on the wrong door)" if consumed else ""))
+        if layout.get("return"):
+            check_return(dist, neighbours, lambda s: s[0] in exits | goals,
+                         lambda s: s[0] == start, res)
+    reached = {s[0] for s in dist}
     for c in sorted(exits | goals):
         if c not in reached:
             summary_problem(res, f"{roles[c]} at x={c[0]} y={c[1]} unreachable")
@@ -347,6 +679,10 @@ def check_file(path, args):
     res["type"] = kind
     if kind == "grid":
         check_grid(layout, args, res)
+    elif kind == "platformer":
+        check_platformer(layout, args, res)
+    elif kind == "sokoban":
+        check_sokoban(layout, args, res)
     elif kind == "graph":
         check_graph(layout, args, res)
     else:
@@ -383,6 +719,8 @@ def main(argv=None):
                         help="grid: allowed share of unreachable floor cells")
     parser.add_argument("--max-dead-end-tips", type=int, default=None)
     parser.add_argument("--min-pass-rate", type=float, default=1.0)
+    parser.add_argument("--max-states", type=int, default=300_000,
+                        help="sokoban: states searched before the result is 'unknown'")
     parser.add_argument("--out", default=None, help="also write the JSON report here")
     args = parser.parse_args(argv)
     files = sorted({p for pattern in args.layouts

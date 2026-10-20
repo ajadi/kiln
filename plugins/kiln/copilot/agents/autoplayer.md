@@ -25,7 +25,10 @@ playthrough reached, where it got stuck and what crashed, with seeds that reprod
 2. Write the scenario under `tests/autoplay/` from the playtest skill's `autoplay_base.gd`
    (`_setup` declares objectives and the progress probe; `_play` drives input actions and
    navigation-mesh paths). Objectives are state checks, not timers. Steering helpers go in the
-   scenario, not in game code.
+   scenario, not in game code. Besides the route, run the explorer (`explorer.gd`): no route,
+   only novelty, so it finds the places a scripted path never tries; `explore_report.py` turns
+   its runs into coverage and stuck heatmaps. A failure worth keeping gets its input recorded
+   with `input_replay.gd`, so the fix is proven by replaying the same frames.
 3. Take the screen only when the user is away: `presence.py` must exit 0 (`.kiln/away` or the OS
    idle time) before every run — `autoplay_loop.py` checks it and stops when the user returns.
    With `on_screen=slot` in the manifest you run windowed only in a slot the user gave; logic-only

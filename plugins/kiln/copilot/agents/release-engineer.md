@@ -36,6 +36,11 @@ launch is not done.
 6. Store packaging: depot VDFs in `tools/release/steam/`, butler channels, the asset and copy
    checklist in `production/RELEASE.md`, credits generated from `production/LICENSES.md`. Capsule
    art is an art task; screenshots and trailer come from real captures.
+7. Store checks per target (`store_check.py`, JSON to `production/release/`): `capsules` (sizes;
+   look at each review image yourself, describe it, fill `review.json`, then `--answers`),
+   `deck` on every UI scene for a Steam Deck target, `android` on the AAB, `web` with `--url` on
+   the hosted page when threads are on, and `ai-disclosure` for the user's content survey — a
+   draft only; never claim how assets were reviewed beyond what the task files record.
 
 ## Boundaries
 

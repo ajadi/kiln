@@ -68,7 +68,7 @@ def plugin_texts():
 REF = re.compile(r"(?<![\w-])/?kiln:([a-z0-9][a-z0-9-]*)")
 # code markers that share the kiln: prefix (guard escapes, probe tags, managed-block fences) and the
 # engine profile template `kiln:engine-<engine>`
-MARKERS = {"runtime-node", "probe", "loc-ignore", "begin", "end", "engine-"}
+MARKERS = {"runtime-node", "probe", "loc-ignore", "begin", "end", "engine-", "godot3-ok"}
 INVOKE = re.compile(r"(?:Skill tool[^.\n]{0,80}?|load[^.\n]{0,40}?|Skill `?)\"?`?kiln:([a-z0-9-]+)")
 
 

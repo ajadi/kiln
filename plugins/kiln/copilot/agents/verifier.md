@@ -55,7 +55,10 @@ is enough for NEEDS_WORK.
 
 Visual regression: when the task touched art, level, lighting or fx and the scene has baselines
 (`production/baselines/<scene>/`), capture the same cameras and run the acceptance skill's
-`frames.py compare`; every changed region is either in the task's intent or a finding.
+`frames.py compare`; every changed region is either in the task's intent or a finding. With
+several changed regions, `frames.py review` makes one pack per region; you and a second reviewer
+(the art-director, or qa-readability for UI) answer it separately, and `frames.py verdict`
+decides: a glitch both see is a finding, a split goes to engine data.
 
 Read-only on game content: Write/Edit only to append your `## verification` section to the task
 file.

@@ -74,6 +74,42 @@ class Frames(unittest.TestCase):
                   encoding="utf-8") as fh:
             self.assertIn("TASK-034 adds the bank sign", fh.read())
 
+    def test_review_pack_only_for_changed_frames_and_two_reviewer_verdict(self):
+        self.shot("gate.png", scene())
+        self.shot("hall.png", scene(seed=1))
+        run(self.root, "baseline", "cap/gate.png", "cap/hall.png", "--scene", "plaza")
+        self.shot("gate.png", scene(square=True))          # changed
+        self.shot("hall.png", scene(noise=2))               # capture noise only
+        code, res = run(self.root, "review", "cap/gate.png", "cap/hall.png", "--scene", "plaza",
+                        "--out", "rev")
+        self.assertEqual((code, res["items_to_review"], res["unchanged"]), (0, 1, 1), res)
+        rev = os.path.join(self.root, "rev")
+        with open(os.path.join(rev, "review.json"), encoding="utf-8") as fh:
+            data = json.load(fh)
+        item = data["items"][0]
+        pack = Image.open(os.path.join(rev, item["pack"]))
+        self.assertGreater(pack.width, pack.height * 2)        # baseline | new | changed
+        self.assertIn("z-fighting", open(os.path.join(rev, "REVIEW.md"), encoding="utf-8").read())
+
+        def answers(name, glitch, intended=True):
+            d = json.loads(json.dumps(data))
+            d["items"][0]["answer"] = {"intended": intended, "glitch": glitch,
+                                       "class": "floating object" if glitch else None,
+                                       "evidence": "white box top right"}
+            path = os.path.join(rev, name)
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(d, fh)
+            return path
+
+        review = os.path.join(rev, "review.json")
+        for a, b, want in ((False, False, "PASS"), (True, True, "FAIL"), (True, False, "DISPUTED")):
+            code, out = run(self.root, "verdict", review, "--a", answers("a.json", a),
+                            "--b", answers("b.json", b))
+            self.assertEqual(out["verdict"], want, out)
+        code, out = run(self.root, "verdict", review, "--a", answers("a.json", False, False),
+                        "--b", answers("b.json", False, True))
+        self.assertEqual(out["verdict"], "UNINTENDED")
+
     def test_missing_baseline_and_size_change(self):
         self.shot("a.png", scene())
         code, res = run(self.root, "compare", "cap/a.png", "--scene", "x")

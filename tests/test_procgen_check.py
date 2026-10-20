@@ -179,5 +179,96 @@ class Aggregate(unittest.TestCase):
         self.assertEqual(rep["passed"], 0)
 
 
+class Reachability(unittest.TestCase):
+    """0.10 (research 2026-10-19: generated levels are often unwinnable): platformer jumps and
+    pits, consumed keys, push-box puzzles, the way back to the start."""
+
+    def check(self, data):
+        code, rep = run(os.path.join(layouts(level=data), "level.json"))
+        return code, rep["results"][0]
+
+    def test_platformer_gap_is_jumped(self):
+        level = {"seed": 1, "type": "platformer", "jump": {"height": 3, "width": 4},
+                 "cells": ["............",
+                           "............",
+                           "@..$....>...",
+                           "####...#####"]}
+        code, res = self.check(level)
+        self.assertEqual(code, 0, res)
+        level["jump"]["width"] = 2                    # too short for the 3-tile gap
+        code, res = self.check(level)
+        self.assertIn("unreachable", " ".join(res["problems"]))
+
+    def test_platformer_ledge_out_of_jump_reach(self):
+        code, res = self.check({"seed": 2, "type": "platformer", "jump": {"height": 3, "width": 4},
+                                "cells": ["........>...",
+                                          "......####..",
+                                          "............",
+                                          "............",
+                                          "............",
+                                          "@...........",
+                                          "############"]})
+        self.assertEqual(code, 1)
+        self.assertIn("exit at x=8 y=0 unreachable", " ".join(res["problems"]))
+
+    def test_platformer_pit_deeper_than_the_jump_is_a_softlock(self):
+        code, res = self.check({"seed": 3, "type": "platformer", "jump": {"height": 3, "width": 4},
+                                "cells": ["............",
+                                          "@.........>.",
+                                          "###...######",
+                                          "###...######",
+                                          "###...######",
+                                          "###...######",
+                                          "############"]})
+        self.assertEqual(code, 1, res)
+        self.assertIn("softlock", " ".join(res["problems"]))
+
+    def test_platformer_ladder_gets_out_of_the_pit(self):
+        code, res = self.check({"seed": 4, "type": "platformer", "jump": {"height": 3, "width": 4},
+                                "cells": ["............",
+                                          "@....H....>.",
+                                          "###..H######",
+                                          "###..H######",
+                                          "###..H######",
+                                          "###..H######",
+                                          "############"]})
+        self.assertEqual(code, 0, res)
+
+    def test_a_key_spent_on_the_wrong_door(self):
+        cells = ["#######",
+                 "#.A...#",
+                 "#.#####",
+                 "#@a.A>#",
+                 "#######"]
+        code, res = self.check({"seed": 5, "type": "grid", "cells": cells})
+        self.assertEqual(code, 0, res)                 # keys kept: no problem
+        code, res = self.check({"seed": 5, "type": "grid", "keys": "consumed", "cells": cells})
+        self.assertEqual(code, 1, res)
+        self.assertIn("wrong door", " ".join(res["problems"]))
+
+    def test_sokoban(self):
+        code, res = self.check({"seed": 6, "type": "sokoban", "cells": ["#####", "#@$.#", "#####"]})
+        self.assertEqual((code, res.get("solution_pushes")), (0, 1), res)
+        microban1 = ["####", "# .#", "#  ###", "#*@  #", "#  $ #", "#  ###", "####"]
+        code, res = self.check({"seed": 7, "type": "sokoban", "cells": microban1})
+        self.assertEqual(code, 0, res)
+        code, res = self.check({"seed": 8, "type": "sokoban",
+                                "cells": ["#####", "#$  #", "# @.#", "#####"]})
+        self.assertEqual(code, 1)
+        self.assertIn("dead square", " ".join(res["problems"]))
+        code, res = self.check({"seed": 9, "type": "sokoban",
+                                "cells": ["######", "#    #", "#@$$ #", "#  ..#", "######"]})
+        self.assertIn(code, (0, 1))                    # decided either way, not crashed
+
+    def test_return_to_start(self):
+        one_way = graph([{"id": "s", "tags": ["start"]}, {"id": "e", "tags": ["exit"]}],
+                        [{"a": "s", "b": "e", "oneway": True}])
+        code, res = self.check(one_way)
+        self.assertEqual(code, 0, res)
+        one_way["return"] = True
+        code, res = self.check(one_way)
+        self.assertIn("no way back", " ".join(res["problems"]))
+
+
 if __name__ == "__main__":
     unittest.main()

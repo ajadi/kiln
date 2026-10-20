@@ -179,3 +179,37 @@ OIDC login through `azure/login`), inputs `endpoint`, `signing-account-name`,
 `certificate-profile-name`, `files-folder`, `files-folder-filter: exe,dll`, `file-digest:
 SHA256`, `timestamp-rfc3161: http://timestamp.acs.microsoft.com`, `timestamp-digest: SHA256`.
 Sign before the store upload, verify with `signtool verify /pa /v`.
+
+macOS signing and notarisation in CI, on a Linux runner: `indygreg/apple-code-sign-action@v1`
+(rcodesign). Signing takes `pem_file` (the Developer ID certificate and its private key written
+from secrets to files); notarisation takes `app_store_connect_api_key_json_file` (made once with
+`rcodesign encode-app-store-connect-api-key -o key.json <issuer-id> <key-id> AuthKey_<id>.p8`,
+stored as a secret) with `notarize: true`, `staple: true`, `input_path: Game.app`. Run it in
+the store job behind the same environment approval, before the upload; Apple's account and
+certificates are the user's.
+
+## Store checks in CI
+
+Copy `store_check.py` next to `build.py` in `tools/release/` (it imports it) and run it on the
+exported artefacts in the `push` workflow, so a target-API or 16 KB regression fails the build
+before anyone uploads:
+
+```yaml
+  store-check:
+    needs: export
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - uses: actions/download-artifact@v8
+        with: { name: android, path: build/android }
+      - uses: actions/download-artifact@v8
+        with: { name: web, path: build/web }
+      - run: |
+          python tools/release/store_check.py android build/android/game.aab
+          python tools/release/store_check.py web build/web
+```
+
+The capsule review, the Deck text check (needs the Godot editor) and the AI-disclosure draft run
+locally before the store submission; their JSON goes to `production/release/`.

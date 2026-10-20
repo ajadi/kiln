@@ -1,6 +1,6 @@
 # Kiln
 
-Version 0.9.0. Kiln turns your AI coding agent into a small game studio.
+Version 0.10.0. Kiln turns your AI coding agent into a small game studio.
 
 You talk to one producer: your normal agent session. It plans the work and hands each piece to a
 specialist (modeler, animator, level designer, sound designer, ...). Other specialists check the
@@ -177,6 +177,23 @@ Copilot CLI and OpenCode name the command in words ("run the Kiln pipeline").
 Where things stand: `production/STATUS.html` shows the phases, the tasks, what each still needs,
 and the decisions taken for you.
 
+## New in 0.10
+
+- **The agent plays its own game.** An explorer bot walks your level without a route and shows
+  where it got stuck on a heatmap; input replays repeat a session frame by frame and name the
+  first frame where a change altered behaviour. Runs are deterministic by default.
+- **Levels checked winnable.** Platformer jumps and pits, keys spent on the wrong door, push-box
+  puzzles solved by search, and the way back to the start.
+- **Godot 4 only.** Scripts written with Godot 3 API are refused with the Godot 4 form; broken
+  scene references are found before the scene is opened.
+- **Feel and 2D.** Coyote time, jump buffer and input latency measured in frames against one
+  constants file; 47-tile blob autotiles; AI pixel art snapped to its real grid and palette.
+- **Visual reviews and store checks.** Only changed frames go to two independent visual reviews;
+  before release, Steam capsules, Steam Deck text size, Google Play's API level and 16 KB pages
+  and web hosting headers are checked, and Steam's AI disclosure is drafted for you.
+
+Everything else that changed: [plugins/kiln/CHANGELOG.md](plugins/kiln/CHANGELOG.md).
+
 <details>
 <summary><b>What is inside</b></summary>
 
@@ -185,8 +202,37 @@ and the decisions taken for you.
 | 31 roles (`kiln:<role>`) | 2 designers, 14 builders, 8 acceptors, 4 reviewers, 3 experts (consultants) (below) |
 | 51 knowledge skills | engines (Godot / Unity / Unreal), Blender modelling, a model from 1-3 photos, assets, animation, human biomechanics, creature locomotion, rigid-body physics, destruction and effects (3D and 2D), shaders, optimisation, lighting, level design, procedural generation, 2D art and sprite sheets, UI, accessibility, localisation, controls and camera, game AI, saving, balance, narrative, LLM NPCs (opt-in), procedural audio, music, release and builds, tech design, playtest, acceptance, protocol; also doors and vehicles, fields and forces, fluids and granular matter, flight, riding, hands and grips, soft bodies, elements and materials, sky and weather, traversal, the implications of a new thing; project tools (find, install, verify), rented GPU servers, paid generators on your own account (models, rigging, animation clips), free asset libraries (Poly Haven, ambientCG, Kenney, KayKit, game-icons, Google Fonts) |
 | 18 process commands | `/kiln:setup`, `/kiln:update`, `/kiln:settings`, `/kiln:doctor`, `/kiln:pipeline`, `/kiln:concept`, `/kiln:plan`, `/kiln:run`, `/kiln:autopilot`, `/kiln:stop`, `/kiln:status`, `/kiln:gym`, `/kiln:model`, `/kiln:sprites`, `/kiln:track`, `/kiln:cinematic`, `/kiln:report`, `/kiln:retro` |
-| Hooks (Python) | "MCP only", "scenes are built in the editor", write zones per role (also for shell writes), read-only acceptors in all three engines, one driver per editor with a queue and a lease, required roles per task (`touches:` + gates), git hygiene, state at session start, the engine profile in every agent, autopilot continuation, model and effort per project, new-version notice, problem reports |
-| Check scripts | meshes, contacts, back faces and gaps in Blender; silhouettes; model-vs-photo silhouettes and outlines; whether several views of one object agree before a multi-view generation; hair card atlases; sprites and sprite-sheet packing; 2D maps into a deduplicated tileset and Tiled map; readability; UI and focus; subtitles; cinematic continuity (180-degree line, 30-degree rule); localisation; audio (loudness, true peak, loop seams, stems, RT60); motion, camera and AI probes for Godot / Unity / Unreal; animation that is only the whole character moved (a similarity fit per frame); pops on transitions; attacks that miss their targets; a scene QA contract (named states re-checked by one command into one report); dialogue; saves; balance; procgen; performance; build audit and smoke; licences; pipeline gates; rented GPU jobs; project tools; visual regression; frozen effects and sweeps on a state change; fidelity to a reference image in numbers (values, light pools, tones, palette, per region); asset budgets; one style across a series of assets (style statistics against an anchor); LOD chains (built in Blender, switch sizes from the measured error, outlines checked at the switch size, Godot visibility ranges at import); rig deformation in stress poses (volume, candy-wrapper, shoulders, weights); edge loops around joints and a bend test before rigging; a video reference for a clip (cycle, key poses, gates on the clip, our render compared in pose space) |
+| Hooks (Python) | "MCP only", "scenes are built in the editor", write zones per role (also for shell writes), read-only acceptors in all three engines, one driver per editor with a queue and a lease, required roles per task (`touches:` + gates), no Godot 3 API in Godot scripts, paid generators and free libraries only as the settings allow (spending waits for your yes), git hygiene (no keys or secrets committed), state at session start, the engine profile in every agent, autopilot continuation, model and effort per project, new-version notice, problem reports |
+| Check scripts | over 90 scripts that measure results instead of guessing (below) |
+
+The check scripts, by area:
+
+- **3D models**: meshes, contacts, back faces and gaps in Blender; silhouettes against the photo;
+  whether several views agree before a multi-view generation; hair cards; asset budgets; one
+  style across a series; LOD chains (built in Blender, switch sizes from the measured error,
+  Godot visibility ranges); edge loops and a bend test before rigging; rig deformation in stress
+  poses.
+- **Animation and motion**: a video reference for a clip (cycle, key poses, our render compared
+  in pose space); animation that only moves the whole character; pops on transitions; attacks
+  that miss; motion, camera and AI probes for Godot / Unity / Unreal; feel constants in frames
+  (coyote time, jump buffer, input latency and its jitter).
+- **2D**: sprites and sprite-sheet packing, previews at game speed; 2D maps into a deduplicated
+  tileset and Tiled map; 47-tile blob autotiles with a seam check and a Godot terrain; AI pixel
+  art snapped to its grid and palette; fake transparency.
+- **Levels and play**: procgen and hand-made levels winnable both ways (platformer jumps and pits,
+  consumed keys, push-box puzzles, the way back); an explorer bot with coverage and stuck
+  heatmaps; exact input replays; a scene QA contract re-checked by one command; Godot scenes and
+  scripts linted.
+- **Look and screen**: visual regression against baselines, changed frames packed for two
+  independent visual reviews; frozen effects and sweeps on a state change; fidelity to a
+  reference image in numbers; readability; UI and focus; subtitles; cinematic continuity
+  (180-degree line, 30-degree rule).
+- **Sound, text, data**: audio (loudness, true peak, loop seams, stems, RT60); localisation;
+  dialogue; saves; balance.
+- **Builds and release**: build audit, smoke and soak; performance; licences and credits; store
+  checks (Steam capsules and their review, Steam Deck text size, Google Play target API and 16 KB
+  pages, web COOP/COEP, a Steam AI-disclosure draft); pipeline gates; project tools; rented GPU
+  jobs.
 </details>
 
 <details>
@@ -255,7 +301,7 @@ On this computer, `~/.kiln/machine.json` holds the tools folder (`tools_root`, a
 
 Every agent gets the same roles, rules and checks; they differ in how commands are called and how
 the safety guard learns which role is acting. Checked live with Codex 0.160, Gemini CLI 0.64,
-Copilot CLI 1.0.97 and OpenCode 1.18.
+Copilot CLI 1.0.97 and OpenCode 1.19.0.
 
 | Part | Claude Code | OpenAI Codex | Gemini CLI | GitHub Copilot CLI | OpenCode |
 |---|---|---|---|---|---|

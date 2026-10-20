@@ -156,6 +156,13 @@ or pure getter), `SampleHz` (0 = every frame), SceneTools `save_actor`. Loop: `I
 - Image models detect gross glitches reasonably (~80% on benchmarks) but miss clipping, pose
   errors and small UI changes, and they cannot judge fun. A visual finding becomes FAIL only when
   engine data confirms it (an overlap query, a bone angle, a measured contrast, a position).
+- **A vision model judges captured frames, never plays** (the best models finish under 1 % of a
+  real-time game benchmark): scripted runs and the explorer play; captures go to
+  `frames.py review`, which sends only the frames that differ from their baseline, each changed
+  region as baseline | new | changed pixels with fixed questions (intended? broken? which glitch
+  class?). Two reviewers answer it without seeing each other's answers (e.g. the art-director
+  and qa-readability); `frames.py verdict` keeps what both see, and a split is DISPUTED until
+  engine data settles it - debate-style verification beats a single judge on glitch benchmarks.
 
 ## 5. Report
 

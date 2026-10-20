@@ -38,6 +38,12 @@ external links. The release build must be "mostly final" on the default branch.
 | App icon | 184×184 | JPG |
 | Bundle header | 707×232 | bundles only |
 
+`store_check.py capsules store/steam --screenshots store/steam/screenshots` checks the sizes,
+formats and the library logo's transparency (files named after the asset: `header.png`,
+`small.png`, `main.png`, `vertical.png`, `library_capsule.png`, `library_header.png`,
+`library_hero.png`, `library_logo.png`) and writes a review pack for the text rules (the small
+capsule also at 120×45); a reviewer answers per image and `--answers` gives the verdict.
+
 Screenshots: ≥ 5, ≥ 1920×1080, 16:9, gameplay only (no concept art, pre-rendered cinematics,
 awards or marketing text; UI is fine); ≥ 4 marked suitable for all ages. Trailer: up to
 1920×1080 at 30 or 60 fps, ≥ 5,000 kbps, H.264 + AAC in .mp4/.mov, stereo; the first trailer
@@ -59,7 +65,7 @@ language-specific), added to the store and dev-comp packages. Scripts live in
 "AppBuild"
 {
   "AppID" "<appid>"
-  "Desc" "v0.9.0 <commit>"
+  "Desc" "v0.10.0 <commit>"
   "ContentRoot" "..\\..\\..\\export\\"
   "BuildOutput" "..\\..\\..\\export\\steam-output\\"
   "Preview" "0"
@@ -122,8 +128,21 @@ and AI use:
   assistants and tools built into editors that leave nothing player-facing are out of scope
   (clarified by Valve in January 2026).
 
-Kiln projects: list every asset with a provenance file from `model_generators` /
-`audio_generators` (manifest policies) and every AI-made text; the registry
-`production/LICENSES.md` is the source. The user answers the survey; the agent prepares the list.
+Kiln projects: `store_check.py ai-disclosure` drafts `production/release/AI_DISCLOSURE.md` from
+every generated asset's `provenance.json` (library assets and non-shipping folders left out),
+`production/ai-content.csv` (item,category,tool,ships,notes — AI-made text, voices and
+translations that have no provenance file) and shipping code that calls a model at runtime
+(live-generated candidates). The user answers the survey; the agent prepares the list and fills
+in how people reviewed or changed the output only from what the task files record.
+
+## Steam Deck
+
+Deck Verified: the smallest on-screen character is never below 9 px tall at 1280×800 (Valve
+recommends 12 px); text readable at 30 cm; supported resolution (1280×800 preferred); a default
+config at 30 fps; full controller access without changing settings, glyphs that match the active
+input, controller text entry (Steam's on-screen keyboard API or your own); launchers navigable by
+controller. `store_check.py deck --scene <ui scenes>` (Godot) measures every text Control at
+1280×800 with the project's stretch settings — hidden menus too; "character height" is
+ambiguous, so a font size below 9 px fails and capital letters below 9 px warn.
 
 Steam is not an IARC storefront: the survey is its rating path (see `distribution.md` for IARC).

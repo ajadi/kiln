@@ -84,5 +84,21 @@ class SpriteQa(unittest.TestCase):
         self.assertGreater(res["off_grid_colors"], 0)
 
 
+    def test_painted_checkerboard_is_not_transparency(self):
+        # research 2026-10-19: an image model asked for a transparent background painted a grey
+        # checkerboard instead; alpha must be checked in code
+        yy, xx = np.mgrid[0:128, 0:128]
+        board = np.where(((xx // 16 + yy // 16) % 2)[..., None] == 1, 255, 204)
+        fake = np.concatenate([np.repeat(board, 3, -1), np.full((128, 128, 1), 255)], -1)
+        fake[40:90, 40:90] = (200, 50, 40, 255)
+        code, res = run("alpha", self.save("fake.png", fake))
+        self.assertEqual(code, 1, res)
+        self.assertEqual(res["painted_checkerboard"], 16)
+        real = np.zeros((128, 128, 4), np.uint8)
+        real[40:90, 40:90] = (200, 50, 40, 255)
+        code, res = run("alpha", self.save("real.png", real))
+        self.assertEqual(code, 0, res)
+
+
 if __name__ == "__main__":
     unittest.main()

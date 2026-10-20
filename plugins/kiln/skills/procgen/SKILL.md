@@ -79,7 +79,17 @@ Export layouts for 200+ seeds per generator change (1000 before release, (workin
 
 - every exit, goal and key reachable from the start, collecting keys on the way; no lock without
   a reachable key;
-- no softlock: from every reachable state an exit stays reachable (one-way drops included);
+- no softlock: from every reachable state an exit stays reachable (one-way drops included; with
+  `"keys": "consumed"` a key spent on the wrong door; in a platformer a pit deeper than the
+  jump);
+- platformer layouts (`"type": "platformer"`, side view): reachability with the controller's
+  jump (`"jump": {"height", "width"}` in tiles, from the feel constants), falls, ladders,
+  one-way platforms and hazards; the model is optimistic, so a fail is a dead level for sure;
+- push-box puzzles (`"type": "sokoban"`): solved by search over pushes with dead squares pruned;
+  "unknown" past `--max-states` is a warning, a proven unsolvable level fails (live: a naive
+  generator made 152 of 200 seeds unsolvable, found in 2 s);
+- `"return": true`: the start is reachable again from every goal and exit (hubs, fetch
+  quests: generated content is checked start → goal and goal → start);
 - critical path (start → nearest exit, key detours included) within bounds;
 - dead ends ≤ 40% of rooms, each paying off (reward, key, secret, shortcut); `--strict-dead-ends`
   makes empty ones fail;

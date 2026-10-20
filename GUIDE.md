@@ -142,11 +142,11 @@ open slower").
 
 | Command | What it does |
 |---|---|
-| `/kiln:pipeline` | the whole production, phase by phase: concept, style, tech plan, look-dev, mechanics, vertical slice, content, polish, release |
+| `/kiln:pipeline` | the whole production, phase by phase: concept, style, tech plan, look-dev, mechanics, vertical slice, content, polish, release (builds, store checks, the store material you approve) |
 | `/kiln:concept` | turns your idea or briefs into `GAME.md` and design notes, asking what it must |
 | `/kiln:plan` | breaks the next part of the work into task files |
 | `/kiln:run` | does the next task: hands it to the right role, gets it checked, closes it |
-| `/kiln:autopilot` | keeps running tasks one after another without waiting for you |
+| `/kiln:autopilot` | keeps running tasks one after another without waiting for you; while you are away the autoplayer plays the game, explores levels and replays recorded input |
 | `/kiln:stop` | lets the autopilot finish the current task and stop cleanly |
 | `/kiln:gym` | a small test scene for one mechanic, to tune and measure it |
 
@@ -180,19 +180,19 @@ task touches them.
 | `grilling` | asking you the questions that matter before building | concept, plan, run, setup |
 | `implications` | what a new item or ability touches elsewhere | plan, run |
 | `tech-design` | choosing how to build a mechanic | tech-designer, plan |
-| `acceptance` | measuring a result with numbers instead of opinions | every QA role, physics-expert, autoplayer |
-| `playtest` | playing the build and reporting what a player feels | playtester, verifier, most builders |
+| `acceptance` | measuring a result with numbers instead of opinions; changed frames sent to two independent visual reviews | every QA role, physics-expert, autoplayer |
+| `playtest` | playing the build and reporting what a player feels; an explorer bot that finds where a level traps the player, exact input replays | playtester, verifier, most builders |
 
 **Engines and tools**
 
 | Skill | What it knows | Used by |
 |---|---|---|
-| `engine-godot`, `engine-unity`, `engine-unreal` | the rules of that engine and its MCP | added to every engine-facing role at its start |
+| `engine-godot`, `engine-unity`, `engine-unreal` | the rules of that engine and its MCP (Godot: a linter that refuses Godot 3 code) | added to every engine-facing role at its start |
 | `tools` | finding, installing and checking programs | setup, settings, doctor |
 | `gpu-server` | renting a GPU for heavy jobs with a spending cap | model, track (when generators run remotely) |
 | `asset-libraries` | free assets from Poly Haven, ambientCG, Kenney, KayKit, game-icons and Google Fonts, and imports of assets you downloaded: search, licence check, download with provenance, CREDITS.md | modeler, lighting-artist, level-designer, art-director, sound-designer, ui-designer, artist-2d |
 | `api-generators` | paid generators on your own account (Meshy: models, rigging, animation clips): estimate, your yes, caps, spend requests under autopilot, provenance | modeler, animator, artist-2d, sound-designer, music-producer; model, image-to-model (when `model_generators=api`) |
-| `release` | builds, CI, store pages | release-engineer |
+| `release` | builds, CI, store pages; checks before a store: Steam capsules, Steam Deck text size, Google Play, web hosting, a draft of Steam's AI disclosure | release-engineer |
 
 **3D, 2D and look**
 
@@ -201,7 +201,7 @@ task touches them.
 | `blender-modeling` (modelling in Blender with checks) | modeler, art-director |
 | `image-to-model` (a model from photos, generators) | modeler, `/kiln:model`, `/kiln:sprites` |
 | `asset-pipeline` (export, import, budgets) | modeler, animator |
-| `art-2d` (pixel art, sprites, tiles) | artist-2d, `/kiln:sprites` |
+| `art-2d` (pixel art, sprites, tiles, blob autotiles, cleaning up AI pixel art) | artist-2d, `/kiln:sprites` |
 | `lighting` | lighting-artist, qa-readability |
 | `shaders` | fx-artist, lighting-artist (on demand) |
 | `optimization` | qa-performance, any role over budget (on demand) |
@@ -229,10 +229,10 @@ task touches them.
 
 | Skill | Used by |
 |---|---|
-| `controls-camera` | gameplay-dev, qa-feel (on demand) |
+| `controls-camera` (feel values tested in frames) | gameplay-dev, qa-feel (on demand) |
 | `game-ai` (enemies and NPCs) | ai-programmer, qa-ai |
 | `level-design` | level-designer |
-| `procgen` (generated levels and maps) | level-designer, `/kiln:sprites` |
+| `procgen` (generated levels and maps, checked winnable) | level-designer, `/kiln:sprites` |
 | `balance`, `save-system` | game-designer, gameplay-dev (on demand) |
 | `ui`, `accessibility`, `localization` | ui-designer, writer, qa-readability |
 
@@ -280,12 +280,14 @@ cutscene task.
    | npc | qa-ai |
    | damage | qa-damage |
    | audio | qa-audio |
+   | scene-growth (crowds, many props, particles) | qa-performance |
 
 4. Checkers measure the result (`acceptance`, `playtest`); the art-director judges the look; the
    verifier closes the task. The builder never grades its own work; whether it is fun is your
    call.
 5. Kiln's hooks watch everything: the guard checks every action (editors only through MCP, no
-   secrets in commits, one agent per editor), and the stop hook reminds the producer when a
+   secrets in commits, one agent per editor, no Godot 3 code in a Godot 4 project, paid
+   generators and free libraries only as the settings allow, spending only after your yes), and the stop hook reminds the producer when a
    task is being closed while a required check is missing (a task file without a gates table is
    not checked).
 
@@ -307,6 +309,11 @@ cutscene task.
 | `production/STATUS.html` | a page showing where things stand |
 | `out/<asset>/` | finished assets in asset mode, each with a README of its numbers and licences |
 | `kiln-report.md` | problems with Kiln, written by agents and by `/kiln:report` |
+| `production/LICENSES.md`, `production/CREDITS.md` | everything someone else made or a model generated, its licence, and the credits lines |
+| `production/SPEND_REQUESTS.md` | paid generations the autopilot asks you to approve |
+| `production/captures/`, `production/baselines/` | captures from the running game, and the approved frames new ones are compared with |
+| `production/autoplay/` | autoplay runs: reports, explorer heatmaps, recorded input replays |
+| `production/release/` | store checks and the draft of Steam's AI disclosure |
 | `~/.kiln/machine.json` | this computer's tools folder and the programs Kiln found or installed |
 | `~/.kiln/projects.json` | every Kiln project on this computer, for `/kiln:update all` |
 | `~/.kiln/update-check.json` | the latest Kiln release seen by the daily check |
