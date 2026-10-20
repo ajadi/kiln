@@ -16,11 +16,13 @@ audit  Engine from manifest.md. Godot: export_presets.cfg exists; every preset k
        its exclude_filter covers them or the folder holds a .gdignore - plus an estimate of
        what ships per preset (Godot's own filter rules: '*' spans '/', '?' never matches '.',
        case-insensitive, dot-folders/.gdignore/nested projects skipped). Unity: Editor build
-       method (name must contain "Build" for the Kiln guard), build profiles, scenes in build,
+       method (KilnRelease.KilnBuild.Build or manifest unity_build_methods, as the Kiln guard
+       allows), build profiles, scenes in build,
        folders that ship unconditionally (Resources, StreamingAssets), test assemblies.
        Unreal: .uproject, packaging settings, never-cook folders, targets.
 build  Runs the engine's documented build command (Godot --headless --export-release, Unity
-       -batchmode -quit -executeMethod <...Build...>, Unreal RunUAT BuildCookRun), prints it,
+       -batchmode -quit -executeMethod <build method>, refused while the editor holds the
+       project; Unreal RunUAT BuildCookRun), prints it,
        checks the artefact is new and non-empty and reports sizes. --dry-run prints only.
 smoke  Launches one built executable (a .py runs under this Python - used by the tests),
        waits N seconds; pass if it is still running or exited 0, and no error line appears in
@@ -400,7 +402,15 @@ def audit_godot(root):
 
 # ---------------------------------------------------------------- Unity
 
+def guard_build_methods(root):
+    """The -executeMethod names the Kiln guard lets run headless: manifest unity_build_methods
+    (comma-separated), default the release skill's KilnRelease.KilnBuild.Build."""
+    listed = read_manifest(root).get("unity_build_methods") or "KilnRelease.KilnBuild.Build"
+    return {m.strip().lower() for m in listed.split(",") if m.strip()}
+
+
 def unity_build_methods(root):
+    allowed = guard_build_methods(root)
     methods = []
     for path in globlib.glob(os.path.join(root, "Assets", "**", "*.cs"), recursive=True):
         code = read_text(path)
@@ -417,7 +427,7 @@ def unity_build_methods(root):
                 full = ".".join(x for x in (ns.group(1) if ns else "", cls.group(1),
                                             m.group(1)) if x)
                 methods.append({"method": full, "file": rel, "editor_folder": in_editor,
-                                "guard_allowed": "build" in full.lower()})
+                                "guard_allowed": full.lower() in allowed})
     return methods
 
 
@@ -440,10 +450,10 @@ def audit_unity(root):
     methods = unity_build_methods(root)
     result["build_methods"] = methods
     if not any(m["guard_allowed"] for m in methods):
-        issues.append("no Editor build method calling BuildPipeline.BuildPlayer with 'Build' in "
-                      "its name (the Kiln guard allows -executeMethod only for build methods); "
-                      "add KilnBuild.cs (release skill, references/engine-builds.md) under an "
-                      "Editor folder")
+        issues.append("no Editor build method calling BuildPipeline.BuildPlayer that the Kiln "
+                      "guard allows (KilnRelease.KilnBuild.Build, or one listed in manifest "
+                      "unity_build_methods); add KilnBuild.cs (release skill, "
+                      "references/engine-builds.md) under an Editor folder")
     for m in methods:
         if not m["editor_folder"]:
             warnings.append(f"{m['file']} uses BuildPipeline outside an Editor folder - player "
@@ -661,9 +671,17 @@ def plan_build(root, engine, manifest, args, issues):
             if not method:
                 issues.append("no build method: pass --method Ns.Class.Build or add KilnBuild.cs")
                 method = "<Namespace.Class.Build>"
-        if "build" not in method.lower():
-            issues.append(f"method {method} has no 'Build' in its name; the Kiln guard denies "
-                          "other -executeMethod calls")
+        if method.lower() not in guard_build_methods(root):
+            issues.append(f"method {method} is not KilnRelease.KilnBuild.Build or listed in "
+                          "manifest unity_build_methods; the Kiln guard denies other "
+                          "-executeMethod calls")
+        if os.path.exists(os.path.join(root, "Temp", "UnityLockfile")):
+            # Unity CLI docs (6000.2, -batchmode): a project open in the editor cannot be opened
+            # in batch mode (bug hunt 2026-10-20)
+            issues.append("the Unity editor has this project open, and -batchmode cannot open a "
+                          "project the editor holds: build in the open editor through MCP for "
+                          "Unity manage_build {action: build, profile: <build profile>, "
+                          "output_path} (then status with job_id), or close the editor first")
         settings = read_text(os.path.join(root, "ProjectSettings", "ProjectSettings.asset"))
         product = re.search(r"^\s*productName:\s*(.+)$", settings, re.M)
         name = slug(product.group(1)) if product else "game"

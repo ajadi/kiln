@@ -110,10 +110,36 @@ class Frames(unittest.TestCase):
                         "--b", answers("b.json", False, True))
         self.assertEqual(out["verdict"], "UNINTENDED")
 
+    def test_failures_without_a_region_still_reach_the_review(self):
+        # bug hunt 2026-10-20: an SSIM-only failure and a size change were dropped, review PASS
+        flat = Image.fromarray(np.full((120, 160, 3), 128, np.uint8))
+        self.shot("flat.png", flat)
+        self.shot("wide.png", scene())
+        run(self.root, "baseline", "cap/flat.png", "cap/wide.png", "--scene", "s")
+        noisy = np.clip(128 + np.random.default_rng(1).integers(-15, 16, (120, 160, 3)), 0, 255)
+        self.shot("flat.png", Image.fromarray(noisy.astype(np.uint8)))
+        self.shot("wide.png", scene().resize((160, 120)))
+        code, res = run(self.root, "compare", "cap/flat.png", "--scene", "s")
+        self.assertEqual(code, 1, res)
+        code, res = run(self.root, "review", "cap/flat.png", "cap/wide.png", "--scene", "s",
+                        "--out", "rev")
+        self.assertEqual((res["verdict"], res["items_to_review"]), ("REVIEW", 2), res)
+        with open(os.path.join(self.root, "rev", "review.json"), encoding="utf-8") as fh:
+            ids = [i["id"] for i in json.load(fh)["items"]]
+        self.assertEqual(ids, ["flat.png#whole", "wide.png#whole"])
+
+    def test_no_image_or_no_baseline_is_not_a_pass(self):
+        code, res = run(self.root, "compare", "cap/none*.png", "--scene", "x")
+        self.assertEqual((code, res["verdict"]), (2, "NOT ASSESSED"), res)
+        self.shot("a.png", scene())
+        code, res = run(self.root, "review", "cap/a.png", "--scene", "x", "--out", "rev")
+        self.assertEqual((code, res["verdict"]), (2, "NOT ASSESSED"), res)
+
     def test_missing_baseline_and_size_change(self):
         self.shot("a.png", scene())
         code, res = run(self.root, "compare", "cap/a.png", "--scene", "x")
         self.assertEqual(res["results"][0]["verdict"], "NOT ASSESSED")
+        self.assertEqual((code, res["verdict"]), (2, "NOT ASSESSED"))
         run(self.root, "baseline", "cap/a.png", "--scene", "x")
         self.shot("a.png", scene().resize((160, 120)))
         code, res = run(self.root, "compare", "cap/a.png", "--scene", "x")

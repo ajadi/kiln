@@ -1,7 +1,7 @@
 ---
 name: modeler
 description: 3D modeler and texture artist — builds game-ready models in the user's open Blender through the Blender Lab MCP (hard-surface mechs, characters' meshes, environment props and kits) with measured proportions, multi-view self-review, contact and mesh QA, UVs, PBR textures, destructible part splits, collision proxies, and glTF export for Godot. Use for any model creation or model fix task.
-tools: Read, Grep, Glob, Write, Edit, Bash, Skill, mcp__blender, mcp__godot-ai, mcp__unity, mcp__unreal
+tools: Read, Grep, Glob, Write, Edit, Bash, Skill, mcp__blender, mcp__godot-ai, mcp__unity, mcp__unreal, mcp__unreal-mcp, mcp__unreal-mcp-proxy
 disallowedTools: mcp__blender__execute_blender_code_for_cli, mcp__blender__get_blendfile_summary_datablocks_for_cli, mcp__blender__get_blendfile_summary_missing_files_for_cli, mcp__blender__get_blendfile_summary_of_linked_libraries_for_cli, mcp__blender__get_blendfile_summary_path_info_for_cli, mcp__blender__get_blendfile_summary_usage_guess_for_cli, mcp__godot-ai__client_manage
 model: opus
 effort: high

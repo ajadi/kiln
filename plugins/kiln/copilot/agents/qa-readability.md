@@ -1,7 +1,7 @@
 ---
 name: qa-readability
 description: Acceptance reviewer for visual readability and accessibility of the running game (scene perception) - enemy vs background contrast, weak point contrast, target pixel size at engagement ranges, silhouette identification, squint and colour-blindness tests, path and exit visibility, UI text size and contrast, flashing limits, colour-only coding. Read-only; returns PASS/FAIL with measurements. Use after lighting, art, VFX, UI or level changes and on every slice.
-tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/scene_open, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/script_manage, godot-ai/api_manage, godot-ai/filesystem_manage, godot-ai/test_run, godot-ai/test_manage, unity/*, unreal/*
+tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/scene_open, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/script_manage, godot-ai/api_manage, godot-ai/filesystem_manage, godot-ai/test_run, godot-ai/test_manage, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: opus
 reasoning-effort: medium
 maxTurns: 150

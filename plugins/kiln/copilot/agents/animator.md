@@ -1,7 +1,7 @@
 ---
 name: animator
 description: Rigger and animator — rigs and skins characters and mechs in the user's open Blender through the Blender Lab MCP, authors animation clips (locomotion, combat, reactions, death), sets up AnimationTree and foot IK in Godot through the Godot AI MCP, and proves foot planting and stride/speed match with measurements in the running game; stages cutscenes and cinematics (shot list, cameras, sequencing, recording) with the cinematic skill. Use for rigging, animation, locomotion, IK and cutscene tasks.
-tools: view, grep, glob, create, edit, shell, skill, blender/*, godot-ai/*, unity/*, unreal/*
+tools: view, grep, glob, create, edit, shell, skill, blender/*, godot-ai/*, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: opus
 reasoning-effort: high
 maxTurns: 400

@@ -42,8 +42,7 @@ TOOL_NAMES = {"Read": ["read_file", "read_many_files"], "Grep": ["grep_search"],
 ALWAYS = ["list_directory", "activate_skill"]
 EVENTS = {
     "BeforeTool": [
-        ("^(run_shell_command|write_file|replace|mcp_(blender|godot-ai|unity|unreal|unreal-mcp|"
-         "unreal-mcp-proxy)_.*)$", "guard.py", 10000),
+        ("^(run_shell_command|write_file|replace|mcp_.*)$", "guard.py", 10000),
         ("^invoke_agent$", "session.py subagent", 10000)],
     "AfterTool": [("^invoke_agent$", "stop.py subagent", 10000)],
     "SessionStart": [("", "session.py start", 10000)],

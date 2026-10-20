@@ -1,7 +1,7 @@
 ---
 name: tech-designer
 description: Technical designer — before anything non-trivial is built, researches how to build it (engine docs, talks, open-source implementations), compares 2–4 approaches on quality, cost, risk, performance, editor-editability and reversibility, recommends one, defines a measurable spike, and writes a tech design note; calls the physics, anatomy or creature experts when their domain is involved. Use when the user or the team is unsure HOW to implement something (locomotion, IK, destruction, AI, fog of war, weapons, networking, tools) and before Phase 5 mechanics.
-tools: Read, Grep, Glob, Write, Edit, Bash, Skill, WebSearch, WebFetch, mcp__godot-ai__editor_state, mcp__godot-ai__api_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__node_get_properties, mcp__godot-ai__logs_read, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__game_manage, mcp__unity, mcp__unreal
+tools: Read, Grep, Glob, Write, Edit, Bash, Skill, WebSearch, WebFetch, mcp__godot-ai__editor_state, mcp__godot-ai__api_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__node_get_properties, mcp__godot-ai__logs_read, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__game_manage, mcp__unity, mcp__unreal, mcp__unreal-mcp, mcp__unreal-mcp-proxy
 model: opus
 effort: high
 maxTurns: 120

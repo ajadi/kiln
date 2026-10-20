@@ -10,9 +10,14 @@ user-invocable: false
 
 Default server: **CoplayDev "MCP for Unity"** (MIT, Unity 2021.3–6.x), registered in Claude Code as
 `unity` (`claude mcp add --scope user --transport http unity http://localhost:8080/mcp`, HTTP lets
-several clients share one editor). Pin a release tag of the package; activate only the `core`,
-`testing`, `scripting_ext` and `profiling` tool groups (`manage_tools`); keep `asset_gen` off — it
-contains generators and a separate Blender bridge. Never run two Unity MCP bridges on one project.
+several clients share one editor). Pin a release tag of the package. Tool groups (v10.3.0): only
+`core` is on by default; Kiln uses `testing` (run_tests), `scripting_ext` (execute_code),
+`profiling` (manage_profiler), `vfx` (manage_shader, manage_texture) and `docs` (unity_reflect,
+unity_docs). `manage_tools {action: activate, group}` lasts one MCP session only: setup turns the
+groups on in the editor's toggle window (Window > MCP for Unity > Tools), which persists, and each
+session starts with `manage_tools {action: sync}` (read-only roles may sync and activate testing,
+scripting_ext, profiling and docs themselves). Keep `asset_gen` off — it contains generators and a
+separate Blender bridge. Never run two Unity MCP bridges on one project.
 Unity's official `unity mcp` (Unity CLI + `com.unity.pipeline`) is experimental and needs a Unity
 sign-in; switch to it when it is stable (richer: prefab variants/overrides, autotick, input
 simulation).
@@ -34,8 +39,12 @@ these tools. Never hand-edit `.unity`, `.prefab`, `.asset`, `.mat`, `.meta` or
 checked with `validate_script` / `read_console` before handoff. Do not build scenes in bulk
 through `execute_code` — use the explicit scene/prefab tools so the work is visible and undoable.
 
-Tools that Kiln has only for Godot so far: import options are changed in the editor through
-MCP for Unity (`manage_asset`), never in `.meta` by hand; headless probes are `KilnProbe.cs` in
+Tools that Kiln has only for Godot so far: import options are changed in the editor, never in
+`.meta` by hand. `manage_asset modify` reaches only `TextureImporter` (v10.3.0 ManageAsset.cs has
+a TODO for models), so model import settings (Humanoid avatar, Bake Axis Conversion, LOD heights,
+animation clips) go through a project `AssetPostprocessor` (Editor folder, `OnPreprocessModel`) or
+a builder role's `execute_code` with the `ModelImporter` API (`AssetImporter.GetAtPath(path) as
+ModelImporter`, set the fields, `SaveAndReimport()`); headless probes are `KilnProbe.cs` in
 PlayMode tests; CPU-skinned mesh fits use `SkinnedMeshRenderer.BakeMesh` in a test; there is no
 Kiln autoplay base yet (Input System `InputTestFixture` is the route). A check that needs a
 missing helper is NOT ASSESSED with that reason until the first task builds the helper.
@@ -105,7 +114,7 @@ Compression None, one Pixels Per Unit for the whole project. Art rules in the ar
 
 | Wrong | Right |
 |---|---|
-| `FindObjectOfType` / `FindObjectsOfType` | `FindFirstObjectByType` / `FindAnyObjectByType` / `FindObjectsByType(FindObjectsSortMode.None)` |
+| `FindObjectOfType` / `FindObjectsOfType` | `FindAnyObjectByType` / `FindObjectsByType(FindObjectsSortMode.None)` (Unity 6.6 marks `FindFirstObjectByType` and the sort-mode overloads obsolete: CS0618 warnings, not errors; the sort mode is still required on 6.0) |
 | `Rigidbody.velocity`, `drag`, `angularDrag` | `linearVelocity`, `linearDamping`, `angularDamping` |
 | `PhysicMaterial` | `PhysicsMaterial` |
 | `Rigidbody.SetDensity` | set `mass` |
@@ -155,14 +164,16 @@ Compression None, one Pixels Per Unit for the whole project. Art rules in the ar
 | logs | `read_console` {action: get, types: [error, warning], count} |
 | input | Input System device state through `execute_code` (fully qualified: `UnityEngine.InputSystem.InputSystem.QueueStateEvent(UnityEngine.InputSystem.Keyboard.current, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.W))`, applied next update, held until the next state event) or an injectable input seam (`IPlayerInput`); tests use `InputTestFixture` (override `Setup`/`TearDown`) |
 | runtime values / recorder | `KilnProbe` from the acceptance skill (`scripts/unity/KilnProbe.cs`): install with `create_script` {path: `Assets/_Project/Scripts/Runtime/Kiln/KilnProbe.cs`, contents}; add to a `_KilnProbe` object in the test scene (`manage_gameobject` create, `manage_components` add, `manage_scene` save) or `KilnProbe.Attach()` in Play mode; FixedUpdate or LateUpdate samples → `production/captures/<task>/probe_<run>.jsonl`. The class compiles only under `UNITY_EDITOR \|\| DEVELOPMENT_BUILD`; gameplay components may implement the always-compiled `IKilnProbeSource` |
-| driving the probe | `execute_code` {action: execute, code} — a method body that must `return`; only `UnityEngine`/`UnityEditor` are imported, so write `Kiln.Probes.KilnProbe.Find()`; `StartRecording(task, run, samples)`, `Done`, `StopRecording()` |
-| captures | `manage_camera` {action: screenshot, capture_source: game_view, include_image, screenshot_file_name}, or `ScreenCapture.CaptureScreenshot("production/captures/...png")` (path relative to the project in the editor) |
+| driving the probe | `execute_code` {action: execute, code} — a method body that must `return`; `UnityEngine`, `UnityEditor`, `System`, `System.Linq`, `System.Collections.Generic` and `System.Reflection` are imported (not `Kiln.Probes`), so write `Kiln.Probes.KilnProbe.Find()`; `StartRecording(task, run, samples)`, `Done`, `StopRecording()` |
+| captures | `manage_camera` {action: screenshot, capture_source: game_view, include_image, screenshot_file_name, output_folder: `production/captures/<task>`} — always pass output_folder: without it captures land in `Assets/Screenshots` and import as project textures — or `ScreenCapture.CaptureScreenshot("production/captures/...png")` (path relative to the project in the editor) |
 | frame timing | `KilnProbe` frame lines (`FrameTimingManager` cpu/main/render/gpu, four frames late, always on in the editor and Development players), `manage_profiler` {action: get_frame_timing} for one snapshot, `ProfilerRecorder` |
 | tests | `run_tests` {mode: EditMode/PlayMode} + `get_test_job` |
 
 Set Play Mode Input Behavior to "All Device Input Always Goes To Game View" for agent sessions;
 the editor may stop ticking while unfocused — enable Run In Background. Write numbers with
 `CultureInfo.InvariantCulture` (a Russian-locale Windows writes `1,5`). Read-only roles mark their
-`execute_code` probes with `// kiln:probe`; the guard refuses other code from them. `execute_code`
-is in the `scripting_ext` tool group; `run_tests`/`get_test_job` in `testing`; `manage_profiler`
-in `profiling`.
+`execute_code` probes with `// kiln:probe`; the guard refuses their other code and probe code that
+saves scenes, changes assets, prefabs, settings or files, or creates objects (a convention plus a
+scan, not a sandbox). Builder `execute_code` that builds scene content is refused like a script.
+`execute_code` is in the `scripting_ext` tool group; `run_tests`/`get_test_job` in `testing`;
+`manage_profiler` in `profiling`.

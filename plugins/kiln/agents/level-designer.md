@@ -1,7 +1,7 @@
 ---
 name: level-designer
 description: Level designer — lays out, blocks out, dresses and lights game levels as editor-authored Godot scenes through the Godot AI MCP (arenas, connectors, cover, navigation, climbable surfaces, destructible placement), matching a visual reference when given. Use for level layout, blockout, set dressing and level fixes. Does not generate levels with runtime code.
-tools: Read, Grep, Glob, Write, Edit, Bash, Skill, mcp__godot-ai, mcp__unity, mcp__unreal
+tools: Read, Grep, Glob, Write, Edit, Bash, Skill, mcp__godot-ai, mcp__unity, mcp__unreal, mcp__unreal-mcp, mcp__unreal-mcp-proxy
 disallowedTools: mcp__godot-ai__client_manage
 model: opus
 effort: medium

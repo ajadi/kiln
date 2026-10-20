@@ -24,6 +24,7 @@ them on a model the art-director accepted.
 import argparse
 import json
 import os
+import re
 import sys
 
 import numpy as np
@@ -74,10 +75,10 @@ def iou(a, b):
 def compare(ref_path, render_path, min_iou, max_aspect, diff_path=None, max_disagree=None):
     ref = mask_of(ref_path)
     ren = mask_of(render_path)
-    if ren.shape != ref.shape:
-        img = Image.fromarray((ren * 255).astype(np.uint8)).resize(
-            (ref.shape[1], ref.shape[0]), Image.NEAREST)
-        ren = np.asarray(img) >= CUT
+    # canvases of different sizes are not stretched to each other: fit() scales the render's
+    # own silhouette uniformly onto the reference (bug hunt 2026-10-20: a 400x300 render of the
+    # same disc as a 512x512 reference was squashed and failed)
+    same_canvas = ren.shape == ref.shape
     rb, nb = bbox(ref), bbox(ren)
     if rb is None or nb is None:
         return {"ref": ref_path, "render": render_path, "verdict": "fail",
@@ -99,10 +100,19 @@ def compare(ref_path, render_path, min_iou, max_aspect, diff_path=None, max_disa
     ok = score >= min_iou and abs(aspect_delta) <= max_aspect and (
         max_disagree is None or max(outline.values()) <= max_disagree)
     return {"ref": ref_path, "render": render_path, "iou": round(score, 4),
-            "raw_iou": round(iou(ref, ren), 4), "aspect_delta": round(float(aspect_delta), 4),
+            "raw_iou": round(iou(ref, ren), 4) if same_canvas else None,
+            "aspect_delta": round(float(aspect_delta), 4),
             **outline,
             "ref_only_px": int((ref & ~fitted).sum()), "render_only_px": int((~ref & fitted).sum()),
             "threshold": min_iou, "verdict": "pass" if ok else "fail", "diff": diff_path}
+
+
+def split_pair(text):
+    """ref:render with Windows drive letters allowed on either side (D:/x/a.png:D:/x/b.png)."""
+    m = re.match(r"^((?:[A-Za-z]:)?[^:]+):((?:[A-Za-z]:)?[^:]+)$", text)
+    if not m:
+        raise SystemExit(f"--pairs takes ref.png:render.png, got {text}")
+    return [m.group(1), m.group(2)]
 
 
 def main(argv=None):
@@ -117,7 +127,7 @@ def main(argv=None):
     parser.add_argument("--max-disagree", type=float, default=None,
                         help="also gate on the outline profiles (0.08 for hard surface)")
     args = parser.parse_args(argv)
-    pairs = [p.rsplit(":", 1) for p in args.pairs]
+    pairs = [split_pair(p) for p in args.pairs]
     if args.ref and args.render:
         pairs.insert(0, [args.ref, args.render])
     if not pairs:

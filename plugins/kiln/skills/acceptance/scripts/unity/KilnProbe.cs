@@ -117,7 +117,8 @@ namespace Kiln.Probes
         public int FramesWritten { get; private set; }
 
         /// <summary>The probe in the loaded scenes, or null.</summary>
-        public static KilnProbe Find() => FindFirstObjectByType<KilnProbe>();
+        // FindAnyObjectByType: one probe per scene; FindFirstObjectByType is obsolete in Unity 6.6
+        public static KilnProbe Find() => FindAnyObjectByType<KilnProbe>();
 
         /// <summary>Play mode only: the scene's probe, or a throwaway one discarded when play stops.</summary>
         public static KilnProbe Attach()

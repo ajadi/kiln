@@ -209,8 +209,10 @@ MCP once the editor is connected (not by editing `project.godot`).
    `MCPForUnity/package.json`), only with `python "${CLAUDE_PLUGIN_ROOT}/scripts/json_config.py"
    merge --file Packages/manifest.json --json '{"dependencies": {"<name>": "<git url>"}}'` (a
    broken manifest stops Unity at package resolution). Start its HTTP server (Window → MCP for Unity; use its auto-start
-   if it has one, otherwise this is the one handed-over click, with that reason); enable only the
-   core, testing, scripting_ext and profiling tool groups (asset_gen off).
+   if it has one, otherwise this is the one handed-over click, with that reason); turn on the
+   core, testing, scripting_ext, profiling, vfx and docs tool groups in Window > MCP for Unity >
+   Tools (asset_gen off) - that toggle window persists, while `manage_tools activate` lasts one
+   MCP session; agents call `manage_tools {action: sync}` at the start of a session.
 3. Register once per user: `claude mcp add --scope user --transport http unity http://localhost:8080/mcp`.
 4. Project settings for agents (through the MCP after connecting): Run In Background on, Play
    Mode Input Behavior "All Device Input Always Goes To Game View", Asset Serialization Force
@@ -219,13 +221,16 @@ MCP once the editor is connected (not by editing `project.godot`).
 ### Unreal 5.8
 
 1. Create the project yourself: copy the engine's template (`<UE>/Templates/TP_Blank` or
-   `TP_FirstPerson`; C++ if gameplay code is planned) into this folder and rename the
+   `TP_FirstPerson`; always a C++ project: Kiln's acceptance probe (`KilnProbeComponent`) is a C++
+   component, so a Blueprint-only project has nowhere to compile it; Visual Studio with the game
+   C++ workload is needed) into this folder and rename the
    `.uproject` — UNVERIFIED: confirm it opens (a C++ template also needs its module renamed). The
    Epic launcher is the fallback, handed to the user with the reason.
 2. Enable **Unreal MCP**, **AllToolsets** and **Python Editor Script Plugin** yourself: `Plugins`
    entries (`{"Name": "<plugin>", "Enabled": true}`) in the `.uproject` before the first open,
-   with `json_config.py merge --file <name>.uproject --json '{"Plugins": [...]}'` (lists are
-   joined; a broken `.uproject` does not open),
+   with `json_config.py merge --file <name>.uproject --json '{"Plugins": [...]}'` (entries merge
+   by `Name`, so a plugin listed as disabled is switched on, not listed twice; a broken
+   `.uproject` does not open),
    then start or restart the editor yourself. Per user: MCP auto-start on, port 8000, path `/mcp`
    (engine-unreal skill).
 3. Register once per user: `claude mcp add --scope user --transport http unreal http://127.0.0.1:8000/mcp`

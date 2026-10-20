@@ -1,7 +1,7 @@
 ---
 name: qa-locomotion
 description: Acceptance reviewer for locomotion and animation in the running game - foot skating, ground float/penetration with IK on stairs and slopes, stride vs speed plausibility, gait phase through walk/run blends, pose pops, multi-legged and wall-climbing mech stability. Read-only; returns PASS/FAIL with measurements. Use after any rig, clip, AnimationTree, IK or movement-speed change.
-tools: Read, Grep, Glob, Bash, Skill, Write, Edit, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate, mcp__godot-ai__editor_state, mcp__godot-ai__logs_read, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__scene_open, mcp__godot-ai__node_get_properties, mcp__godot-ai__node_find, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__game_manage, mcp__godot-ai__script_manage, mcp__godot-ai__api_manage, mcp__godot-ai__filesystem_manage, mcp__godot-ai__test_run, mcp__godot-ai__test_manage, mcp__unity, mcp__unreal
+tools: Read, Grep, Glob, Bash, Skill, Write, Edit, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate, mcp__godot-ai__editor_state, mcp__godot-ai__logs_read, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__scene_open, mcp__godot-ai__node_get_properties, mcp__godot-ai__node_find, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__game_manage, mcp__godot-ai__script_manage, mcp__godot-ai__api_manage, mcp__godot-ai__filesystem_manage, mcp__godot-ai__test_run, mcp__godot-ai__test_manage, mcp__unity, mcp__unreal, mcp__unreal-mcp, mcp__unreal-mcp-proxy
 model: sonnet
 effort: high
 maxTurns: 150

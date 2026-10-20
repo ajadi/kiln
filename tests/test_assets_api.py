@@ -132,3 +132,23 @@ class AssetsApi(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HdriSize(unittest.TestCase):
+    def test_a_missing_size_falls_back_to_the_nearest_below_not_the_largest(self):
+        # bug hunt 2026-10-20: a string sort picked "16k" when the asked size was missing
+        import argparse
+        sys.path.insert(0, os.path.dirname(SCRIPT))
+        import assets_api
+        files = {"hdri": {r: {"hdr": {"url": f"https://x/sky_{r}.hdr", "md5": "0"}}
+                          for r in ("1k", "2k", "4k", "8k", "16k")}}
+        orig = assets_api.fetch_json
+        assets_api.fetch_json = lambda url: files
+        try:
+            src = assets_api.PolyHaven()
+            for asked, want in (("3k", "sky_2k.hdr"), ("2K", "sky_2k.hdr"), ("512", "sky_1k.hdr")):
+                item = {"id": "sky", "kind": "hdri"}
+                out, _ = src.files(item, argparse.Namespace(res=asked))
+                self.assertEqual(out[0][1], want, asked)
+        finally:
+            assets_api.fetch_json = orig

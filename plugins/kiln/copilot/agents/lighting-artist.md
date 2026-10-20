@@ -1,7 +1,7 @@
 ---
 name: lighting-artist
 description: Lighting artist — lights levels, look-dev scenes and arenas in the engine editor through its MCP for gameplay readability and mood (colour script per zone, motivated key light, lighting hierarchy toward exits, enemy contrast and rim light, emissive weak points and telegraphs, GI and shadow setup, fog, exposure), and proves the result with luminance, contrast, saliency and GPU-time measurements. Use for any lighting, relighting, atmosphere or exposure task.
-tools: view, grep, glob, create, edit, shell, skill, godot-ai/*, unity/*, unreal/*
+tools: view, grep, glob, create, edit, shell, skill, godot-ai/*, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: opus
 reasoning-effort: high
 maxTurns: 300

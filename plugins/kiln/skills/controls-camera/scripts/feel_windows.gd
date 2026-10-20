@@ -22,9 +22,13 @@ extends RefCounted
 ##       check("latency_max", lat.max, "<=", 2, "feel-numbers: next physics tick")
 ##       check("latency_jitter", lat.jitter, "<=", 1, "research: jitter hurts, constant latency less")
 ##
-## A window is how many frames the action still works: pressing it k = 0, 1, 2, ... frames after
-## (or before) the event, the count of k that work in a row (0 = never). Each k is a fresh run from `reset`, so one
-## attempt never leaks into the next. Run with `--fixed-fps 60` (1 frame = 1 physics tick).
+## A window is how many frames the action still works, counted in a row (0 = never): after the
+## event, a press on the first tick after it is k = 0; before the event, a press k = 1, 2, ...
+## ticks before the landing tick (a press on the landing tick itself is not buffering). So a
+## controller that allows C airborne frames reads C, one that keeps a press B frames reads B -
+## exactly, checked live against frame-counter controllers. Each k is a fresh run from `reset`,
+## so one attempt never leaks into the next. Run with `--fixed-fps 60` (1 frame = 1 physics tick);
+## probe_base's ticks() resumes at the end of a tick, so presses land on the next one.
 
 var probe        # the running probe (acceptance probe_base.gd): ticks(), press(), release()
 
@@ -86,8 +90,10 @@ func window_before(reset: Callable, event: Callable, action: StringName, success
 	var lead := await _wait_until(event, 600)
 	if lead < 0:
 		return -1
-	var last := -1
-	for k in range(0, mini(max_frames, lead) + 1):
+	# k = ticks from the press to the landing tick; k = 0 (pressed on the landing tick itself) is
+	# not buffering, so the count starts at 1 (bug hunt 2026-10-20)
+	var count := 0
+	for k in range(1, mini(max_frames, lead) + 1):
 		await reset.call()
 		await probe.ticks(lead - k)
 		probe.press(action)
@@ -100,10 +106,10 @@ func window_before(reset: Callable, event: Callable, action: StringName, success
 				break
 			await probe.ticks(1)
 		if ok:
-			last = k
+			count = k
 		else:
 			break
-	return last + 1
+	return count
 
 
 func latency(reset: Callable, action: StringName, responded: Callable, presses: int = 20,

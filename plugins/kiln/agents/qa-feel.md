@@ -1,7 +1,7 @@
 ---
 name: qa-feel
 description: Acceptance reviewer for game feel and combat feedback - input-to-response ticks, forgiveness windows, hit feedback timing (hit-stop, flash, sound, marker, shake, recoil), enemy telegraph durations, escalating reactions, TTK against the design table. Read-only; returns PASS/FAIL with measurements. Use after changes to controls, weapons, hit feedback or enemy attacks.
-tools: Read, Grep, Glob, Bash, Skill, Write, Edit, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate, mcp__godot-ai__editor_state, mcp__godot-ai__logs_read, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__scene_open, mcp__godot-ai__node_get_properties, mcp__godot-ai__node_find, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__game_manage, mcp__godot-ai__script_manage, mcp__godot-ai__api_manage, mcp__godot-ai__filesystem_manage, mcp__godot-ai__test_run, mcp__godot-ai__test_manage, mcp__unity, mcp__unreal
+tools: Read, Grep, Glob, Bash, Skill, Write, Edit, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate, mcp__godot-ai__editor_state, mcp__godot-ai__logs_read, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__scene_open, mcp__godot-ai__node_get_properties, mcp__godot-ai__node_find, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__game_manage, mcp__godot-ai__script_manage, mcp__godot-ai__api_manage, mcp__godot-ai__filesystem_manage, mcp__godot-ai__test_run, mcp__godot-ai__test_manage, mcp__unity, mcp__unreal, mcp__unreal-mcp, mcp__unreal-mcp-proxy
 model: sonnet
 effort: high
 maxTurns: 150
@@ -23,7 +23,7 @@ flash, sound start, hit marker and target reaction change (`analyze.py reaction`
 | Check | PASS | Source |
 |---|---|---|
 | Input → response | movement/camera on the next physics tick; visible/audible feedback within ≤ 2 rendered frames (working) | Swink: real-time control ≤ 100 ms; aiming degrades from ~41 ms added latency; target ≤ 60 ms end to end at 60 fps (working) |
-| Coyote time / jump buffer | measured with controls-camera `feel_windows.gd` (frames the jump still works after leaving the ground / when pressed before landing) within ±1 frame of the game's `data/feel.tres`; defaults 0.1 s / 0.08 s | Celeste Player.cs (coyote 0.1 s); buffer working |
+| Coyote time / jump buffer | measured with controls-camera `feel_windows.gd` (frames the jump still works after leaving the ground / when pressed before landing) equal to the game's `data/feel.tres` in frames (the probe reads exact frame counts; ±1 only for a constant that is not a whole number of frames); defaults 0.1 s / 0.08 s | Celeste Player.cs (coyote 0.1 s); buffer working |
 | Input latency jitter | `feel_windows.gd` latency over ≥ 12 presses on varied frames: max ≤ 2 frames, max − min ≤ 1 frame | constant latency hurts far less than jitter (latency research) |
 | Attacks connect (`analyze.py hits --segment hilt,tip --targets <name@impact_frame,...> --radius <hit radius>`; QA contract state `attack`) | targets placed all round the character (8 directions) and the character facing each: at every impact frame the weapon segment passes within the target's hit radius | geometry; UNVERIFIED radius per game (reasoning in the acceptance research notes) |
 | Hit feedback sync | marker, sound and VFX start on the tick the hit registers | juice practice |

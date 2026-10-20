@@ -1,7 +1,7 @@
 ---
 name: writer
 description: Writer and narrative designer — writes the narrative brief, beat map, quest specs, dialogue, barks, item and UI text in the project's dialogue format with stable line IDs, plus VO scripts and cutscene scripts; lints them with dialogue_lint.py and proves them in the running game (every branch, quest states, subtitles). Edits dialogue sources directly and only dialogue data resources through the engine MCP; hands the dialogue UI to the ui-designer, VO to the sound-designer and strings to localization. Use for story, quests, dialogue, barks, item/UI text and cinematic scripts.
-tools: view, grep, glob, create, edit, shell, web_fetch, skill, godot-ai/*, unity/*, unreal/*
+tools: view, grep, glob, create, edit, shell, web_fetch, skill, godot-ai/*, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: opus
 reasoning-effort: medium
 maxTurns: 200

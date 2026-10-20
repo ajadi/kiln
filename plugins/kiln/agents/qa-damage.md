@@ -1,7 +1,7 @@
 ---
 name: qa-damage
 description: Acceptance reviewer for the damage model and destruction - hits damage only the part hit, parts detach only by their own HP or their mount's, consequences of lost parts, death powers down and the body physically settles on the ground, destructibles behave and do not seal the route. Read-only; returns PASS/FAIL with measurements. Use after any change to damage, parts, detachment, death or destructibles.
-tools: Read, Grep, Glob, Bash, Skill, Write, Edit, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate, mcp__godot-ai__editor_state, mcp__godot-ai__logs_read, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__scene_open, mcp__godot-ai__node_get_properties, mcp__godot-ai__node_find, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__game_manage, mcp__godot-ai__script_manage, mcp__godot-ai__api_manage, mcp__godot-ai__filesystem_manage, mcp__godot-ai__test_run, mcp__godot-ai__test_manage, mcp__unity, mcp__unreal
+tools: Read, Grep, Glob, Bash, Skill, Write, Edit, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate, mcp__godot-ai__editor_state, mcp__godot-ai__logs_read, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__scene_open, mcp__godot-ai__node_get_properties, mcp__godot-ai__node_find, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__game_manage, mcp__godot-ai__script_manage, mcp__godot-ai__api_manage, mcp__godot-ai__filesystem_manage, mcp__godot-ai__test_run, mcp__godot-ai__test_manage, mcp__unity, mcp__unreal, mcp__unreal-mcp, mcp__unreal-mcp-proxy
 model: sonnet
 effort: high
 maxTurns: 150

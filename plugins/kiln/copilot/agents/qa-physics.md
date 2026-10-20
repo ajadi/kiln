@@ -1,7 +1,7 @@
 ---
 name: qa-physics
 description: Acceptance reviewer for physics and collision in the running Godot game - tunneling, resting jitter and sleep, ragdoll stability, character controller on steps/slopes/ledges, collision layer/mask matrix, physics tick health, mass and scale plausibility, and element systems (state thresholds, cooling, fire spread and burn-out, conservation, conduction). Read-only; returns PASS/FAIL with measurements. Use after any change to bodies, colliders, controllers, debris or ragdolls, and on every vertical slice.
-tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/scene_open, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/script_manage, godot-ai/api_manage, godot-ai/filesystem_manage, godot-ai/test_run, godot-ai/test_manage, unity/*, unreal/*
+tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/scene_open, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/script_manage, godot-ai/api_manage, godot-ai/filesystem_manage, godot-ai/test_run, godot-ai/test_manage, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: sonnet
 reasoning-effort: high
 maxTurns: 150

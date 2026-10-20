@@ -1,7 +1,7 @@
 ---
 name: playtester
 description: Playtester / QA — runs the game in the connected Godot editor through the Godot AI MCP, drives input, samples runtime values, screenshots and reads logs and performance monitors to check a task's acceptance criteria, and reports PASS/FAIL with measurements and a minimal reproduction. Read-only on game content. Use after an implementation step and for regression passes over gyms and levels.
-tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/scene_open, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/script_manage, godot-ai/api_manage, godot-ai/filesystem_manage, godot-ai/test_run, godot-ai/test_manage, unity/*, unreal/*
+tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/scene_open, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/script_manage, godot-ai/api_manage, godot-ai/filesystem_manage, godot-ai/test_run, godot-ai/test_manage, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: sonnet
 reasoning-effort: high
 maxTurns: 150

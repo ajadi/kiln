@@ -3,7 +3,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "^(Bash|apply_patch|mcp__(blender|godot-ai|unity|unreal|unreal-mcp|unreal-mcp-proxy)__.*)$",
+        "matcher": "^(Bash|apply_patch|mcp__.*)$",
         "hooks": [
           {
             "type": "command",

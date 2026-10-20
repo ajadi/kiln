@@ -38,6 +38,7 @@ var objectives: Dictionary = {}       # name -> {check, timeout_s, t}
 var stuck: Array = []
 var hitches := 0
 var hitches_after_shot := 0
+var _headless := false
 var _progress: Callable
 var _history: Array = []              # [t, value]
 var _in_stuck := false
@@ -69,6 +70,11 @@ func _initialize() -> void:
 				if kv.size() == 2:
 					_overrides[kv[0]] = str_to_var(kv[1])
 	seed(seed_value)
+	# headless renders nothing: no shots (each one printed an engine error and skipped the frame's
+	# stop and time checks), and frame times are wall-clock noise, not hitches (bug hunt 2026-10-20)
+	_headless = DisplayServer.get_name() == "headless"
+	if _headless:
+		shots_every = 0.0
 	var abs_out := ProjectSettings.globalize_path(out_dir) if out_dir.begins_with("res://") else out_dir
 	out_dir = abs_out
 	DirAccess.make_dir_recursive_absolute(out_dir.path_join("shots"))
@@ -164,7 +170,6 @@ func _process(delta: float) -> bool:
 			if img:
 				img.save_png(out_dir.path_join("shots/t%06.1f.png" % t))
 				_after_shot = true
-				return false
 	if FileAccess.file_exists("res://.kiln/autoplay-stop"):
 		finish("stop file: the user is back")
 	elif wall_s() > minutes * 60.0:
@@ -180,7 +185,7 @@ func _record(t: float, ms: float) -> void:
 		comp += Performance.get_monitor(m)
 	var flagged := _after_shot
 	_after_shot = false
-	if ms > 0.0:
+	if ms > 0.0 and not _headless:
 		_frame_times.append(ms)
 		if _frame_times.size() > 120:
 			_frame_times.pop_front()
@@ -244,8 +249,10 @@ func finish(reason: String) -> void:
 		mtimes[path] = FileAccess.get_modified_time(path)
 	var summary := {"seed": seed_value, "scenario": get_script().resource_path.get_file(),
 		"commit": _commit(), "watched_mtimes": mtimes, "reason": reason,
-		"objectives": reached, "stuck": stuck, "hitches": hitches,
-		"hitches_after_shot": hitches_after_shot, "game_s": snappedf(elapsed(), 0.01),
+		"objectives": reached, "stuck": stuck,
+		"hitches": null if _headless else hitches,          # not measured headless
+		"hitches_after_shot": null if _headless else hitches_after_shot,
+		"game_s": snappedf(elapsed(), 0.01),
 		"wall_s": wall_s(),
 		"viewport_overrides": _overrides, "headless": DisplayServer.get_name() == "headless",
 		"verdict": verdict}

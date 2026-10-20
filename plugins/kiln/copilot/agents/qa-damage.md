@@ -1,7 +1,7 @@
 ---
 name: qa-damage
 description: Acceptance reviewer for the damage model and destruction - hits damage only the part hit, parts detach only by their own HP or their mount's, consequences of lost parts, death powers down and the body physically settles on the ground, destructibles behave and do not seal the route. Read-only; returns PASS/FAIL with measurements. Use after any change to damage, parts, detachment, death or destructibles.
-tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/scene_open, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/script_manage, godot-ai/api_manage, godot-ai/filesystem_manage, godot-ai/test_run, godot-ai/test_manage, unity/*, unreal/*
+tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/scene_open, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/script_manage, godot-ai/api_manage, godot-ai/filesystem_manage, godot-ai/test_run, godot-ai/test_manage, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: sonnet
 reasoning-effort: high
 maxTurns: 150

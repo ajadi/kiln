@@ -47,10 +47,10 @@ SCENE = """[gd_scene load_steps=2 format=3]
 script = ExtResource("1")
 
 [node name="HUD" type="Panel" parent="."]
-offset_left = 20.0
-offset_top = 20.0
-offset_right = 220.0
-offset_bottom = 60.0
+offset_left = 100.0
+offset_top = 60.0
+offset_right = 300.0
+offset_bottom = 100.0
 
 [node name="Gold" type="Label" parent="HUD"]
 offset_left = 8.0
@@ -92,6 +92,10 @@ func states() -> Array:
 		{"name": "hud_short", "kind": "ui", "apply": func(s): s.get_node("HUD/Gold").text = "12"},
 		{"name": "hud_longest", "kind": "ui",
 		 "apply": func(s): s.get_node("HUD/Gold").text = "Gold: 999 999 999 999 999 999 999"},
+		{"name": "hud_unsafe", "kind": "ui",
+		 "apply": func(s): s.get_node("HUD").position = Vector2(4, 4)},
+		{"name": "apply_error", "kind": "ui",
+		 "apply": func(s): s.get_node("NoSuchNode").text = "x"},
 		{"name": "torch_fire", "kind": "anchor", "frames": 20, "tolerance": 2.0,
 		 "track": {"emitter": "Torch/Fire", "holder": "Torch/Tip"}},
 		{"name": "torch_fire_broken", "kind": "anchor", "frames": 20, "tolerance": 2.0,
@@ -138,12 +142,22 @@ class QaContract(unittest.TestCase):
         self.assertEqual(self.res["verdict"], "FAIL")
         self.assertTrue(os.path.isfile(os.path.join(self.res["run"], "report.json")))
         self.assertEqual(sorted(self.res["failed"]),
-                         ["hud_longest", "idle_loop_sprite", "torch_fire_broken"])
+                         ["hud_longest", "hud_unsafe", "idle_loop_sprite", "torch_fire_broken"])
 
     def test_ui_overflow(self):
         self.assertEqual(self.states["hud_short"]["verdict"], "PASS", self.states["hud_short"])
         bad = self.states["hud_longest"]
         self.assertIn("outside its container", " ".join(bad["problems"]))
+
+    def test_ui_check_layout_fails_a_state(self):
+        # bug hunt 2026-10-20: ui_check answers "fail" in lower case; the compare never matched
+        bad = self.states["hud_unsafe"]
+        self.assertEqual(bad["ui_check"], "fail", bad)
+        self.assertIn("outside_safe_area", " ".join(bad["problems"]))
+
+    def test_a_state_whose_setup_errors_is_not_assessed(self):
+        self.assertEqual(self.states["apply_error"]["verdict"], "NOT ASSESSED",
+                         self.states["apply_error"])
 
     def test_emitter_anchor(self):
         self.assertEqual(self.states["torch_fire"]["verdict"], "PASS", self.states["torch_fire"])

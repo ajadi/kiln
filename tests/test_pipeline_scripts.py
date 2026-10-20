@@ -467,6 +467,20 @@ class Licences(unittest.TestCase):
             write(root, "addons/thing/LICENSE", "MIT License")
             run(root, "licenses.py", "build")
             self.assertTrue(pipeline.run_check(gate))
+            # bug hunt 2026-10-20: CC BY output with nobody to credit passed
+            credit = "nogrep:(?i)\\|\\s*cc[ -]by[^|]*\\|\\s*\\|\\s*yes\\s*\\|@production/LICENSES.md"
+            write(root, "art/generated/crate/provenance.json",
+                  json.dumps({"tool": "meshy", "licence": "CC BY 4.0, Meshy owns the output",
+                              "attribution": ""}))
+            code, out = run(root, "licenses.py", "build")
+            self.assertEqual(code, 1, out)
+            self.assertEqual([r[0] for r in json.loads(out)["risky"]], ["art/generated/crate"])
+            self.assertFalse(pipeline.run_check(credit))
+            write(root, "art/generated/crate/provenance.json",
+                  json.dumps({"tool": "meshy", "licence": "CC BY 4.0, Meshy owns the output",
+                              "attribution": "crate: generated with Meshy, CC BY 4.0"}))
+            self.assertEqual(run(root, "licenses.py", "build")[0], 0)
+            self.assertTrue(pipeline.run_check(credit))
         finally:
             os.chdir(cwd)
 

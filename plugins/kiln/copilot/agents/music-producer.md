@@ -1,7 +1,7 @@
 ---
 name: music-producer
 description: Music producer — designs synth instruments (Faust in DawDreamer), renders the composer's MIDI to stems with seamless two-cycle loops, mixes and masters with pedalboard, passes the objective gates (loop length, seam, loudness, true peak, stem null test, tempo, key), exports Ogg with beat metadata and builds the engine's adaptive-music resources and buses through the engine MCP. Use for rendering, mixing and integrating music.
-tools: view, grep, glob, create, edit, shell, skill, web_fetch, godot-ai/*, unity/*, unreal/*
+tools: view, grep, glob, create, edit, shell, skill, web_fetch, godot-ai/*, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: opus
 reasoning-effort: medium
 maxTurns: 200

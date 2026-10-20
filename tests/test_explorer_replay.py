@@ -193,5 +193,113 @@ class GodotExplorer(unittest.TestCase):
         self.assertGreaterEqual(changed["divergence"], 0, changed)
 
 
+JUMP_GAME = '''extends Node
+var y := 0.0
+var vy := 0.0
+var jumped_at := -1
+var x := 0.0
+func _physics_process(delta: float) -> void:
+	if Input.is_action_just_pressed(&"jump"):
+		vy = 5.0
+		if jumped_at < 0:
+			jumped_at = Engine.get_physics_frames()
+	x += Input.get_action_strength(&"right") * delta
+	y += vy * delta
+	vy -= 9.8 * delta
+	if y < 0.0:
+		y = 0.0
+		vy = 0.0
+'''
+
+JUMP_MAIN = '''extends SceneTree
+var game
+var rp
+func _initialize() -> void:
+	Input.use_accumulated_input = false
+	InputMap.add_action(&"jump")
+	InputMap.add_action(&"right")
+	_go.call_deferred()
+
+func _fresh() -> void:
+	if game:
+		game.free()
+	game = load("res://jump_game.gd").new()  # kiln:runtime-node test fixture
+	root.add_child(game)
+
+func _go() -> void:
+	_fresh()
+	rp = load("res://input_replay.gd").new()  # kiln:runtime-node test tool
+	rp.actions = PackedStringArray(["jump", "right"])
+	rp.hash_every = 1
+	rp.track = [func(): return game.y, func(): return game.x]
+	root.add_child(rp)
+	await process_frame
+	rp.record()
+	var f0 := Engine.get_physics_frames()
+	await create_timer(0.5).timeout            # a scripted session, like autoplay hold()
+	Input.action_press(&"jump")
+	Input.action_press(&"right", 0.3)
+	await create_timer(0.2).timeout
+	Input.action_release(&"jump")
+	Input.action_press(&"right", 1.0)          # the stick pushed further while held
+	await create_timer(0.3).timeout
+	Input.action_release(&"right")
+	await create_timer(0.3).timeout
+	rp.stop()
+	var rec_jump: int = game.jumped_at - f0
+	var rec_x: float = game.x
+	rp.save("res://rec_jump.json")
+	_fresh()
+	await process_frame
+	rp.load_file("res://rec_jump.json")
+	var f1 := Engine.get_physics_frames()
+	rp.play()
+	await rp.finished
+	print("KILN:" + JSON.stringify({"rec_jump": rec_jump, "play_jump": game.jumped_at - f1,
+		"rec_x": rec_x, "play_x": game.x, "divergence": rp.first_divergence()}))
+	quit()
+'''
+
+
+@unittest.skipUnless(GODOT, "no Godot found (set KILN_GODOT)")
+class ReplayTiming(unittest.TestCase):
+    def test_a_timer_driven_session_replays_on_the_same_frames(self):
+        # bug hunt 2026-10-20: a press made inside a tick reached is_action_just_pressed one tick
+        # late, so a replay diverged from its own recording; analog strength changes while held
+        # were not recorded
+        d = tempfile.mkdtemp(prefix="kiln-replayj-")
+        project(d)
+        for name, text in (("jump_game.gd", JUMP_GAME), ("jump_main.gd", JUMP_MAIN)):
+            with open(os.path.join(d, name), "w", encoding="utf-8") as fh:
+                fh.write(text)
+        p = subprocess.run([GODOT, "--headless", "--fixed-fps", "60", "--path", d, "-s",
+                            "res://jump_main.gd"], capture_output=True, text=True, timeout=300)
+        line = next((ln for ln in p.stdout.splitlines() if ln.startswith("KILN:")), None)
+        self.assertIsNotNone(line, p.stdout[-1500:] + p.stderr[-1500:])
+        out = json.loads(line[5:])
+        self.assertEqual(out["play_jump"], out["rec_jump"], out)
+        self.assertAlmostEqual(out["play_x"], out["rec_x"], places=4, msg=out)
+        self.assertEqual(out["divergence"], -1, out)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExploreCoverage(unittest.TestCase):
+    def test_void_and_legend_walls_are_not_reachable_cells(self):
+        # bug hunt 2026-10-20: every cell but # and ^ counted, so void around a room cut coverage
+        d = tempfile.mkdtemp(prefix="kiln-exc-")
+        run = os.path.join(d, "run_0")
+        os.makedirs(run)
+        with open(os.path.join(run, "explore.json"), "w", encoding="utf-8") as fh:
+            json.dump({"cell": 32, "visits": {"4,1": 9, "5,1": 4, "6,1": 2}, "stuck": {}}, fh)
+        layout = os.path.join(d, "room.json")
+        with open(layout, "w", encoding="utf-8") as fh:
+            json.dump({"type": "grid", "legend": {"X": "wall"},
+                       "cells": ["   #####   ", "   #@.>#XX ", "   #####   "]}, fh)
+        p = subprocess.run([sys.executable, "-B", REPORT, os.path.join(run, "explore.json"),
+                            "--out", d, "--reachable", layout, "--min-coverage", "0.99"],
+                           capture_output=True, text=True, timeout=60)
+        out = json.loads(p.stdout)
+        self.assertEqual((p.returncode, out["coverage"]), (0, 1.0), out)

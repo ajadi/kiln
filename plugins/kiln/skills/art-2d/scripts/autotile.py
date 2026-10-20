@@ -58,6 +58,31 @@ def all_masks():
     return out
 
 
+def mask_at(grid, r, c):
+    """The canonical mask of the cell at row r, column c of a terrain grid (1 = terrain)."""
+    g = lambda dr, dc: grid[r + dr][c + dc]  # noqa: E731
+    return canonical({"n": g(-1, 0), "ne": g(-1, 1), "e": g(0, 1), "se": g(1, 1),
+                      "s": g(1, 0), "sw": g(1, -1), "w": g(0, -1), "nw": g(-1, -1)})
+
+
+def neighbour_pairs():
+    """Every (direction, mask of a, mask of b) two terrain tiles can show side by side, found by
+    painting every 3x4 (east-west) and 4x3 (north-south) patch of terrain around them. Comparing
+    canonical bits directly missed most pairs (bug hunt 2026-10-20: 47 of 169 east-west pairs),
+    because a canonical corner reads 0 whenever one of its sides is 0."""
+    key = lambda m: tuple(m[b] for b in BITS)  # noqa: E731
+    pairs = set()
+    for rows, cols, a, b, direction in ((3, 4, (1, 1), (1, 2), "east-west"),
+                                        (4, 3, (1, 1), (2, 1), "north-south")):
+        free = [(r, c) for r in range(rows) for c in range(cols) if (r, c) not in (a, b)]
+        for v in range(1 << len(free)):
+            grid = [[1] * cols for _ in range(rows)]
+            for i, (r, c) in enumerate(free):
+                grid[r][c] = (v >> i) & 1
+            pairs.add((direction, key(mask_at(grid, *a)), key(mask_at(grid, *b))))
+    return sorted(pairs)
+
+
 def quarter_source(side_v, side_h, diag):
     if side_v and side_h:
         return "fill" if diag else "inner"
@@ -137,21 +162,17 @@ def cmd_check(a):
         alpha = int(((last2[1][:, 3] > 127) != (first2[0][:, 3] > 127)).sum())
         return jumps > max(1, len(across) // 8) or alpha > 1
 
+    by_key = {tuple(m[b] for b in BITS): (c, p) for m, c, p in tiles}
     seams, bad = 0, []
-    for ma, ca, pa in tiles:
-        for mb, cb, pb in tiles:
-            # b to the east of a: both see each other, and the tiles above / below agree
-            if ma["e"] and mb["w"] and mb["n"] == ma["ne"] and mb["nw"] == ma["n"] and \
-                    mb["s"] == ma["se"] and mb["sw"] == ma["s"]:
-                seams += 1
-                if broken((pa[:, -2], pa[:, -1]), (pb[:, 0], pb[:, 1])):
-                    bad.append(f"{ca} | {cb} (east-west)")
-            # b to the south of a
-            if ma["s"] and mb["n"] and mb["w"] == ma["sw"] and mb["nw"] == ma["w"] and \
-                    mb["e"] == ma["se"] and mb["ne"] == ma["e"]:
-                seams += 1
-                if broken((pa[-2], pa[-1]), (pb[0], pb[1])):
-                    bad.append(f"{ca} / {cb} (north-south)")
+    for direction, ka, kb in neighbour_pairs():
+        if ka not in by_key or kb not in by_key:
+            continue  # a mask missing from the set is reported above
+        (ca, pa), (cb, pb) = by_key[ka], by_key[kb]
+        seams += 1
+        if direction == "east-west" and broken((pa[:, -2], pa[:, -1]), (pb[:, 0], pb[:, 1])):
+            bad.append(f"{ca} | {cb} (east-west)")
+        if direction == "north-south" and broken((pa[-2], pa[-1]), (pb[0], pb[1])):
+            bad.append(f"{ca} / {cb} (north-south)")
     if bad:
         problems.append(f"{len(bad)} of {seams} seams do not match, e.g. {', '.join(bad[:5])}")
     verdict = "fail" if problems else "pass"

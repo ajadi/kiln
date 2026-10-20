@@ -80,6 +80,24 @@ class Autotile(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertGreater(out["seams_broken"], 0)
 
+    def test_every_real_neighbour_pair_is_checked(self):
+        # bug hunt 2026-10-20: pairs were matched on canonical bits, 47 of 169 east-west pairs
+        # were checked, and a stripe down the west edge of the n+w tile passed
+        code, out = run("check", os.path.join(self.out, "atlas.png"), "--map",
+                        os.path.join(self.out, "terrain.json"))
+        self.assertEqual(out["seams_checked"], 2 * 169, out)
+        with open(os.path.join(self.out, "terrain.json"), encoding="utf-8") as fh:
+            data = json.load(fh)
+        nw = next(t for t in data["tiles"] if t["n"] and t["w"] and not t["nw"]
+                  and not t["e"] and not t["s"])
+        atlas = os.path.join(self.out, "atlas.png")
+        img = np.asarray(Image.open(atlas).convert("RGBA")).copy()
+        x, y = nw["atlas"]
+        img[y * T:(y + 1) * T, x * T:x * T + 2] = (255, 0, 255, 255)   # its west edge repainted
+        Image.fromarray(img).save(atlas)
+        code, out = run("check", atlas, "--map", os.path.join(self.out, "terrain.json"))
+        self.assertEqual((code, out["verdict"]), (1, "fail"), out)
+
     def test_bad_source_strip_is_refused(self):
         code, out = run("build", os.path.join(self.out, "atlas.png"), "--tile", "15", "--out",
                         os.path.join(self.d, "x"))

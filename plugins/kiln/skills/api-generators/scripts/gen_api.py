@@ -8,6 +8,7 @@ Stdlib only.
   python gen_api.py actions <service> [--search s] [--category c]  # free: the animation library
   python gen_api.py request <job> --why "..."                  # autopilot: production/SPEND_REQUESTS.md
   python gen_api.py submit <job>                               # only after the user said yes
+  python gen_api.py decline <job>                              # the user said no to a request
   python gen_api.py status <job> [--wait] [--timeout 1800]
   python gen_api.py fetch <job> [--out <folder>]               # download + provenance.json
   python gen_api.py jobs                                       # this project's jobs
@@ -18,7 +19,9 @@ user's environment as /kiln:settings stores it (Windows: HKCU\\Environment; else
 `estimate` makes free calls only and writes .kiln/gen/jobs/<job>.json; `submit` spends credits and
 refuses unless the estimate is fresh (1 h), unchanged, within the project's caps
 (manifest gen_spend_cap_usd, default 5; gen_daily_cap_usd, default 20) and the service is allowed
-(gen_services). A create request is never resent automatically: the service may have charged it.
+(gen_services). A create request is never resent automatically: the service may have charged it;
+it is counted in .kiln/gen/ledger.jsonl before it is sent (a refusal by the service is
+taken back), and a ledger line that does not parse stops every submit.
 KILN_GEN_FAKE=http://127.0.0.1:<port> sends every call to a local fake API with a dummy key.
 """
 
@@ -309,18 +312,55 @@ def save_job(root, data):
     os.replace(path + ".tmp", path)
 
 
+def ledger_path(root):
+    return os.path.join(root, ".kiln", "gen", "ledger.jsonl")
+
+
 def ledger_today(root):
-    path = os.path.join(root, ".kiln", "gen", "ledger.jsonl")
+    """Today's estimated spend. A line that does not parse stops spending instead of being
+    skipped (bug hunt 2026-10-20: a blank line ended the count and lifted the daily cap)."""
     today, total = datetime.date.today().isoformat(), 0.0
     try:
-        with open(path, encoding="utf-8") as fh:
-            for line in fh:
-                row = json.loads(line)
-                if row.get("date", "").startswith(today):
-                    total += row.get("usd_est") or 0
-    except (OSError, ValueError):
-        pass
+        with open(ledger_path(root), encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except FileNotFoundError:
+        return total
+    except OSError as e:
+        raise SystemExit(f"the spend ledger cannot be read ({e}); nothing is submitted until it can")
+    for number, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+            usd = float(row.get("usd_est") or 0)
+        except (ValueError, TypeError, AttributeError):
+            raise SystemExit(f"{ledger_path(root)} line {number} does not parse; nothing is "
+                             "submitted until it is fixed (the daily cap is counted from it)")
+        if str(row.get("date", "")).startswith(today):
+            total += usd
     return total
+
+
+def add_ledger(root, data, usd, note):
+    os.makedirs(os.path.dirname(ledger_path(root)), exist_ok=True)
+    with open(ledger_path(root), "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"date": datetime.datetime.now().isoformat(timespec="seconds"),
+                             "job": data["job"], "service": data["service"],
+                             "credits": data["credits"] if usd >= 0 else -data["credits"],
+                             "usd_est": usd, "note": note}) + "\n")
+
+
+def money(m, key, default):
+    """A cap from manifest.md: a finite number >= 0, else the submit stops (`nan` once turned
+    both caps off, `5$` crashed)."""
+    raw = str(m.get(key, default)).strip().lstrip("$").rstrip("$").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        raise SystemExit(f"{key}={m.get(key)} in manifest.md is not a number of dollars")
+    if value != value or value < 0 or value == float("inf"):
+        raise SystemExit(f"{key}={m.get(key)} in manifest.md is not a usable cap")
+    return value
 
 
 def adapter_or_exit(name):
@@ -383,6 +423,9 @@ def cmd_estimate(a, root):
     ad = adapter_or_exit(a.service)
     if a.task not in ad.tasks:
         raise SystemExit(f"{ad.name} tasks: {', '.join(ad.tasks)}")
+    bad = [o for o in a.opt if "=" not in o]
+    if bad:
+        raise SystemExit(f"--opt takes key=value: {', '.join(bad)}")
     opts = dict(o.split("=", 1) for o in a.opt)
     images = [os.path.abspath(p) for p in a.image]
     for p in images + ([os.path.abspath(a.model)] if a.model else []):
@@ -481,8 +524,13 @@ def cmd_submit(a, root):
     allowed = [s.strip() for s in m.get("gen_services", "").split(",") if s.strip()]
     if allowed and ad.name not in allowed:
         raise SystemExit(f"{ad.name} is not in gen_services ({', '.join(allowed)}) in manifest.md")
-    cap = float(m.get("gen_spend_cap_usd", 5))
-    daily = float(m.get("gen_daily_cap_usd", 20))
+    if data["state"] == "requested":
+        row = spend_state(root, a.job)
+        if row is not None and row != "waiting":
+            raise SystemExit(f"the spend request for {a.job} is '{row}' in {SPEND_FILE}: only a "
+                             "waiting request the user said yes to is submitted")
+    cap = money(m, "gen_spend_cap_usd", 5)
+    daily = money(m, "gen_daily_cap_usd", 20)
     if data["usd_est"] > cap:
         raise SystemExit(f"about ${data['usd_est']} is over gen_spend_cap_usd={cap}; the user can "
                          "raise it with /kiln:settings")
@@ -494,12 +542,17 @@ def cmd_submit(a, root):
                                   "from_remote": data.get("from_remote", "")}, data["opts"])
     data["state"] = "submitting"
     save_job(root, data)
+    # counted before the request leaves: a timeout or a 5xx may still have been charged (bug
+    # hunt 2026-10-20: those never reached the ledger, so resubmits passed the daily cap)
+    add_ledger(root, data, data["usd_est"], "submitted")
     try:
         remote = ad.submit(data["task"], body, key)
     except ApiError as e:
-        data.update(state="submit-unknown" if e.status in (0, 500, 502, 503, 504) else "failed",
-                    error=str(e))
+        unknown = e.status in (0, 500, 502, 503, 504)
+        data.update(state="submit-unknown" if unknown else "failed", error=str(e))
         save_job(root, data)
+        if not unknown:  # the service refused it (4xx): nothing was charged
+            add_ledger(root, data, -data["usd_est"], f"refused by the service ({e.status})")
         raise SystemExit(f"submit failed: {e}. Not resent: the service may have charged it - "
                          "check the service's dashboard before trying again.")
     was_requested = data.get("why") is not None
@@ -507,19 +560,39 @@ def cmd_submit(a, root):
     save_job(root, data)
     if was_requested:
         mark_spend_request(root, a.job, "submitted")
-    os.makedirs(os.path.join(root, ".kiln", "gen"), exist_ok=True)
-    with open(os.path.join(root, ".kiln", "gen", "ledger.jsonl"), "a", encoding="utf-8") as fh:
-        fh.write(json.dumps({"date": datetime.datetime.now().isoformat(timespec="seconds"),
-                             "job": a.job, "service": ad.name, "credits": data["credits"],
-                             "usd_est": data["usd_est"]}) + "\n")
     return {"job": a.job, "state": "running", "remote_id": remote}
+
+
+def spend_state(root, job):
+    """The State cell of a job's row in production/SPEND_REQUESTS.md, or None."""
+    try:
+        with open(os.path.join(root, SPEND_FILE), encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith(f"| {job} |"):
+                    return line.rstrip().rstrip("|").rsplit("|", 1)[-1].strip().lower()
+    except OSError:
+        return None
+    return None
+
+
+def cmd_decline(a, root):
+    """The user said no to a spend request: the job can no longer be submitted."""
+    data = load_job(root, a.job)
+    if data["state"] not in ("estimated", "requested"):
+        raise SystemExit(f"job {a.job} is {data['state']}")
+    data["state"] = "declined"
+    save_job(root, data)
+    mark_spend_request(root, a.job, "declined")
+    return {"job": a.job, "state": "declined"}
 
 
 def cmd_status(a, root):
     data = load_job(root, a.job)
     ad = adapter_or_exit(data["service"])
-    if data["state"] in ("estimated", "submitting", "submit-unknown"):
-        return {"job": a.job, "state": data["state"]}
+    if data["state"] in ("estimated", "requested", "declined", "submitting", "submit-unknown") \
+            or not data.get("remote_id"):  # nothing at the service to ask about
+        return {"job": a.job, "state": data["state"], **({"error": data["error"]}
+                                                         if data.get("error") else {})}
     key = need_key(ad)
     deadline, delay = time.time() + a.timeout, 5.0
     while True:
@@ -576,7 +649,11 @@ def cmd_fetch(a, root, st=None):
             "cost": {"credits": data["credits"], "usd_est": data["usd_est"],
                      "estimate_source": data["price_source"],
                      "balance_before": data["balance_before"]},
-            "plan_declared": data["plan"], "licence": data["licence"], "attribution": "",
+            "plan_declared": data["plan"], "licence": data["licence"],
+            # CC BY output (Meshy's free plan) must credit its owner (bug hunt 2026-10-20)
+            "attribution": (f"{data['asset']}: generated with {data['service'].capitalize()}, "
+                            f"{data['licence'].split(',')[0]}"
+                            if data["licence"].upper().startswith("CC BY") else ""),
             "notes": data["notes"], "ai_generated": True,
             "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
     with open(os.path.join(out, "provenance.json"), "w", encoding="utf-8") as fh:
@@ -626,7 +703,7 @@ def main():
     r = sub.add_parser("request")
     r.add_argument("job")
     r.add_argument("--why", required=True)
-    for name in ("submit", "fetch"):
+    for name in ("submit", "fetch", "decline"):
         p = sub.add_parser(name)
         p.add_argument("job")
         if name == "fetch":

@@ -1,7 +1,7 @@
 ---
 name: gameplay-dev
 description: Gameplay programmer — implements game systems in the engine's language (GDScript, C# or C++) and wires them into scenes through the engine MCP (player controller, weapons, hit detection per part, damage and detachment, IK runtime glue, encounters, save/load, UI hooks), builds a gym scene per mechanic, and proves behaviour in the running game. Use for any gameplay code task; enemy and NPC behaviour belongs to the ai-programmer.
-tools: Read, Grep, Glob, Write, Edit, Bash, Skill, mcp__godot-ai, mcp__unity, mcp__unreal
+tools: Read, Grep, Glob, Write, Edit, Bash, Skill, mcp__godot-ai, mcp__unity, mcp__unreal, mcp__unreal-mcp, mcp__unreal-mcp-proxy
 disallowedTools: mcp__godot-ai__client_manage
 model: sonnet
 effort: high

@@ -246,6 +246,21 @@ class Reachability(unittest.TestCase):
         self.assertEqual(code, 1, res)
         self.assertIn("wrong door", " ".join(res["problems"]))
 
+    def test_a_key_in_the_air_is_picked_up_mid_jump(self):
+        # bug hunt 2026-10-20: keys counted only on the landing cell
+        code, res = self.check({"seed": 11, "type": "platformer",
+                                "jump": {"height": 3, "width": 4},
+                                "cells": ["........A...",
+                                          "..a.....A...",
+                                          "........A...",
+                                          "@.......A.>.",
+                                          "############"]})
+        self.assertEqual(code, 0, res)
+
+    def test_an_already_solved_sokoban_is_solved(self):
+        code, res = self.check({"seed": 12, "type": "sokoban", "cells": ["####", "#@*#", "####"]})
+        self.assertEqual((code, res.get("solution_pushes")), (0, 0), res)
+
     def test_sokoban(self):
         code, res = self.check({"seed": 6, "type": "sokoban", "cells": ["#####", "#@$.#", "#####"]})
         self.assertEqual((code, res.get("solution_pushes")), (0, 1), res)

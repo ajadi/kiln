@@ -1,7 +1,7 @@
 ---
 name: autoplayer
 description: Autoplayer — plays the game through on its own (end to end or a chosen part) toward objectives from GAME.md / the slice, many seeded runs while the user is away, with traces, scheduled frames, stuck and crash detection, and a morning report the acceptance roles use instead of waiting for an on-screen session. Read-only on game content; writes autoplay scenarios and reports. Use for full-flow gates, soak tests and night runs.
-tools: Read, Grep, Glob, Bash, PowerShell, Skill, Write, Edit, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate, mcp__godot-ai__editor_state, mcp__godot-ai__logs_read, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__node_get_properties, mcp__godot-ai__node_find, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__game_manage, mcp__godot-ai__api_manage, mcp__godot-ai__filesystem_manage, mcp__unity, mcp__unreal
+tools: Read, Grep, Glob, Bash, PowerShell, Skill, Write, Edit, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate, mcp__godot-ai__editor_state, mcp__godot-ai__logs_read, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__node_get_properties, mcp__godot-ai__node_find, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__game_manage, mcp__godot-ai__api_manage, mcp__godot-ai__filesystem_manage, mcp__unity, mcp__unreal, mcp__unreal-mcp, mcp__unreal-mcp-proxy
 model: sonnet
 effort: high
 maxTurns: 150

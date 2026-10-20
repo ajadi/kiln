@@ -6,8 +6,10 @@
   python json_config.py merge --file Packages/manifest.json --json '{"dependencies": {...}}'
   python json_config.py check --file <file>
 
-merge   deep-merges the object into the file: objects merge key by key, lists are joined
-        without duplicates, other values are replaced; everything else in the file stays.
+merge   deep-merges the object into the file: objects merge key by key; lists of objects with
+        a "Name" or "name" merge entry by entry (an .uproject Plugins list); a program line
+        ("command", "args", "cmd") is replaced; other lists are joined without duplicates;
+        other values are replaced; everything else in the file stays.
         Reads a BOM and JSONC (comments, trailing commas - OpenCode, VS Code); the result is
         plain JSON, so comments are not kept (the original is left as <file>.kiln-backup and the
         script says so). The result is parsed before it is written; the write is atomic.
@@ -45,8 +47,13 @@ def load(path):
     """(data or None, original text, comments?, error)."""
     if not os.path.exists(path):
         return {}, None, False, None
-    with open(path, encoding="utf-8-sig") as fh:
-        original = fh.read()
+    with open(path, "rb") as fh:
+        raw = fh.read()
+    try:  # PowerShell 5.1 writes UTF-16 with a BOM
+        utf16 = raw[:2] in (bytes([0xFF, 0xFE]), bytes([0xFE, 0xFF]))
+        original = raw.decode("utf-16") if utf16 else raw.decode("utf-8-sig")
+    except UnicodeDecodeError as e:
+        return None, None, False, f"not UTF-8 or UTF-16 text ({e.reason} at byte {e.start})"
     if not original.strip():
         return {}, original, False, None
     plain, comments = strip_jsonc(original)
@@ -56,13 +63,31 @@ def load(path):
         return None, original, comments, f"line {e.lineno}, column {e.colno}: {e.msg}"
 
 
-def merge(base, extra):
+REPLACED_LISTS = {"command", "args", "cmd", "entrypoint"}
+
+
+def merge(base, extra, key=None):
+    """Deep merge (bug hunt 2026-10-20: joining an OpenCode "command" list ran the old program
+    with the new path as its argument, and a .uproject got the same plugin twice)."""
     if isinstance(base, dict) and isinstance(extra, dict):
         out = dict(base)
-        for key, value in extra.items():
-            out[key] = merge(base[key], value) if key in base else value
+        for k, value in extra.items():
+            out[k] = merge(base[k], value, k) if k in base else value
         return out
     if isinstance(base, list) and isinstance(extra, list):
+        if key in REPLACED_LISTS:
+            return extra
+        named = lambda v: isinstance(v, dict) and (v.get("Name") or v.get("name"))  # noqa: E731
+        if any(named(v) for v in extra):
+            out = list(base)
+            for v in extra:
+                at = next((i for i, b in enumerate(out) if named(v) and named(b) == named(v)), None)
+                if at is None:
+                    if v not in out:
+                        out.append(v)
+                else:
+                    out[at] = merge(out[at], v)
+            return out
         return base + [v for v in extra if v not in base]
     return extra
 

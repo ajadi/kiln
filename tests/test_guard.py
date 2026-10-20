@@ -97,7 +97,13 @@ class GodotTests(GuardCase):
         self.check(write("src/x.py", "physics-expert"), "DENY")
         self.check(write("design/ART_BIBLE.md", "art-director"), "ALLOW")
         self.check(write(".claude/settings.json", "modeler"), "DENY")
-        self.check(write("src/x.py", "general-purpose"), "ALLOW")
+        # bug hunt 2026-10-20: a built-in agent is held to the producer's rule (it once wrote
+        # manifest.md and game code past orchestrator_writes=state)
+        self.check(write("src/x.py", "general-purpose"), "DENY")
+        self.check(write("tasks/TASK-001.md", "general-purpose"), "ALLOW")
+        self.check(write("manifest.md", "general-purpose"), "DENY")
+        self.check(write("src/x.py", "modeler-high"), "ALLOW")          # effort copy = modeler
+        self.check(write("src/x.py", "verifier-high"), "DENY")          # effort copy = verifier
 
     def test_shell(self):
         self.check(shell("blender -b scene.blend -P build.py"), "DENY")
@@ -848,8 +854,16 @@ class UnityTests(GuardCase):
     def test_shell(self):
         self.check(shell("Unity.exe -batchmode -projectPath . -executeMethod Gen.MakeLevel"),
                    "DENY")
+        self.check(shell("Unity.exe -batchmode -projectPath . -executeMethod "
+                         "KilnRelease.KilnBuild.Build"), "ALLOW")
+        # bug hunt 2026-10-20: "build" in a name is not enough (LevelBuilder.GenerateTown);
+        # other build methods are listed in manifest unity_build_methods
+        self.check(shell("Unity.exe -batchmode -executeMethod LevelBuilder.GenerateTown"), "DENY")
         self.check(shell("Unity.exe -batchmode -projectPath . -executeMethod BuildScript.Win"),
-                   "ALLOW")
+                   "DENY")
+        root = make_project("unity", "unity_build_methods=BuildScript.Win\n")
+        self.check(shell("Unity.exe -batchmode -projectPath . -executeMethod BuildScript.Win"),
+                   "ALLOW", root)
 
     def test_reads_skip_lock(self):
         root = make_project("unity")

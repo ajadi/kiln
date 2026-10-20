@@ -104,6 +104,25 @@ class GodotLint(unittest.TestCase):
             problems, _ = godot_lint.lint_scene(text, "p.tscn", None)
             self.assertTrue(any(p["severity"] == "error" for p in problems), (name, problems))
 
+    def test_method_chains_and_editable_instances_are_fine(self):
+        # bug hunt 2026-10-20: a tween chain was read as Godot 3's .super() call and the guard
+        # refused it; a child of an editable instanced scene was reported missing
+        chain = ("func _ready() -> void:\n\tvar t := (create_tween()\n"
+                 "\t\t.tween_property(self, \"position\", Vector2.ONE, 0.2)\n"
+                 "\t\t.set_ease(Tween.EASE_OUT))\n\tvar u := create_tween() \\\n"
+                 "\t\t.set_loops()\n")
+        self.assertEqual([h for h in godot_lint.lint_gdscript(chain) if h["severity"] == "error"], [])
+        self.assertTrue(godot_lint.lint_gdscript("func _ready():\n\t._ready()\n"))  # still Godot 3
+        scene = ('[gd_scene load_steps=2 format=3]\n\n'
+                 '[ext_resource type="PackedScene" path="res://player.tscn" id="1_p"]\n\n'
+                 '[node name="Level" type="Node3D"]\n\n'
+                 '[node name="Player" parent="." instance=ExtResource("1_p")]\n\n'
+                 '[node name="Gun" type="Node3D" parent="Player/Arm"]\n\n'
+                 '[connection signal="hit" from="Player/Arm/Hand" to="." method="_on_hit"]\n\n'
+                 '[editable path="Player"]\n')
+        problems, _ = godot_lint.lint_scene(scene, "level.tscn", None)
+        self.assertEqual([p for p in problems if p["severity"] == "error"], [], problems)
+
     def test_cli_reports_duplicate_uids(self):
         d = tempfile.mkdtemp(prefix="kiln-gl-")
         for name in ("a.tscn", "b.tscn"):

@@ -1,7 +1,7 @@
 ---
 name: qa-ai
 description: Acceptance reviewer for enemy AI and navigation - reachability, stuck detection, fairness (no firing without line of sight, reaction delay, grace misses), attacker token limits, cover validity, wall-climbing navigation, cost per agent. Read-only; returns PASS/FAIL with measurements. Use after changes to AI, navigation meshes, encounters or level geometry.
-tools: Read, Grep, Glob, Bash, Skill, Write, Edit, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate, mcp__godot-ai__editor_state, mcp__godot-ai__logs_read, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__scene_open, mcp__godot-ai__node_get_properties, mcp__godot-ai__node_find, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__game_manage, mcp__godot-ai__script_manage, mcp__godot-ai__api_manage, mcp__godot-ai__filesystem_manage, mcp__godot-ai__test_run, mcp__godot-ai__test_manage, mcp__unity, mcp__unreal
+tools: Read, Grep, Glob, Bash, Skill, Write, Edit, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate, mcp__godot-ai__editor_state, mcp__godot-ai__logs_read, mcp__godot-ai__editor_screenshot, mcp__godot-ai__editor_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__scene_open, mcp__godot-ai__node_get_properties, mcp__godot-ai__node_find, mcp__godot-ai__project_run, mcp__godot-ai__project_manage, mcp__godot-ai__game_manage, mcp__godot-ai__script_manage, mcp__godot-ai__api_manage, mcp__godot-ai__filesystem_manage, mcp__godot-ai__test_run, mcp__godot-ai__test_manage, mcp__unity, mcp__unreal, mcp__unreal-mcp, mcp__unreal-mcp-proxy
 model: sonnet
 effort: high
 maxTurns: 150

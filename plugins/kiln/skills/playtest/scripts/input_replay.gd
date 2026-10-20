@@ -16,7 +16,12 @@ extends Node
 ## Run with `--fixed-fps 60` and one seed (autoplay --seed): with fixed frames the same input
 ## gives the same state on the same machine, so hashes that differ name the first frame where a
 ## change altered behaviour. Recording samples the actions once per physics frame, before the
-## game's nodes (process_physics_priority -1000), so a replay presses them on the same frames.
+## game's nodes (process_physics_priority -1000): what the game sees on frame N. A replay presses
+## frame N's events at the end of frame N-1 (a helper node that runs after every game node):
+## Godot 4.7 shows a press made inside a tick to is_action_just_pressed one tick late, so a press
+## at the start of frame N reached the game on N+1 (bug hunt 2026-10-20, checked live). Call
+## play() between ticks (after `await process_frame` or a probe's ticks()). Analog strength
+## changes while held are recorded too.
 
 signal finished
 
@@ -29,11 +34,37 @@ var mode := ""
 var frame := 0
 var _cursor := 0
 var _last := {}
+var _strength := {}
 var _end_frame := -1
+var _late: Node
+
+
+class _Late extends Node:
+	var replay
+
+	func _init(r) -> void:
+		replay = r
+		process_physics_priority = 2147483647
+
+	func _physics_process(_delta: float) -> void:
+		if replay.mode == "play":
+			replay._apply_through(replay.frame)
 
 
 func _ready() -> void:
 	process_physics_priority = -1000
+	_late = _Late.new(self)  # kiln:runtime-node replay timing helper
+	add_child(_late)
+
+
+func _apply_through(f: int) -> void:
+	while _cursor < events.size() and int(events[_cursor][0]) <= f:
+		var e: Array = events[_cursor]
+		if e[2]:
+			Input.action_press(StringName(e[1]), float(e[3]))
+		else:
+			Input.action_release(StringName(e[1]))
+		_cursor += 1
 
 
 func record() -> void:
@@ -42,6 +73,7 @@ func record() -> void:
 	events.clear()
 	hashes.clear()
 	_last.clear()
+	_strength.clear()
 
 
 func play() -> void:
@@ -51,6 +83,7 @@ func play() -> void:
 	hashes.clear()
 	for a in actions:
 		Input.action_release(a)
+	_apply_through(0)        # frame 0's presses, before frame 0 runs
 
 
 func stop() -> void:
@@ -72,20 +105,15 @@ func _physics_process(_delta: float) -> void:
 	if mode == "play" and _end_frame >= 0 and frame >= _end_frame:
 		stop()                              # before the game's nodes run this frame, as recorded
 		return
-	if mode == "play":
-		while _cursor < events.size() and int(events[_cursor][0]) <= frame:
-			var e: Array = events[_cursor]
-			if e[2]:
-				Input.action_press(StringName(e[1]), float(e[3]))
-			else:
-				Input.action_release(StringName(e[1]))
-			_cursor += 1
-	else:
+	if mode == "record":
 		for a in actions:
 			var pressed := Input.is_action_pressed(a)
-			if pressed != _last.get(a, false):
-				events.append([frame, String(a), pressed, Input.get_action_strength(a)])
+			var strength := Input.get_action_strength(a)
+			if pressed != _last.get(a, false) or \
+					(pressed and absf(strength - float(_strength.get(a, strength))) > 0.001):
+				events.append([frame, String(a), pressed, strength])
 				_last[a] = pressed
+			_strength[a] = strength
 	if frame % hash_every == 0:
 		hashes.append([frame, state_hash()])
 	frame += 1

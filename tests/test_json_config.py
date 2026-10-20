@@ -64,6 +64,33 @@ class JsonConfig(unittest.TestCase):
         with open(path + ".kiln-backup", encoding="utf-8-sig") as fh:
             self.assertIn("// my servers", fh.read())
 
+    def test_program_lines_are_replaced_and_named_entries_merged(self):
+        # bug hunt 2026-10-20: joined lists ran the old program with the new path as an argument
+        # and gave a .uproject the same plugin twice
+        path = self.file("opencode.json", '{"mcp": {"blender": {"type": "local", "command": '
+                                          '["C:/old/blender-mcp.exe"]}}}')
+        run("merge", "--file", path, "--json",
+            '{"mcp": {"blender": {"command": ["C:/new/blender-mcp.exe"]}}}')
+        self.assertEqual(self.load(path)["mcp"]["blender"]["command"], ["C:/new/blender-mcp.exe"])
+        path = self.file("Game.uproject", '{"Plugins": [{"Name": "PythonScriptPlugin", '
+                                          '"Enabled": false}, {"Name": "Other", "Enabled": true}]}')
+        run("merge", "--file", path, "--json",
+            '{"Plugins": [{"Name": "PythonScriptPlugin", "Enabled": true}, '
+            '{"Name": "ModelContextProtocol", "Enabled": true}]}')
+        plugins = self.load(path)["Plugins"]
+        self.assertEqual([(p["Name"], p["Enabled"]) for p in plugins],
+                         [("PythonScriptPlugin", True), ("Other", True),
+                          ("ModelContextProtocol", True)])
+
+    def test_a_utf16_file_is_read(self):
+        path = self.file("manifest.json")
+        with open(path, "w", encoding="utf-16") as fh:
+            fh.write('{"dependencies": {"a": "1"}}')
+        self.assertEqual(run("check", "--file", path)[0], 0)
+        code, out = run("merge", "--file", path, "--json", '{"dependencies": {"b": "2"}}')
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.load(path)["dependencies"], {"a": "1", "b": "2"})
+
     def test_a_broken_file_is_not_touched(self):
         broken = '{"dependencies": {"a": "1",, }'
         path = self.file("manifest.json", broken)

@@ -144,5 +144,73 @@ class FeelWindows(unittest.TestCase):
         self.assertEqual(rows["buffer"]["verdict"], "PASS", res)
 
 
+COUNTER_PLAYER = '''extends CharacterBody2D
+var C := 0
+var B := 0
+var air := 0
+var buf := -1
+
+func _physics_process(delta: float) -> void:
+	if is_on_floor():
+		air = 0
+	else:
+		air += 1
+	if Input.is_action_just_pressed(&"jump"):
+		buf = 0
+	elif buf >= 0:
+		buf += 1
+	velocity.y += 900.0 * delta
+	var pressed_ok := buf == 0 or (buf > 0 and buf <= B)
+	var ground_ok := is_on_floor() or (air >= 1 and air <= C)
+	if pressed_ok and ground_ok:
+		velocity.y = -300.0
+		buf = -1
+		air = 999
+	velocity.x = Input.get_axis(&"move_left", &"move_right") * 100.0
+	move_and_slide()
+'''
+
+
+@unittest.skipUnless(GODOT, "no Godot found (set KILN_GODOT)")
+class ExactWindows(unittest.TestCase):
+    """Bug hunt 2026-10-20: a press made inside a tick reaches is_action_just_pressed one tick
+    late, so coyote read C-1 and buffer B+2 and the +-1 tolerance hid it. A controller that
+    counts frames must read exactly its C and B."""
+
+    def test_frame_counter_controllers_read_exactly(self):
+        for c, b in ((0, 0), (3, 3), (6, 5)):
+            probe = PROBE.replace('hero.set_script(load("res://player.gd"))',
+                                  f'hero.set_script(load("res://player.gd"))\n\thero.C = {c}\n'
+                                  f'\thero.B = {b}')
+            probe = probe.replace("\thero.feel = load(\"res://feel_constants.gd\").new()\n", "")
+            probe = probe.replace("\thero.use_coyote = USE_COYOTE\n", "")
+            probe = probe.replace(
+                'check("coyote", coyote, "~", fw.frames(feel.coyote_time), "feel_constants.gd", 1)',
+                f'check("coyote", coyote, "==", {c}, "C")')
+            probe = probe.replace(
+                'check("buffer", buffer, "~", fw.frames(feel.jump_buffer), "feel_constants.gd", 1)',
+                f'check("buffer", buffer, "==", {b}, "B")')
+            d = tempfile.mkdtemp(prefix="kiln-feelx-")
+            with open(os.path.join(d, "project.godot"), "w", encoding="utf-8") as fh:
+                fh.write('config_version=5\n\n[application]\nconfig/name="feel"\n')
+            shutil.copy(os.path.join(SKILLS, "acceptance", "scripts", "probe_base.gd"), d)
+            for name in ("feel_windows.gd", "feel_constants.gd"):
+                shutil.copy(os.path.join(SKILLS, "controls-camera", "scripts", name), d)
+            with open(os.path.join(d, "player.gd"), "w", encoding="utf-8") as fh:
+                fh.write(COUNTER_PLAYER)
+            with open(os.path.join(d, "probe_feel.gd"), "w", encoding="utf-8") as fh:
+                fh.write(probe)
+            out = os.path.join(d, "out")
+            p = subprocess.run([GODOT, "--headless", "--fixed-fps", "60", "--path", d, "-s",
+                                "res://probe_feel.gd"], capture_output=True, text=True,
+                               timeout=300, env=dict(os.environ, KILN_PROBE_DIR=out))
+            files = glob.glob(os.path.join(out, "*.json"))
+            self.assertTrue(files, p.stdout[-2000:] + p.stderr[-2000:])
+            with open(files[0], encoding="utf-8") as fh:
+                res = json.load(fh)
+            rows = {r["id"]: r for r in res["rows"]}
+            self.assertEqual((rows["coyote"]["value"], rows["buffer"]["value"]), (c, b), res)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -149,6 +149,29 @@ class ProbeBase(unittest.TestCase):
         self.assertEqual(res["verdict"], "NOT ASSESSED")
         self.assertTrue(any("no check rows" in n for n in res["notes"]), res)
 
+    def test_a_script_error_after_passing_rows_is_not_assessed(self):
+        # bug hunt 2026-10-20: rows written before the error made the verdict PASS, exit 0
+        body = ('extends "res://tests/probes/probe_base.gd"\n'
+                "func _run() -> void:\n"
+                "\tcheck(\"first\", 1, \"==\", 1)\n"
+                "\tvar n: Node = null\n"
+                "\tn.queue_free()\n"
+                "\tcheck(\"second\", 1, \"==\", 2)\n")
+        p = self.probe("probe_late_crash", body, timeout=60)
+        res = self.result(".kiln", "tmp", "probe_late_crash.json")
+        self.assertEqual((p.returncode, res["verdict"]), (2, "NOT ASSESSED"), res)
+        self.assertTrue(any("script error" in n for n in res["notes"]), res)
+
+    def test_near_compares_vectors_by_distance(self):
+        body = ('extends "res://tests/probes/probe_base.gd"\n'
+                "func _run() -> void:\n"
+                "\tcheck(\"near\", Vector3(5, 0, 0), \"~\", Vector3(5.05, 0, 0), \"\", 0.1)\n"
+                "\tcheck(\"far\", Vector3(5, 0, 0), \"~\", Vector3.ZERO, \"\", 0.1)\n")
+        p = self.probe("probe_vec_near", body, timeout=60)
+        res = self.result(".kiln", "tmp", "probe_vec_near.json")
+        self.assertEqual([r["verdict"] for r in res["rows"]], ["PASS", "FAIL"], res)
+        self.assertEqual(p.returncode, 1, res)
+
     def test_a_wait_that_never_ends_hits_the_watchdog(self):
         p = self.probe("probe_hang", HANGING, "--watchdog", "3", timeout=60)
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)

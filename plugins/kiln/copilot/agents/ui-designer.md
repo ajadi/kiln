@@ -1,7 +1,7 @@
 ---
 name: ui-designer
 description: UI designer and builder — designs and builds the HUD, menus (title, pause, results), settings screens, dialogue boxes and the game's UI theme in the open editor through the engine MCP per the ui skill, with accessibility options and localized text when the task needs them; repeated rows are prepared scenes, scripts only add behaviour. Self-checks with ui_check.py and loc_check.py, then hands acceptance to qa-readability (text sizes, contrast, focus and gamepad reachability) and the playtester (flow). Use for any HUD, menu, settings, theme, font or UI layout task.
-tools: view, grep, glob, create, edit, shell, skill, web_fetch, godot-ai/*, unity/*, unreal/*
+tools: view, grep, glob, create, edit, shell, skill, web_fetch, godot-ai/*, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: opus
 reasoning-effort: high
 maxTurns: 300

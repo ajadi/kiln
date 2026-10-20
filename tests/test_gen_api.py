@@ -315,5 +315,98 @@ class GenApi(unittest.TestCase):
         self.assertIn("/kiln:settings", out["error"])
 
 
+    # bug hunt 2026-10-20: ways the caps and the user's no could be got around
+
+    def caps(self, text):
+        with open(os.path.join(self.root, "manifest.md"), "a", encoding="utf-8") as fh:
+            fh.write(text)
+
+    def posts(self):
+        return [c for c in FakeMeshy.calls if c[0] == "POST"]
+
+    def test_a_broken_ledger_line_stops_spending(self):
+        self.caps("gen_daily_cap_usd=1\n")
+        os.makedirs(os.path.join(self.root, ".kiln", "gen"), exist_ok=True)
+        with open(os.path.join(self.root, ".kiln", "gen", "ledger.jsonl"), "w") as fh:
+            fh.write("\n")                                           # a blank line is fine
+        self.assertEqual(self.run_gen("submit", self.estimate()["job"])[0], 0)   # $0.60
+        code, out = self.run_gen("submit", self.estimate()["job"])               # $1.20 > 1
+        self.assertIn("gen_daily_cap_usd", out["error"])
+        with open(os.path.join(self.root, ".kiln", "gen", "ledger.jsonl"), "a") as fh:
+            fh.write("{broken\n")
+        code, out = self.run_gen("submit", self.estimate()["job"])
+        self.assertIn("does not parse", out["error"])
+        self.assertEqual(len(self.posts()), 1)
+
+    def test_an_unknown_submit_counts_against_the_daily_cap(self):
+        self.caps("gen_daily_cap_usd=1\n")
+        FakeMeshy.fail_create["code"] = 502
+        self.run_gen("submit", self.estimate()["job"])
+        code, out = self.run_gen("submit", self.estimate()["job"])
+        self.assertIn("gen_daily_cap_usd", out["error"])
+        self.assertEqual(len(self.posts()), 1)
+        FakeMeshy.fail_create["code"] = 400                         # refused: nothing charged
+        root2 = self.root
+        self.setUp()
+        self.caps("gen_daily_cap_usd=1\n")
+        FakeMeshy.fail_create["code"] = 400
+        self.run_gen("submit", self.estimate()["job"])
+        FakeMeshy.fail_create["code"] = 0
+        self.assertEqual(self.run_gen("submit", self.estimate()["job"])[0], 0)
+        self.assertNotEqual(root2, self.root)
+
+    def test_a_declined_request_cannot_be_submitted(self):
+        job = self.estimate()["job"]
+        self.run_gen("request", job, "--why", "crate for the dock")
+        code, out = self.run_gen("decline", job)
+        self.assertEqual(out["state"], "declined")
+        with open(os.path.join(self.root, "production", "SPEND_REQUESTS.md"), encoding="utf-8") as fh:
+            self.assertIn("declined", fh.read())
+        code, out = self.run_gen("submit", job)
+        self.assertNotEqual(code, 0)
+        job = self.estimate()["job"]
+        self.run_gen("request", job, "--why", "again")
+        path = os.path.join(self.root, "production", "SPEND_REQUESTS.md")
+        text = open(path, encoding="utf-8").read().replace(f"| {job} |", f"| {job} |", 1)
+        rows = text.split("\n")
+        rows = [r.rsplit("|", 2)[0] + "| declined |" if r.startswith(f"| {job} |") else r
+                for r in rows]
+        open(path, "w", encoding="utf-8").write("\n".join(rows))      # the row edited by hand
+        code, out = self.run_gen("submit", job)
+        self.assertIn("declined", out["error"])
+        self.assertFalse(self.posts())
+
+    def test_caps_that_are_not_numbers_stop_the_submit(self):
+        for value in ("nan", "5$x", "-1"):
+            self.setUp()
+            self.caps(f"gen_spend_cap_usd={value}\n")
+            code, out = self.run_gen("submit", self.estimate()["job"])
+            self.assertNotEqual(code, 0, value)
+            self.assertIn("gen_spend_cap_usd", out["error"])
+        self.assertFalse(self.posts())
+        self.setUp()
+        self.caps("gen_spend_cap_usd=$5\n")
+        self.assertEqual(self.run_gen("submit", self.estimate()["job"])[0], 0)
+
+    def test_status_of_a_job_never_sent_and_a_bad_opt(self):
+        job = self.estimate()["job"]
+        self.run_gen("request", job, "--why", "x")
+        code, out = self.run_gen("status", job)
+        self.assertEqual((code, out["state"]), (0, "requested"))
+        code, out = self.run_gen("estimate", "meshy", "image-to-3d", "--asset", "c", "--image",
+                                 self.image, "--opt", "texture")
+        self.assertIn("key=value", out["error"])
+
+    def test_cc_by_output_carries_its_attribution(self):
+        job = self.estimate()["job"]
+        self.run_gen("submit", job)
+        self.run_gen("status", job, "--wait", "--timeout", "60")
+        with open(os.path.join(self.root, "art", "generated", "crate", "provenance.json"),
+                  encoding="utf-8") as fh:
+            prov = json.load(fh)
+        self.assertIn("CC BY", prov["attribution"])
+        self.assertIn("Meshy", prov["attribution"])
+
+
 if __name__ == "__main__":
     unittest.main()

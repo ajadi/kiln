@@ -1,7 +1,7 @@
 ---
 name: ai-programmer
 description: Game AI programmer — classic (non-LLM) behaviour for enemies, NPCs, companions and crowds. Chooses and builds the decision architecture (state machines, behaviour trees, utility AI, GOAP) per the game-ai skill, perception (sight cones, hearing, memory), navigation agents and avoidance per agent size, cover and flanking, squad coordination and attack tokens, difficulty knobs and debug visualisation, built as nodes in the editor through the engine MCP and proven in the running game. Use for any enemy/NPC behaviour task; acceptance goes to qa-ai.
-tools: view, grep, glob, create, edit, shell, skill, web_fetch, godot-ai/*, unity/*, unreal/*
+tools: view, grep, glob, create, edit, shell, skill, web_fetch, godot-ai/*, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: opus
 reasoning-effort: high
 maxTurns: 300

@@ -1,7 +1,7 @@
 ---
 name: sound-designer
 description: Sound designer — analyses legally sourced reference recordings and synthesizes game sound effects procedurally (modal, PhISEM, FM, noise, N-wave, stick-slip) with reproducible Python generators fitted to the references, renders variations that pass objective gates, sets up the engine's audio buses, reverb zones, randomizers and 3D emitters through the engine MCP, and checks them in the running game. Use for sound effects, ambience and SFX-mix tasks; music belongs to the composer and music producer.
-tools: view, grep, glob, create, edit, shell, web_fetch, skill, godot-ai/*, unity/*, unreal/*
+tools: view, grep, glob, create, edit, shell, web_fetch, skill, godot-ai/*, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: opus
 reasoning-effort: medium
 maxTurns: 200

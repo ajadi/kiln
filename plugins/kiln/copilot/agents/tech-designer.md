@@ -1,7 +1,7 @@
 ---
 name: tech-designer
 description: Technical designer — before anything non-trivial is built, researches how to build it (engine docs, talks, open-source implementations), compares 2–4 approaches on quality, cost, risk, performance, editor-editability and reversibility, recommends one, defines a measurable spike, and writes a tech design note; calls the physics, anatomy or creature experts when their domain is involved. Use when the user or the team is unsure HOW to implement something (locomotion, IK, destruction, AI, fog of war, weapons, networking, tools) and before Phase 5 mechanics.
-tools: view, grep, glob, create, edit, shell, skill, web_fetch, godot-ai/editor_state, godot-ai/api_manage, godot-ai/scene_get_hierarchy, godot-ai/node_get_properties, godot-ai/logs_read, godot-ai/project_run, godot-ai/project_manage, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/game_manage, unity/*, unreal/*
+tools: view, grep, glob, create, edit, shell, skill, web_fetch, godot-ai/editor_state, godot-ai/api_manage, godot-ai/scene_get_hierarchy, godot-ai/node_get_properties, godot-ai/logs_read, godot-ai/project_run, godot-ai/project_manage, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/game_manage, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: opus
 reasoning-effort: high
 maxTurns: 120

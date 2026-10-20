@@ -58,10 +58,23 @@ def main(argv=None):
     if a.reachable:
         with open(a.reachable, encoding="utf-8") as fh:
             layout = json.load(fh)
-        for y, row in enumerate(layout.get("cells") or []):
-            for x, ch in enumerate(row):
-                if ch not in "#^":
-                    reach.add((x, y))
+        # the procgen check's own search: legend, void, platformer air and doors as it reads
+        # them (bug hunt 2026-10-20: every cell but # and ^ counted as reachable)
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
+                                        "procgen", "scripts"))
+        import procgen_check
+        cells_rows = [str(r) for r in layout.get("cells") or []]
+        if cells_rows and not any("@" in r for r in cells_rows):
+            # no start marked: the explorer's most visited cell is where it played from
+            sx, sy = max(visits, key=visits.get)
+            if 0 <= sy < len(cells_rows) and 0 <= sx < len(cells_rows[sy]):
+                row = cells_rows[sy]
+                cells_rows[sy] = row[:sx] + "@" + row[sx + 1:]
+                layout = dict(layout, cells=cells_rows)
+        found = procgen_check.reachable_cells(layout)
+        if found is None:
+            problems.append(f"{a.reachable}: --reachable takes a grid or platformer layout")
+        reach = set(found or ())
         xs += [c[0] for c in reach]
         ys += [c[1] for c in reach]
     x0, y0 = min(xs), min(ys)

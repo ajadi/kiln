@@ -92,6 +92,25 @@ class ViewConsistency(unittest.TestCase):
                             "--max-disagree", "0.08"], capture_output=True, text=True, timeout=60)
         self.assertEqual((p.returncode, json.loads(p.stdout)["verdict"]), (1, "fail"))
 
+    def test_canvas_sizes_and_windows_paths(self):
+        # bug hunt 2026-10-20: a render on another canvas size was stretched to the reference
+        # and failed; --pairs split D:/x.png:D:/y.png at the drive letter's colon
+        def disc(name, size, r):
+            img = Image.new("RGBA", size, (0, 0, 0, 0))
+            cx, cy = size[0] / 2, size[1] / 2
+            ImageDraw.Draw(img).ellipse([cx - r, cy - r, cx + r, cy + r], fill=(200, 200, 200, 255))
+            path = os.path.join(self.dir, name)
+            img.save(path)
+            return os.path.abspath(path).replace("\\", "/")
+        ref, ren = disc("ref.png", (512, 512), 150), disc("ren.png", (400, 300), 100)
+        p = subprocess.run([sys.executable, "-B", IOU, ref, ren], capture_output=True, text=True,
+                           timeout=60)
+        out = json.loads(p.stdout)
+        self.assertEqual(out["verdict"], "pass", out)
+        p = subprocess.run([sys.executable, "-B", IOU, "--pairs", f"{ref}:{ren}"],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(json.loads(p.stdout)["verdict"], "pass", p.stdout + p.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

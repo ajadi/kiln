@@ -20,9 +20,13 @@ user-invocable: false
    `mcp__unreal__*`): `claude mcp add --scope user --transport http unreal http://127.0.0.1:8000/mcp`.
    HTTP, loopback only, one editor per port. The stdio proxy
    `Engine/Plugins/Experimental/ModelContextProtocol/Extras/Proxy/Bin/Win64/unreal_mcp_proxy.exe`
-   keeps the session across editor restarts.
+   keeps the session across editor restarts; its installer replaces the entry with one named
+   `unreal-mcp-proxy` - register the proxy under the name `unreal` yourself instead.
 4. Optional: Epic's Claude Code plugin `unreal-engine-skills-for-claude-code@claude-plugins-official`
    (MIT; skills `unreal-mcp`, `create-toolset`, `unreal-skill`; its SessionStart hook needs Git Bash).
+   Its `unreal-mcp` skill writes a `.mcp.json` entry named `unreal-mcp`: keep one entry, named
+   `unreal`. Kiln's roles also accept `mcp__unreal-mcp` and `mcp__unreal-mcp-proxy` tools, and the
+   guard applies the same rules to them, but two entries for one editor are two drivers.
 
 With tool search on (default) the server lists only `list_toolsets`, `describe_toolset` and
 `call_tool(toolset_name, tool_name, arguments)`. Call `describe_toolset` before the first use of a
@@ -45,13 +49,20 @@ Python. Close them with a project **Kiln toolset** (Python, `init_unreal.py` reg
 tools and `stat`/`csvprofile`/`trace.`/`HighResShot` console commands.
 
 **Fallback for UE 5.6/5.7:** ChiR24/Unreal_mcp (MIT, C++ McpAutomationBridge; PIE with input,
-screenshots, logs, console, Python, profiling) registered as `unreal`. **Avoid:** hosted cloud
+screenshots, logs, console, Python, profiling) registered as `unreal`. Its tools are one per area
+(`inspect`, `control_editor`, `system_control`, `build_environment`, ...) with the operation in
+`action`; the guard reads the action (get/list/find/inspect/screenshot/... are reads, PIE and
+safe console commands are allowed to read-only roles, procedural `create_procedural_*` /
+`generate_*` actions are refused). **Avoid:** hosted cloud
 servers, stale or unlicensed servers, and any server whose tools generate towns/houses/mazes.
 
 Levels, Blueprints, materials, data assets and config change only through these tools. Never write
-`.uasset`, `.umap` or `Config/*.ini` as text (the guard blocks it). C++ under `Source/` may be
-written directly; build with Live Coding (`LiveCodingToolset.CompileLiveCoding`) — it cannot add new
-UPROPERTY/UFUNCTION members; those need an editor restart and a full build.
+`.uasset`, `.umap` or any `Config/*.ini` (project or plugin) as text (the guard blocks it). C++
+under `Source/` may be written directly; build with Live Coding — `LiveCodingToolset.CompileLiveCoding`
+as Epic's skills name it, UNVERIFIED: it is not in a UE 5.8.0 launcher editor's toolset dump, so
+check `list_toolsets` first and fall back to the Live Coding shortcut (Ctrl+Alt+F11) or a full
+build. Live Coding cannot add new UPROPERTY/UFUNCTION members; those need an editor restart and a
+full build.
 
 Tools that Kiln has only for Godot so far: import options go through the Unreal MCP or editor
 Python (`unreal.AssetImportTask`); headless probes are `KilnProbeComponent` in automation tests;
@@ -190,7 +201,11 @@ UE 5.8 lists toolsets by qualified name (`EditorToolset.EditorAppToolset`,
 
 The Kiln toolset is `${CLAUDE_SKILL_DIR}/../acceptance/scripts/unreal/kiln_toolset.py`: copy to
 `Content/Python/kiln_toolset.py`, add `import kiln_toolset` + `kiln_toolset.register()` to
-`Content/Python/init_unreal.py`, restart the editor (or `ModelContextProtocol.RefreshTools`).
+`Content/Python/init_unreal.py`, restart the editor (`init_unreal.py` runs at start;
+`ModelContextProtocol.RefreshTools` only re-polls toolsets already registered). The toolset
+registers through `unreal.ToolsetRegistry.register_toolset_class` and logs an error when the
+registry is missing. The probe component is C++: an Unreal project for Kiln is a C++ project
+(setup makes one; a Blueprint-only project is converted with File > New C++ Class first).
 
 Acceptance loop: IsPIERunning → StartPIE → `kiln_probe_start` → `inject_input` script →
 `kiln_probe_stop` → StopPIE → `analyze.py` (acceptance skill) on the returned files →

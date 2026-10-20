@@ -256,7 +256,8 @@ class CodexGuard(unittest.TestCase):
         # role) - so no identity is the producer, and orchestrator_writes applies.
         self.assertEqual(self.guard(root, self.patch(src)), "DENY")
         default = {**self.patch(src), "agent_type": "default", "agent_id": "a2"}
-        self.assertEqual(self.guard(root, default), "ALLOW")  # a role-less subagent: not ours
+        # a role-less subagent works for the producer: its rule applies (bug hunt 2026-10-20)
+        self.assertEqual(self.guard(root, default), "DENY")
 
 
 class CodexAgents(unittest.TestCase):

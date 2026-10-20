@@ -109,6 +109,17 @@ class Frames(unittest.TestCase):
         self.assertEqual((res["hitches"], res["frames"], res["worst_ms"]), (2, 100, 60.0))
         self.assertEqual(res["gpu_ms"]["mean"], 5.0)
 
+    def test_a_small_spike_is_reported_not_failed(self):
+        # bug hunt 2026-10-20: one 5 ms frame among 2 ms ones failed a 16.67 ms budget
+        path = write_json(os.path.join(tmpdir(), "s.json"), {"x": [0] * 3},
+                          frame_ms=[2.0] * 199 + [5.0])
+        _, res = run("frames", path)
+        self.assertEqual((res["verdict"], res["hitches"], res["over_max_frame"]), ("PASS", 1, 0))
+        path = write_json(os.path.join(tmpdir(), "b.json"), {"x": [0] * 3},
+                          frame_ms=[2.0] * 199 + [120.0])
+        _, res = run("frames", path)
+        self.assertEqual((res["verdict"], res["over_max_frame"]), ("FAIL", 1))
+
     def test_jsonl_frames_skip_loading(self):
         frames = [{"frame": i, "dt_ms": 250.0 if i == 0 else 10.0, "gpu_ms": 4.0,
                    "cpu_ms": 6.0} for i in range(120)]

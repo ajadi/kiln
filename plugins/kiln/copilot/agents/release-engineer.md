@@ -1,7 +1,7 @@
 ---
 name: release-engineer
 description: Release engineer - owns export presets and build configs (changed in the open editor through the engine MCP), the build/smoke/soak runs, CI workflow files and store packaging (Steam depot scripts, itch.io channels, store asset checklist, credits from the licence registry); proves every build with the build audit, a smoke launch outside the editor and artefact sizes. Use for any export, build, packaging, CI, signing or store-release task.
-tools: view, grep, glob, create, edit, shell, web_fetch, skill, godot-ai/*, unity/*, unreal/*
+tools: view, grep, glob, create, edit, shell, web_fetch, skill, godot-ai/*, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: sonnet
 reasoning-effort: high
 maxTurns: 200

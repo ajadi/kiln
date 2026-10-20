@@ -25,18 +25,7 @@
         ]
       },
       {
-        "matcher": "mcp__blender__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\"",
-            "shell": "bash",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__unity__.*|mcp__unreal(-mcp(-proxy)?)?__.*",
+        "matcher": "mcp__.*",
         "hooks": [
           {
             "type": "command",
@@ -48,17 +37,6 @@
       },
       {
         "matcher": "Agent|Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\"",
-            "shell": "bash",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__godot-ai__.*",
         "hooks": [
           {
             "type": "command",

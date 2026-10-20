@@ -16,7 +16,7 @@
         "powershell": "python \"$env:PLUGIN_ROOT\\hooks\\guard.py\" --runtime copilot",
         "bash": "python3 \"$PLUGIN_ROOT/hooks/guard.py\" --runtime copilot",
         "timeoutSec": 30,
-        "matcher": "powershell|bash|create|edit|task|(blender|godot-ai|unity|unreal|unreal-mcp|unreal-mcp-proxy)-.*"
+        "matcher": "powershell|bash|create|edit|task|[^-]+-.+"
       }
     ],
     "subagentStart": [

@@ -30,6 +30,7 @@ func _physics_process(delta: float) -> void:
 		_since_floor = 0.0
 	if Input.is_action_just_pressed(&"jump") and _since_floor <= coyote_time:
 		velocity.y = jump_velocity
+		_since_floor = coyote_time + 1.0         # one jump per coyote window, no air jump
 	var input := Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back")
 	var direction := (transform.basis * Vector3(input.x, 0.0, input.y)).normalized()
 	velocity.x = direction.x * move_speed

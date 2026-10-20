@@ -1,7 +1,7 @@
 ---
 name: fx-artist
 description: Technical/FX artist — creates particles, decals, shaders, materials, lights and destruction effects in Godot through the Godot AI MCP (sparks, smoke, fire, explosions, lasers, muzzle flashes, hit marks, debris), as pooled reusable effect scenes with performance caps. Use for visual effects, shader and material tasks in the engine.
-tools: Read, Grep, Glob, Write, Edit, Bash, Skill, mcp__godot-ai, mcp__unity, mcp__unreal
+tools: Read, Grep, Glob, Write, Edit, Bash, Skill, mcp__godot-ai, mcp__unity, mcp__unreal, mcp__unreal-mcp, mcp__unreal-mcp-proxy
 disallowedTools: mcp__godot-ai__client_manage
 model: sonnet
 effort: high

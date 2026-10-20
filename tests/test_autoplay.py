@@ -50,6 +50,9 @@ crash_mid = seed % 5 == 0
 if crash_mid:
     print("AUTOPLAY start")
     sys.exit(3)
+if seed == 7:                       # the scenario does not even parse: exit 1, nothing written
+    print("SCRIPT ERROR: Parse Error: Unexpected identifier")
+    sys.exit(1)
 json.dump({"seed": seed, "verdict": "PASS" if seed % 2 else "FAIL",
            "objectives": {"talk_merchants": 10.0, "pause": None},
            "stuck": [] if seed % 2 else [{"t": 42.0, "where": [1, 0, 2]}],
@@ -67,16 +70,17 @@ class LoopAndReport(unittest.TestCase):
             fh.write(FAKE_GAME)
         os.makedirs(os.path.join(root, ".kiln"))
         open(os.path.join(root, ".kiln", "away"), "w").close()
-        code, out, err = py("autoplay_loop.py", "--runs", "6", "--seed", "1", "--out",
+        code, out, err = py("autoplay_loop.py", "--runs", "7", "--seed", "1", "--out",
                             "production/autoplay/night1", "--", sys.executable, game, cwd=root)
         self.assertEqual(code, 0, out + err)
         code, out, err = py("autoplay_report.py", "production/autoplay/night1", cwd=root)
         rep = json.loads(out)
-        self.assertEqual(rep["runs"], 6)
+        self.assertEqual(rep["runs"], 7)
         seeds = {r["seed"]: r for r in rep["results"]}
         self.assertEqual(seeds[3]["crash"], "exit")       # crashed after AUTOPLAY done
         self.assertEqual(seeds[5]["crash"], "mid-run")
-        self.assertEqual(rep["crashes_mid_run"], 1)
+        self.assertEqual(seeds[7]["crash"], "mid-run")    # never started (bug hunt 2026-10-20)
+        self.assertEqual(rep["crashes_mid_run"], 2)
         self.assertEqual(rep["crashes_at_exit"], 2)       # seeds 3 and 6
         self.assertEqual(rep["objectives"]["talk_merchants"]["reached"], 5)
         self.assertTrue(os.path.isfile(os.path.join(root, "production", "autoplay", "night1",
@@ -134,6 +138,13 @@ class AutoplayBase(unittest.TestCase):
         self.assertIsNone(s["objectives"]["never"])
         self.assertEqual(s["verdict"], "FAIL")
         self.assertTrue(s["stuck"], s)                    # 3 s standing still after the walk
+        # bug hunt 2026-10-20: headless frame times are wall-clock noise, not hitches
+        self.assertIsNone(s["hitches"], s)
+        p2 = subprocess.run([GODOT, "--headless", "--fixed-fps", "60", "--path", root, "-s",
+                             "res://tests/autoplay/run_walk.gd", "--", "--seed", "7", "--out",
+                             out + "_shots", "--stuck-s", "1.5"],
+                            capture_output=True, text=True, timeout=120)
+        self.assertNotIn("texture_2d_get", p2.stdout + p2.stderr)   # no headless shot attempts
         with open(os.path.join(out, "trace.csv"), encoding="utf-8") as fh:
             header = fh.readline().strip().split(",")
         for col in ("frame_ms", "draw_calls", "video_mem", "node_count", "object_count",

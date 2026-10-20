@@ -67,14 +67,11 @@ def project_dir(data):
     start = os.path.abspath(data.get("cwd") or os.getcwd())
     path = start
     while True:
-        manifest = os.path.join(path, "manifest.md")
-        if os.path.isfile(manifest):
-            try:
-                with open(manifest, encoding="utf-8", errors="ignore") as fh:
-                    if re.search(r"^framework=kiln\s*$", fh.read(), re.M):
-                        return path
-            except OSError:
-                pass
+        if os.path.isfile(os.path.join(path, "manifest.md")):
+            # the same reader as the hooks (a BOM, `framework = kiln`, UTF-16) - bug hunt
+            # 2026-10-20: a subfolder session missed a manifest the root session read
+            if (read_manifest(path) or {}).get("framework") == "kiln":
+                return path
         parent = os.path.dirname(path)
         if parent == path:
             return start
@@ -96,7 +93,11 @@ def read_manifest(root):
     except OSError:
         return None
     try:
-        text = raw.decode("utf-8-sig")
+        if raw[:2] in (bytes([0xFF, 0xFE]), bytes([0xFE, 0xFF])):  # PowerShell 5.1 `>`: UTF-16
+            text = raw.decode("utf-16")
+            NOT_UTF8.add(root)
+        else:
+            text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
         text = raw.decode("utf-8", errors="replace")
         NOT_UTF8.add(root)
@@ -197,6 +198,23 @@ def log(root, message):
 # names, and MCP tools as mcp_<server>_<tool>. The hooks speak Claude Code's names inside.
 GEMINI_TOOLS = {"run_shell_command": "Bash", "write_file": "Write", "replace": "Edit"}
 MCP_SERVER_NAMES = ("unreal-mcp-proxy", "unreal-mcp", "godot-ai", "blender", "unity", "unreal")
+# Vendor MCP servers of paid generators (meshy, fal-ai, claude_ai_ElevenLabs, ...): the guard's
+# spending rules apply to them in every runtime.
+VENDOR_MCP = {"model_generators": r"meshy|tripo|rodin|hyper3d|stability|fal|replicate|leonardo|"
+                                  r"scenario|sloyd|pixellab|3daistudio",
+              "audio_generators": r"elevenlabs|suno|udio|stableaudio"}
+VENDOR_SERVER = (r"(?:claude_ai_)?(?:" + "|".join(VENDOR_MCP.values()) +
+                 r")(?:[_-]?(?:mcp|ai|api|server|official))*")
+
+
+def mcp_name(name, sep):
+    """mcp__<server>__<tool> for another runtime's MCP tool name (`<server><sep><tool>` after the
+    runtime's prefix), or None: Kiln's editor servers first, then a paid generator's server."""
+    for server in MCP_SERVER_NAMES:
+        if name.startswith(server + sep):
+            return f"mcp__{server}__{name[len(server) + len(sep):]}"
+    m = re.match(rf"({VENDOR_SERVER}){re.escape(sep)}(.+)$", name, re.I)
+    return f"mcp__{m.group(1)}__{m.group(2)}" if m else None
 
 
 # Kiln roles' Gemini time limit (agent timeout_mins; Gemini's default stops a subagent after
@@ -224,10 +242,7 @@ def from_gemini(data, root):
     if name in GEMINI_TOOLS:
         out["tool_name"] = GEMINI_TOOLS[name]
     elif name.startswith("mcp_"):
-        for server in MCP_SERVER_NAMES:
-            if name.startswith(f"mcp_{server}_"):
-                out["tool_name"] = f"mcp__{server}__{name[len(server) + 5:]}"
-                break
+        out["tool_name"] = mcp_name(name[4:], "_") or name
     if out.get("hook_event_name") in ("AfterAgent", "SessionStart", "SessionEnd"):
         # only the main agent's turn fires these: no subagent runs now (an invoke_agent that
         # failed before running never reached its AfterTool)
@@ -279,11 +294,7 @@ def from_copilot(data, root):
                 except ValueError:
                     args = {"command": args}
             args = dict(args or {})
-            tool = COPILOT_TOOLS.get(name, name)
-            for server in MCP_SERVER_NAMES:
-                if name.startswith(server + "-"):
-                    tool = f"mcp__{server}__{name[len(server) + 1:]}"
-                    break
+            tool = COPILOT_TOOLS.get(name) or mcp_name(name, "-") or name
             if tool == "Write":
                 args = {"file_path": args.get("path"), "content": args.get("file_text", "")}
             elif tool == "Edit":
@@ -354,13 +365,30 @@ def runtime():
     return "claude"
 
 
+EFFORT_SUFFIX = re.compile(r"-(low|medium|high|xhigh|max)$")
+
+
 def role_of(data):
     """Kiln role of the calling subagent, '' when unknown (main session, or Codex without
-    agent_type). Claude Code plugin agents are 'kiln:<role>'; Kiln's Codex agents 'kiln-<role>'."""
+    agent_type). Claude Code plugin agents are 'kiln:<role>'; Kiln's Codex agents 'kiln-<role>';
+    effort_agents.py copies are '<role>-<effort>' and are that role (bug hunt 2026-10-20: the
+    copies fell outside every role rule)."""
     agent_type = data.get("agent_type") or ""
     if agent_type.startswith("kiln-") and agent_type[5:] in KILN_ROLES:
         return agent_type[5:]
-    return agent_type.split(":")[-1] if agent_type else ""
+    name = agent_type.split(":")[-1] if agent_type else ""
+    base = EFFORT_SUFFIX.sub("", name)
+    return base if base in KILN_ROLES else name
+
+
+def number(policy, key, default):
+    """A numeric manifest value; a value that is not a number (`10m`) keeps the default instead
+    of crashing the hook, which would fail open."""
+    try:
+        value = float(str(policy.get(key, default)).strip())
+    except (TypeError, ValueError):
+        return float(default)
+    return value if value == value and value not in (float("inf"), float("-inf")) else float(default)
 
 
 def actor_id(data):
@@ -412,10 +440,25 @@ def autopilot_session(data, root):
     return "other" if state.get("owner") else None
 
 
+def clean_path(path):
+    """One spelling of a Windows path: the \\\\?\\ and \\\\.\\ prefixes and \\\\localhost\\D$\\
+    shares name the same file as D:\\, and an NTFS stream suffix (::$DATA, :name) writes the same
+    file (bug hunt 2026-10-20: each spelling passed every file rule)."""
+    p = str(path).strip().strip("\"'")
+    p = re.sub(r"^[\\/]{2}[?.][\\/](?=[A-Za-z]:)", "", p)
+    m = re.match(r"^[\\/]{2}(?:[?.][\\/]UNC[\\/])?(localhost|127\.0\.0\.1|\.)[\\/]([A-Za-z])\$"
+                 r"(?:[\\/](.*))?$", p, re.I)
+    if m:
+        p = f"{m.group(2)}:/{m.group(3) or ''}"
+    head, tail = (p[:2], p[2:]) if re.match(r"^[A-Za-z]:", p) else ("", p)
+    return head + tail.split(":", 1)[0]
+
+
 def rel_path(root, path):
     """Project-relative path with forward slashes, or None if outside the project."""
     if not path:
         return None
+    path = clean_path(path)
     full = os.path.abspath(path if os.path.isabs(path) else os.path.join(root, path))
     base = os.path.abspath(root)
     try:

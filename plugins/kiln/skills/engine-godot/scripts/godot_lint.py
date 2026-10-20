@@ -100,14 +100,26 @@ def strip_line(line):
     return "".join(out)
 
 
+SUPER_CALL = r"^\s*\.\w+\s*\("
+
+
 def lint_gdscript(text):
     hits = []
+    depth, continued = 0, False
     for number, line in enumerate(text.splitlines(), 1):
+        code = strip_line(line)
+        # a line that starts with `.` inside open brackets or after a `\` continues a method
+        # chain (Godot 4 tweens, builders); only at the start of a statement is it Godot 3's
+        # `.method()` super call (bug hunt 2026-10-20: the chain was refused)
+        chain = depth > 0 or continued
+        depth = max(0, depth + sum(code.count(c) for c in "([{") - sum(code.count(c) for c in ")]}"))
+        continued = code.rstrip().endswith("\\")
         if "kiln:godot3-ok" in line:
             continue
-        code = strip_line(line)
         raw = line.split("#", 1)[0] if '"' not in line else line
         for rx, fix, sev in _COMPILED:
+            if chain and rx.pattern == SUPER_CALL:
+                continue
             if rx.search(code):
                 hits.append({"line": number, "severity": sev, "found": rx.search(code).group(0).strip(),
                              "godot4": fix})
@@ -198,6 +210,12 @@ def lint_scene(text, path, root):
     ext, sub, used = {}, {}, set()
     nodes, seen_node = {}, False
     children = {}
+    instanced = set()  # nodes from another scene: their children are not listed in this file
+
+    def inside_instance(path):
+        # an [editable] child of an instanced scene, or a node of an inherited scene (bug hunt
+        # 2026-10-20: `parent="Player/Arm"` under an editable instance was reported missing)
+        return any(path == i or path.startswith(i + "/") or i == "." for i in instanced)
     for kind, attrs, body, line in secs[1:]:
         text_body = "\n".join(body) + " " + " ".join(f'{k}="{v}"' for k, v in attrs.items())
         for ref_kind, ref_id in REF.findall(text_body):
@@ -230,8 +248,10 @@ def lint_scene(text, path, root):
                     add("error", line, f'node "{name}" has no parent but the root is already "{next(iter(nodes))}"')
                 nodes["."] = name
                 children.setdefault(".", set())
+                if "instance" in attrs:
+                    instanced.add(".")
                 continue
-            if parent not in nodes and parent not in children:
+            if parent not in nodes and parent not in children and not inside_instance(parent):
                 add("error", line, f'node "{name}": parent "{parent}" does not exist above it')
             sibs = children.setdefault(parent, set())
             if name in sibs:
@@ -240,10 +260,12 @@ def lint_scene(text, path, root):
             full = name if parent == "." else f"{parent}/{name}"
             nodes[full] = name
             children.setdefault(full, set())
+            if "instance" in attrs or "instance_placeholder" in attrs:
+                instanced.add(full)
         elif kind == "connection":
             for end in ("from", "to"):
                 p = attrs.get(end, "")
-                if p not in nodes and p not in children:
+                if p not in nodes and p not in children and not inside_instance(p):
                     add("error", line, f'connection {end}="{p}" names no node in this scene')
             if not attrs.get("method"):
                 add("error", line, "connection without a method")

@@ -122,7 +122,7 @@ the controller reads - never literals in the movement script. A headless probe (
 gets: `window_after` (frames a jump still works after leaving the ground), `window_before`
 (frames a press before landing still jumps), `latency` (frames from press to response over
 varied press frames, with max − min as jitter: constant latency is tolerated far better than
-jitter). Each window must match its constant within ±1 frame. Live: a controller that ignored
+jitter). Each window must match its constant in frames (`fw.frames(seconds)`): the probe reads exact counts (checked live against frame-counter controllers), so allow ±1 only when the constant is not a whole number of frames. Live: a controller that ignored
 coyote time failed the window; one built on the resource passed (Godot 4.7.2).
 
 ## Engines (configure through the engine MCP; details in the references)

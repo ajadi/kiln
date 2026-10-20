@@ -15,6 +15,7 @@ import datetime
 import glob
 import json
 import os
+import posixpath
 import re
 import shlex
 import subprocess
@@ -25,7 +26,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kiln_hooklib as k  # noqa: E402
 
 PROTECTED = [".claude/settings.json", ".claude/settings.local.json", ".claude/agents/**",
-             ".mcp.json", "manifest.md"]
+             ".mcp.json", "manifest.md",
+             # the other runtimes' guard and configuration (bug hunt 2026-10-20)
+             ".opencode/plugins/**", "opencode.json", ".github/copilot/settings.json",
+             ".gemini/settings.json", ".codex/agents/**", ".codex/hooks.json"]
 GODOT_SCENES = ["*.tscn", "*.scn", "project.godot", "*.import", ".godot/**"]
 GODOT_RESOURCES = ["*.tres", "*.res"]
 GODOT_SCRIPTS = ["*.gd", "*.gdshader"]
@@ -63,7 +67,12 @@ RUNTIME_MARKER = "kiln:runtime-node"
 REVIEW_SCRIPTS = ("# Kiln review view", "# Kiln mesh QA", "# Kiln contact check")
 
 UNITY_ASSETS = ["*.unity", "*.prefab", "*.asset", "*.mat", "*.meta", "*.controller",
-                "*.overrideController", "*.physicMaterial", "*.mixer", "*.inputactions"]
+                "*.overrideController", "*.physicMaterial", "*.mixer", "*.inputactions",
+                # editor-made assets the bug hunt (2026-10-20) found unprotected
+                "*.anim", "*.shadergraph", "*.shadersubgraph", "*.vfx", "*.spriteatlas",
+                "*.spriteatlasv2", "*.lighting", "*.terrainlayer", "*.playable", "*.signal",
+                "*.rendertexture", "*.brush", "*.flare", "*.guiskin", "*.cubemap",
+                "*.giparams", "*.physicsMaterial2D"]
 UNREAL_ASSETS = ["*.uasset", "*.umap", "config/**"]
 CSHARP_NODE = re.compile(
     r"(new\s+GameObject\s*\(|GameObject\.CreatePrimitive\s*\(|"
@@ -90,7 +99,18 @@ UNREAL_READ_TOOLS = re.compile(
     re.I)
 UNREAL_SAFE_CONSOLE = re.compile(r"^\s*(stat\s|csvprofile\s|trace\.|highresshot\b|profilegpu\b)",
                                  re.I)
-UNREAL_GENERATORS = re.compile(r"^(create_(town|house|city|maze|building|castle)|construct_)", re.I)
+# A read prefix followed by a change is not a read (bug hunt 2026-10-20: find_or_create_track).
+UNREAL_CHANGE_WORD = re.compile(r"(^|_)(create|add|set|delete|remove|spawn|save|import|apply|make|"
+                                r"build|edit|modify|move|rename|duplicate|replace|generate)(_|$)",
+                                re.I)
+UNREAL_GENERATORS = re.compile(r"^(create_(town|house|city|maze|building|castle|procedural\w*)|"
+                               r"construct_|generate_(level|terrain|town|city|dungeon))", re.I)
+# Fallback servers for UE 5.6/5.7 (ChiR24 Unreal_mcp) take one tool per area and the operation in
+# `action`: these tools only read, and these actions only read, in any tool.
+UNREAL_READ_ACTIONS = re.compile(
+    r"^(get|find|list|describe|read|search|inspect|is|has|capture|screenshot|query|status|"
+    r"profile|stat)(_\w+)?$", re.I)
+UNREAL_READ_TOOLS_PLAIN = {"inspect"}
 CPP_NODE = re.compile(
     r"(SpawnActor\s*<\s*AStaticMeshActor\s*>|"
     r"NewObject\s*<\s*U\w*(MeshComponent|LightComponent|DecalComponent)\s*>)")
@@ -182,6 +202,8 @@ SPEC_LINES = re.compile(r"^(role|paths|touches|type):.*$", re.M)
 def new_text_of(data, full):
     """The file's text after this Write / Edit (None when it cannot be worked out)."""
     tool_input = data.get("tool_input") or {}
+    if "patched_text" in tool_input:  # Codex / OpenCode apply_patch, hunks applied
+        return tool_input["patched_text"]
     if data.get("tool_name") == "ShellWrite":
         if data.get("shell_mode") == "append":
             try:
@@ -214,7 +236,14 @@ def check_task_edit(data, root, rel, role):
         with open(full, encoding="utf-8", errors="ignore") as fh:
             old = fh.read()
     except OSError:
-        return  # a new task file: the producer creates tasks, a role's new file has no gates yet
+        # a new task file: the producer creates tasks. A role's new file may not name the role
+        # itself, or its paths would widen the role's own zone (bug hunt 2026-10-20).
+        new = new_text_of(data, full) or ""
+        if role in k.task_roles(new) or (data.get("tool_name") == "ShellWrite"
+                                         and data.get("shell_mode") != "delete"):
+            k.deny(f"{rel}: task files with a role line are the producer's. Put the follow-up "
+                   "in your handoff (next: orchestrator) instead of creating a task for yourself.")
+        return
     new = new_text_of(data, full)
     if new is None:
         return
@@ -267,7 +296,9 @@ def check_write(data, root, policy):
                                   or rel.lower().startswith("projectsettings/")):
             k.deny(f"{rel} is a Unity scene/prefab/asset/settings file. Change it in the editor "
                    "through MCP for Unity (manage_scene, manage_prefabs, manage_asset, ...).")
-        if engine == "unreal" and k.path_matches(rel, UNREAL_ASSETS):
+        if engine == "unreal" and (k.path_matches(rel, UNREAL_ASSETS) or (
+                re.search(r"(^|/)config/[^/]+\.ini$", rel.lower())
+                and not re.search(r"(^|/)saved/", rel.lower()))):  # plugin and subfolder configs
             k.deny(f"{rel} is an Unreal asset or config file. Change it in the editor through "
                    "the Unreal MCP.")
         if "scenes" in via_mcp and rel.lower().endswith(".import"):
@@ -312,8 +343,14 @@ def check_write(data, root, policy):
         if hits:
             k.deny(scene_first_reason(hits, "#"))
 
-    if not role:  # main session (Codex too: its subagents' hooks always carry agent_id and
-        # agent_type, "default" without a role - codex-rs hook_runtime.rs, 0.160-0.163)
+    if role and role not in k.KILN_ROLES and k.path_matches(rel, PROTECTED):
+        k.deny(f"{rel} is framework configuration; only the main session changes it (on the "
+               "user's word). Report the needed change instead.")
+    if not role or role not in k.KILN_ROLES:
+        # the main session (Codex too: its subagents' hooks always carry agent_id and
+        # agent_type, "default" without a role - codex-rs hook_runtime.rs, 0.160-0.163), and
+        # agents that are not Kiln roles (general-purpose, Codex default): the producer's rule,
+        # so delegating to a built-in agent does not lift it (bug hunt 2026-10-20)
         state = STATE_FILES + notes_files(policy) + policy_list(policy, "state_paths")
         # shell output of the producer's own tools (reports, logs, recipes) is not policed here;
         # the engine-file rules above still apply to it
@@ -324,8 +361,6 @@ def check_write(data, root, policy):
                    "orchestrator_writes=any in manifest.md if the user wants direct edits.")
         return
 
-    if role not in k.KILN_ROLES:  # built-in or third-party agents: not ours to police
-        return
     if k.path_matches(rel, PROTECTED):
         k.deny(f"{rel} is framework configuration; Kiln agents do not change it. Report the "
                "needed change in your handoff instead.")
@@ -344,25 +379,69 @@ def check_write(data, root, policy):
 PATCH_FILE = re.compile(r"^\*\*\* (Add File|Update File|Delete File|Move to): (.+?)\s*$")
 
 
-def patch_operations(patch):
-    """[(path, added_text)] for every file a Codex apply_patch touches, in order."""
+def patch_files(patch):
+    """[(path, kind, body lines)] for every file a Codex apply_patch touches, in order."""
     ops = []
     for line in patch.splitlines():
         m = PATCH_FILE.match(line)
         if m:
-            ops.append((m.group(2), []))
-        elif ops and line.startswith("+"):
-            ops[-1][1].append(line[1:])
-    return [(path, "\n".join(lines)) for path, lines in ops]
+            ops.append((m.group(2), m.group(1), []))
+        elif ops and not line.startswith("*** End"):
+            ops[-1][2].append(line)
+    return ops
+
+
+def patch_operations(patch):
+    """[(path, added_text)] for every file a Codex apply_patch touches, in order."""
+    return [(path, "\n".join(l[1:] for l in lines if l.startswith("+")))
+            for path, _, lines in patch_files(patch)]
+
+
+def apply_hunks(old, lines):
+    """The file after an Update File patch (context ' ', removed '-', added '+' lines in @@
+    chunks), or None when a chunk does not match the file."""
+    text, cursor = old.replace("\r\n", "\n"), 0
+    chunks, cur = [], []
+    for line in lines:
+        if line.startswith("@@"):
+            if cur:
+                chunks.append(cur)
+            cur = []
+        elif line[:1] in (" ", "-", "+") or line == "":
+            cur.append(line or " ")
+    if cur:
+        chunks.append(cur)
+    for chunk in chunks:
+        before = "\n".join(l[1:] for l in chunk if l[0] in " -")
+        after = "\n".join(l[1:] for l in chunk if l[0] in " +")
+        at = text.find(before, cursor) if before else len(text)
+        if at < 0:
+            return None
+        if not before and text and not text.endswith("\n"):
+            after = "\n" + after
+        text = text[:at] + after + text[at + len(before):]
+        cursor = at + len(after)
+    return text
 
 
 def check_patch(data, root, policy):
-    """Codex file edits: run the Write checks once per file in the patch."""
+    """Codex file edits: run the Write checks once per file in the patch. The added lines are
+    scanned as the content; the whole new file (hunks applied) is what the task-file rules compare
+    (bug hunt 2026-10-20: added lines alone looked like a rewrite of every spec line)."""
     tool_input = data.get("tool_input") or {}
     base = data.get("cwd") or root
-    for path, added in patch_operations(str(tool_input.get("command") or "")):
+    for path, kind, lines in patch_files(str(tool_input.get("command") or "")):
         full = path if os.path.isabs(path) else os.path.join(base, path)
-        check_write({**data, "tool_input": {"file_path": full, "content": added}}, root, policy)
+        added = "\n".join(l[1:] for l in lines if l.startswith("+"))
+        patched = added if kind == "Add File" else "" if kind == "Delete File" else None
+        if kind == "Update File":
+            try:
+                with open(full, encoding="utf-8", errors="ignore") as fh:
+                    patched = apply_hunks(fh.read(), lines)
+            except OSError:
+                patched = None
+        check_write({**data, "tool_input": {"file_path": full, "content": added,
+                                            "patched_text": patched}}, root, policy)
 
 
 # AI generators by policy (manifest model_generators / audio_generators: off | local | api).
@@ -418,10 +497,32 @@ def vcs_text(words):
     return False
 
 
+def script_at(words, name):
+    """Index of the Kiln script `name` a simple command runs (python [options] name, py -3 -u
+    name, or name itself), or None. Interpreter options such as -X utf8 come before it (bug hunt
+    2026-10-20: only the first three words were searched)."""
+    if os.path.basename(words[0]).lower() == name:
+        return 0
+    if not PYTHON_EXE.match(words[0]):
+        return None
+    rest = list(enumerate(words))[1:]
+    i = 0
+    while i < len(rest):
+        at, arg = rest[i]
+        if arg in ("-c", "-m", "-"):
+            return None
+        if arg in ("-X", "-W", "-Q"):
+            i += 2
+            continue
+        if not arg.startswith("-"):
+            return at if os.path.basename(arg).lower() == name else None
+        i += 1
+    return None
+
+
 def runs_gpu_job(command):
     """True when the command starts the gpu-server skill's job runner."""
-    return any(any(os.path.basename(w).lower() == "gpu_job.py" for w in words[:3])
-               for words in shell_segments(command))
+    return any(script_at(words, "gpu_job.py") is not None for words in shell_segments(command))
 
 
 GENERATOR_RULES = (("model_generators", MODEL_LOCAL, MODEL_API, "image/3D"),
@@ -459,13 +560,12 @@ KEY_VALUE = re.compile(r"\b(msy_|tsk_|r8_|rdpk-|layer_pat_)[A-Za-z0-9_-]{16,}|\b
 
 def check_gen_api(command, root, policy, data=None):
     for words in shell_segments(command):
-        at = next((i for i, w in enumerate(words[:3]) if os.path.basename(w).lower() == "gen_api.py"),
-                  None)
+        at = script_at(words, "gen_api.py")
         if at is None or len(words) <= at + 1:
             continue
         verb = words[at + 1].lower()
         arg = words[at + 2].lower() if len(words) > at + 2 else ""
-        if verb in ("services", "balance", "jobs", "actions"):
+        if verb in ("services", "balance", "jobs", "actions", "decline"):
             continue
         service = arg.split("-", 1)[0]
         key = GEN_SERVICES.get(service, "model_generators")
@@ -512,9 +612,7 @@ def user_spoke_after(data, root, job):
 
 # Vendor MCP servers of paid generators (a server name like meshy, claude_ai_ElevenLabs): the
 # same policy as gen_api.py; under autopilot only their read calls (balance, status, lists).
-VENDOR_MCP = {"model_generators": r"meshy|tripo|rodin|hyper3d|stability|fal|replicate|leonardo|"
-                                  r"scenario|sloyd|pixellab|3daistudio",
-              "audio_generators": r"elevenlabs|suno|udio|stableaudio"}
+VENDOR_MCP = k.VENDOR_MCP
 VENDOR_READ = re.compile(r"^(get|list|search|check|retrieve|read|download|fetch)|"
                          r"(balance|status|credits)", re.I)
 
@@ -546,8 +644,7 @@ def check_asset_libraries(command, policy):
     if policy.get("asset_libraries", "attribution") != "off":
         return
     for words in shell_segments(command):
-        at = next((i for i, w in enumerate(words[:3])
-                   if os.path.basename(w).lower() == "assets_api.py"), None)
+        at = script_at(words, "assets_api.py")
         if at is not None and len(words) > at + 1 and words[at + 1].lower() in ("fetch", "import"):
             k.deny("asset_libraries=off in manifest.md: nothing is downloaded from free "
                    "libraries in this project (the user changes it with /kiln:settings).")
@@ -655,9 +752,27 @@ def split_heredocs(command):
         m = HEREDOC.search(line)
         if m:
             end = m.group(2)
-            head = line[:m.start()].replace("\\", "/").split()
-            to_python = bool(head) and bool(PYTHON_EXE.match(head[0]))
+            # `python - <<EOF`, `cat <<EOF | python -`, `uv run python - <<EOF` (bug hunt
+            # 2026-10-20: only a python at the head of the line counted)
+            to_python = any(starts_python(part) for part in line.replace("\\", "/").split("|"))
     return "\n".join(out), python_bodies
+
+
+def starts_python(text):
+    """True when this simple command starts a Python interpreter (VAR=x and uv run / uvx /
+    uv tool run in front of it allowed)."""
+    words = text.strip().split()
+    while words and re.match(r"^\w+=", words[0]):
+        words.pop(0)
+    if words[:3] == ["uv", "tool", "run"]:
+        words = words[3:]
+    elif words[:2] == ["uv", "run"] or words[:1] == ["uvx"]:
+        words = [w for w in words[1 if words[0] == "uvx" else 2:] if not w.startswith("-")]
+    return bool(words) and bool(PYTHON_EXE.match(words[0].strip("'\"")))
+
+
+IMPORTS_BPY = re.compile(r"\bimport\s+(?:[\w.]+\s*(?:as\s+\w+\s*)?,\s*)*bpy\b|\bfrom\s+bpy\b|"
+                         r"__import__\(\s*['\"]bpy")
 
 
 def strip_heredocs(command):
@@ -691,7 +806,20 @@ def shell_segments(command):
     unwraps `uv run` / `uvx` / `uv tool run`. Words after the program are its arguments, so a
     server name inside a quoted note or a --probe value is not a call to that server.
     """
-    for seg in split_unquoted(strip_heredocs(command).replace("\\", "/")):
+    yield from _segments(strip_heredocs(command).replace("\\", "/"), 0)
+
+
+SUBSTITUTION = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
+SHELL_WRAPPERS = {"bash": ("-c",), "sh": ("-c",), "zsh": ("-c",), "dash": ("-c",),
+                  "cmd": ("/c", "/k"), "powershell": ("-c", "-command"),
+                  "pwsh": ("-c", "-command")}
+
+
+def _segments(text, depth):
+    for seg in split_unquoted(text):
+        if depth < 4:  # $(godot-ai ...) runs too (bug hunt 2026-10-20)
+            for m in SUBSTITUTION.finditer(seg):
+                yield from _segments(m.group(1) or m.group(2) or "", depth + 1)
         try:
             words = shlex.split(seg)
         except ValueError:
@@ -702,8 +830,16 @@ def shell_segments(command):
             words = words[3:]
         elif words[:2] == ["uv", "run"] or words[:1] == ["uvx"]:
             words = [w for w in words[1 if words[0] == "uvx" else 2:] if not w.startswith("-")]
-        if words:
-            yield words
+        if not words:
+            continue
+        # `bash -c '...'`, `cmd /c ...`, `powershell -Command ...`: the inner command is what runs
+        flags = SHELL_WRAPPERS.get(os.path.basename(words[0]).lower().removesuffix(".exe"))
+        at = next((i for i, w in enumerate(words[1:], 1) if w.lower() in (flags or ())), None)
+        if at is not None and depth < 4:
+            yield from _segments(" ".join(words[at + 1:]) if len(words) > at + 2
+                                 else (words[at + 1] if len(words) > at + 1 else ""), depth + 1)
+            continue
+        yield words
 
 
 def program(words):
@@ -715,11 +851,8 @@ def python_pipelines(command):
     code or its stdin; text in other pipelines (a search, a commit message) is not."""
     out = []
     for pipe in re.split(r"&&|\|\||;|\n", command):
-        for part in pipe.split("|"):
-            first = part.strip().split(None, 1)
-            if first and PYTHON_EXE.match(first[0].strip("'\"")):
-                out.append(pipe)
-                break
+        if any(starts_python(part) for part in pipe.split("|")):
+            out.append(pipe)
     return out
 
 
@@ -756,17 +889,21 @@ def python_runs(command, root):
 
 
 NULL_TARGETS = {"/dev/null", "nul", "$null", "nul:"}
-PS_WRITE = {"set-content": ("-path", "-literalpath"), "add-content": ("-path", "-literalpath"),
-            "out-file": ("-filepath", "-literalpath", "-path")}
-PS_COPY = {"copy-item", "move-item", "cp", "mv", "copy", "move"}
+PS_WRITE = {"set-content", "add-content", "out-file", "sc", "ac"}
+PS_COPY = {"copy-item", "move-item", "cp", "mv", "copy", "move", "cpi", "mi"}
+CD_PROGS = {"cd", "chdir", "pushd", "set-location", "sl"}
 
 
-def shell_write_targets(command):
+def shell_write_targets(command, base=None):
     """[(path, mode)] a shell command writes: redirections, tee, cp/mv destinations, sed -i,
-    PowerShell Set-Content / Add-Content / Out-File / Copy-Item / Move-Item. mode is 'append'
-    for >> and tee -a / Add-Content, else 'write'. Here-document bodies are not commands."""
+    PowerShell Set-Content / Add-Content / Out-File / New-Item -Value / Copy-Item / Move-Item /
+    Rename-Item. mode is 'append' for >> and tee -a / Add-Content, else 'write'. Here-document
+    bodies are not commands. With `base` (the shell's folder), `cd` moves it and relative paths
+    come back absolute (bug hunt 2026-10-20: `cd scenes && echo x > ../project.godot`)."""
     out = []
     for seg in split_unquoted(strip_heredocs(command).replace("\\", "/")):
+        cd = None
+        start = len(out)
         try:
             lex = shlex.shlex(seg, posix=True, punctuation_chars="<>")
             lex.whitespace_split = True
@@ -783,46 +920,175 @@ def shell_write_targets(command):
                  and not (i and toks[i - 1] in (">", ">>", ">|", "<", "<<"))]
         while words and re.match(r"^\w+=", words[0]):
             words.pop(0)
-        if not words:
-            continue
-        prog = os.path.basename(words[0]).lower().removesuffix(".exe")
+        prog = os.path.basename(words[0]).lower().removesuffix(".exe") if words else ""
         args = words[1:]
-        if prog == "tee":
+        if prog in CD_PROGS and base:
+            named, positional = ps_args(args)
+            dest = named.get("-path") or named.get("-literalpath") or \
+                (positional[0] if positional else None)
+            if dest and dest != "-":
+                cd = dest if os.path.isabs(dest) else os.path.join(base, dest)
+        elif prog == "tee":
             mode = "append" if any(a in ("-a", "--append") for a in args) else "write"
             out += [(a, mode) for a in args if not a.startswith("-")]
         elif prog == "sed" and any(a == "-i" or a.startswith("-i") or a == "--in-place"
                                    for a in args):
             files = [a for a in args if not a.startswith("-")][1:]
             out += [(f, "write") for f in files]
-        elif prog in ("cp", "mv", "install") and len([a for a in args if not a.startswith("-")]) >= 2:
-            dest = [a for a in args if not a.startswith("-")][-1]
-            srcs = [a for a in args if not a.startswith("-")][:-1]
-            if dest.endswith("/") and len(srcs) == 1:
-                dest += os.path.basename(srcs[0])
-            out.append((dest, "write"))
-        elif prog in PS_WRITE:
-            low = [a.lower() for a in args]
-            named = next((args[j + 1] for j, a in enumerate(low)
-                          if a in PS_WRITE[prog] and j + 1 < len(args)), None)
-            target = named or next((a for a in args if not a.startswith("-")), None)
+        elif prog in ("cp", "mv", "install", "ln") or (prog in PS_COPY and not any(
+                a.lower().startswith("-dest") for a in args)):
+            out += [(t, "write") for t in copy_targets(args, base)]
+        elif prog in PS_WRITE or (prog in ("new-item", "ni") and any(
+                ps_param(a) == "-value" for a in args)):
+            named, positional = ps_args(args)
+            target = next((named[p] for p in ("-path", "-literalpath", "-filepath")
+                           if p in named), None) or (positional[0] if positional else None)
             if target:
-                out.append((target, "append" if prog == "add-content" else "write"))
-        elif prog in PS_COPY:
-            low = [a.lower() for a in args]
-            named = next((args[j + 1] for j, a in enumerate(low)
-                          if a == "-destination" and j + 1 < len(args)), None)
-            positional = [a for j, a in enumerate(args) if not a.startswith("-")
-                          and not (j and low[j - 1].startswith("-"))]
-            target = named or (positional[1] if len(positional) >= 2 else None)
-            if target:
-                out.append((target, "write"))
+                out.append((target, "append" if prog in ("add-content", "ac") else "write"))
+        if prog in PS_COPY or prog in ("rename-item", "ren", "rni"):
+            named, positional = ps_args(args)
+            if prog in ("rename-item", "ren", "rni"):
+                src = named.get("-path") or named.get("-literalpath") or \
+                    (positional[0] if positional else None)
+                new = named.get("-newname") or (positional[1] if len(positional) > 1 else None)
+                if src and new:
+                    out.append((posixpath.join(posixpath.dirname(src), new), "write"))
+            elif "-destination" in named:
+                srcs = [named[p] for p in ("-path", "-literalpath") if p in named] or positional
+                out += [(t, "write") for t in into_folder(named["-destination"], srcs, base)]
+        if base:
+            out[start:] = [(p if os.path.isabs(p) or p.lower() in NULL_TARGETS
+                            else os.path.join(base, p), m) for p, m in out[start:]]
+        if cd is not None:
+            base = cd
     return [(p, m) for p, m in out if p.lower() not in NULL_TARGETS]
+
+
+# PowerShell parameters that take a value: the value is not a path (bug hunt 2026-10-20: the
+# guard took `utf8` of `Out-File -Encoding utf8 scenes/main.tscn` for the target).
+PS_VALUE_PARAMS = ("-value", "-encoding", "-path", "-literalpath", "-filepath", "-width",
+                   "-stream", "-filter", "-include", "-exclude", "-credential", "-itemtype",
+                   "-name", "-inputobject", "-destination", "-newname", "-delimiter")
+
+
+def ps_param(arg):
+    """The full name of a PowerShell parameter (`-Enc` -> -encoding, `-Path:x` -> -path)."""
+    low = arg.lower().split(":", 1)[0]
+    if not low.startswith("-") or len(low) < 2:
+        return None
+    hits = [p for p in PS_VALUE_PARAMS if p.startswith(low)]
+    return low if low in PS_VALUE_PARAMS else (hits[0] if len(hits) == 1 else low)
+
+
+def ps_args(args):
+    """({parameter: value}, positional arguments) of a PowerShell cmdlet call."""
+    named, positional, i = {}, [], 0
+    while i < len(args):
+        a = args[i]
+        p = ps_param(a)
+        if p and p in PS_VALUE_PARAMS:
+            if ":" in a:
+                named[p] = a.split(":", 1)[1]
+            elif i + 1 < len(args):
+                named[p] = args[i + 1]
+                i += 1
+        elif not p:
+            positional.append(a)
+        i += 1
+    return named, positional
+
+
+def into_folder(dest, srcs, base):
+    """A copy's written paths: dest itself, or dest/<name> per source when dest is a folder."""
+    full = dest if os.path.isabs(dest) or not base else os.path.join(base, dest)
+    if dest.endswith("/") or os.path.isdir(full):
+        return [posixpath.join(dest, posixpath.basename(s.rstrip("/"))) for s in srcs] or [dest]
+    return [dest]
+
+
+def copy_targets(args, base):
+    """Written paths of cp / mv / install / ln and PowerShell copy aliases with positional
+    arguments: the last argument, or every source inside it when it is a folder; -t DIR."""
+    target_dir, plain, skip = None, [], False
+    for i, a in enumerate(args):
+        if skip:
+            skip = False
+            continue
+        if a in ("-t", "--target-directory"):
+            target_dir = args[i + 1] if i + 1 < len(args) else None
+            skip = True
+        elif a.startswith("--target-directory="):
+            target_dir = a.split("=", 1)[1]
+        elif a in ("-S", "--suffix", "-m", "--mode", "-o", "--owner", "-g", "--group"):
+            skip = True
+        elif not a.startswith("-"):
+            plain.append(a)
+    if target_dir:
+        return [posixpath.join(target_dir, posixpath.basename(s.rstrip("/"))) for s in plain]
+    if len(plain) < 2:
+        return []
+    return into_folder(plain[-1], plain[:-1], base)
+
+
+REMOVE_PROGS = {"rm", "del", "erase", "rd", "rmdir", "unlink", "remove-item", "ri", "shred"}
+MOVE_PROGS = {"mv", "move", "move-item", "mi", "rename-item", "ren", "rni"}
+
+
+def shell_removed_paths(command, base):
+    """Absolute paths a shell command deletes, moves or renames away (the source of mv; git rm /
+    git mv); `cd` moves the base."""
+    found = []
+    for words in shell_segments(command):
+        out = []
+        prog = program(words).removesuffix(".exe")
+        args = words[1:]
+        if prog in CD_PROGS:
+            named, positional = ps_args(args)
+            dest = named.get("-path") or named.get("-literalpath") or \
+                (positional[0] if positional else None)
+            if dest and dest != "-":
+                base = dest if os.path.isabs(dest) else os.path.join(base, dest)
+        elif prog == "git" and args[:1] in (["rm"], ["mv"]):
+            plain = [a for a in args[1:] if not a.startswith("-")]
+            out += plain if args[0] == "rm" else plain[:-1]
+        elif prog in REMOVE_PROGS:
+            named, positional = ps_args(args) if prog in ("remove-item", "ri") else ({}, [
+                a for a in args if not a.startswith("-") and not re.fullmatch(r"/[a-zA-Z]", a)])
+            out += [named[p] for p in ("-path", "-literalpath") if p in named] + positional
+        elif prog in MOVE_PROGS:
+            if prog in ("mv", "move") and not any(a.lower().startswith("-dest") for a in args):
+                plain = [a for a in args if not a.startswith("-")]
+                out += plain[:-1]
+            else:
+                named, positional = ps_args(args)
+                srcs = [named[p] for p in ("-path", "-literalpath") if p in named]
+                out += srcs or positional[:1]
+        found += [p if os.path.isabs(p) else os.path.join(base, p) for p in out]
+    return found
+
+
+def check_shell_removals(data, root, policy):
+    """Deleting, moving or renaming a file is a change to it: framework files (manifest.md - every
+    Kiln hook stops without it -, agent and runtime settings) and engine files follow the Write
+    rules (bug hunt 2026-10-20: `mv manifest.md manifest.bak` switched Kiln off)."""
+    command = (data.get("tool_input") or {}).get("command") or ""
+    for path in shell_removed_paths(command, data.get("cwd") or root):
+        rel = k.rel_path(root, path)
+        if rel is None:
+            continue
+        rel = rel.rstrip("/")
+        if rel in ("", ".") or k.path_matches(rel, PROTECTED) or any(
+                p.lower().startswith(rel.lower() + "/") for p in PROTECTED):
+            k.deny(f"{rel or 'the project folder'}: deleting or moving framework files "
+                   "(manifest.md, agent and runtime settings) turns Kiln's rules off. Ask the user.")
+        check_write({**data, "tool_name": "ShellWrite", "shell_mode": "delete",
+                     "tool_input": {"file_path": path, "content": ""}}, root, policy)
 
 
 def check_shell_writes(data, root, policy):
     """A file written by a shell command passes the same checks as a Write of that file."""
     command = (data.get("tool_input") or {}).get("command") or ""
-    for target, mode in shell_write_targets(command):
+    for target, mode in shell_write_targets(command, data.get("cwd") or root):
         path = target if os.path.isabs(target) else os.path.join(root, target)
         if path.replace("\\", "/").lower().endswith(".codex/config.toml"):
             check_write({**data, "tool_input": {"file_path": path, "content": ""}}, root, policy)
@@ -878,9 +1144,17 @@ def godot_script(words):
     return None
 
 
+def res_rel(path):
+    """A res:// or project path, normalised ('..' resolved); '' when it leaves the project, so
+    `tests/probes/../../scripts/x.gd` is scripts/x.gd, not a probe (bug hunt 2026-10-20)."""
+    rel = re.sub(r"^(res://|\./|/)+", "", str(path or "").replace("\\", "/"))
+    rel = posixpath.normpath(rel) if rel else ""
+    return "" if rel == ".." or rel.startswith("../") else rel
+
+
 def headless_probe(words, script):
     """Parse checks and test probes may run headless; scripts that build content may not."""
-    rel = re.sub(r"^(res://|\./|/)+", "", script.replace("\\", "/"))
+    rel = res_rel(script)
     return "--check-only" in words or rel.startswith(("tests/", ".kiln/"))
 
 
@@ -891,19 +1165,59 @@ def kills_by_name(words):
         return "/im" in args or "-im" in args
     if prog in ("pkill", "killall"):
         return True
-    if prog in ("stop-process", "spps"):
-        return not any(a in ("-id", "-processid") for a in args)
+    if prog in ("stop-process", "spps", "kill"):
+        # by name: -Name / -ProcessName, or a positional that is not a PID (`Stop-Process 1234`
+        # and PowerShell's `kill 1234` stop one process - bug hunt 2026-10-20)
+        named = {ps_param(a) for a in args if a.startswith("-")}
+        positional = [a for i, a in enumerate(args) if not a.startswith("-")
+                      and not (i and args[i - 1].startswith("-") and
+                               args[i - 1] not in ("-force", "-passthru"))]
+        if prog == "kill":
+            return "-name" in named or "-processname" in named
+        by_pid = ("-id" in named or "-processid" in named or
+                  any(re.fullmatch(r"[\d,\s]+", p) for p in positional))
+        # piped (`Get-Process python | Stop-Process`) or by name: every process of that name
+        return not by_pid or "-name" in named or "-processname" in named
     return False
 
 
+def join_continuations(command):
+    """One logical line per command: bash `\\` and PowerShell backtick line continuations are
+    joined before any check reads the command (bug hunt 2026-10-20: `git push \\<newline>
+    --force` and `cp x \\<newline> scenes/main.tscn` passed every shell rule). Here-document
+    bodies are data and stay as they are, so their end marker is still found."""
+    out, end, cur = [], None, None
+    for line in command.replace("\r\n", "\n").split("\n"):
+        if end is not None:
+            out.append(line)
+            if line.strip() == end:
+                end = None
+            continue
+        cur = line if cur is None else cur + " " + line.lstrip()
+        stripped = cur.rstrip(" \t")
+        if stripped.endswith(("\\", "`")) and not stripped.endswith("\\\\"):
+            cur = stripped[:-1]
+            continue
+        out.append(cur)
+        m = HEREDOC.search(cur)
+        if m:
+            end = m.group(2)
+        cur = None
+    if cur is not None:
+        out.append(cur)
+    return "\n".join(out)
+
+
 def check_shell(data, root, policy):
-    command = (data.get("tool_input") or {}).get("command") or ""
+    command = join_continuations((data.get("tool_input") or {}).get("command") or "")
     if not command.strip():
         return
+    data = {**data, "tool_input": {**(data.get("tool_input") or {}), "command": command}}
     low = command.lower()
     role = k.role_of(data)
 
     check_shell_writes(data, root, policy)
+    check_shell_removals(data, root, policy)
     windowed = any(windowed_godot_run(w) for w in shell_segments(command))
     if windowed and policy.get("on_screen") == "slot" and not screen_free(root):
         k.deny(SLOT_REASON)
@@ -927,16 +1241,15 @@ def check_shell(data, root, policy):
         # Text written to a file through a here-document is data; a body fed to python is code
         # when a line of it imports bpy (a string that mentions bpy is not).
         outside, python_bodies = split_heredocs(command)
-        if invoked and (any(re.search(r"\b(import\s+bpy|from\s+bpy\b)", pipe)
-                            for pipe in python_pipelines(outside)) or any(
-                re.search(r"^\s*(import\s+bpy|from\s+bpy\b)", body, re.M)
-                for body in python_bodies)):
+        if invoked and (any(IMPORTS_BPY.search(pipe) for pipe in python_pipelines(outside)) or any(
+                IMPORTS_BPY.match(line.strip()) for body in python_bodies
+                for line in body.splitlines())):
             k.deny("bpy code must run inside the user's Blender through the Blender Lab MCP "
                    "(execute_blender_code), not from the shell.")
         for path in scripts:
             try:
                 with open(path, encoding="utf-8", errors="ignore") as fh:
-                    if re.search(r"^\s*(import\s+bpy|from\s+bpy\b)", fh.read(), re.M):
+                    if any(IMPORTS_BPY.match(line.strip()) for line in fh.read().splitlines()):
                         k.deny(f"{os.path.basename(path)} imports bpy. Run Blender code through "
                                "the Blender Lab MCP in the open Blender instead.")
             except OSError:
@@ -957,16 +1270,28 @@ def check_shell(data, root, policy):
         connecting = " ".join(" ".join(w) for w in calls if not (
             re.sub(r"\.(exe|cmd)$", "", program(w)) in ("claude", "codex", "gemini", "copilot",
                                                          "opencode") and "mcp" in w[1:3]))
-        if re.search(r"(127\.0\.0\.1|localhost):(9876|9500|8000|8080)\b", connecting.lower()):
+        if re.search(r"(127(\.\d{1,3}){0,3}|localhost|\[::1\]|0\.0\.0\.0):(9876|9500|8000|8080)\b",
+                     connecting.lower()):
             k.deny("Direct connections to the editors' MCP ports (Blender, Godot, Unity, Unreal) "
                    "are not allowed; use the MCP tools.")
-        if re.search(r"-batchmode\b", low) and \
-                re.search(r"-executemethod\s+(?![\w.]*build)", low):
-            k.deny("Headless Unity editor scripts are not allowed for editor work; use MCP "
-                   "for Unity in the open editor. (Build methods are allowed.)")
-        if re.search(r"(-executepythonscript|-run=pythonscript)", low):
-            k.deny("Headless Unreal Python is not allowed for editor work; use the Unreal "
-                   "MCP in the open editor.")
+        # Unity: only the release build method (release skill: KilnRelease.KilnBuild.Build, or the
+        # methods listed in manifest unity_build_methods) runs headless; a class or method that
+        # merely contains "build" (LevelBuilder.GenerateTown) does not (bug hunt 2026-10-20)
+        allowed = {m.lower() for m in policy_list(policy, "unity_build_methods",
+                                                  "KilnRelease.KilnBuild.Build")}
+        for m in re.finditer(r"-executemethod\s+([\w.]+)", low):
+            if re.search(r"-batchmode\b", low) and m.group(1) not in allowed:
+                k.deny(f"Headless Unity method {m.group(1)} is not a release build method. Editor "
+                       "work goes through MCP for Unity in the open editor; builds use the "
+                       "release skill's build method (manifest unity_build_methods lists others).")
+        # Unreal: no Python, no commandlet other than the cook / test ones, no ExecCmds that run
+        # Python, outside the open editor
+        if re.search(r"(-executepythonscript|-run=pythonscript)", low) or \
+                re.search(r"-execcmds\s*=\s*['\"]?[^'\"]*\bpy\s", low) or \
+                any(c not in ("cook", "derivedDataCache".lower(), "compileallblueprints")
+                    for c in re.findall(r"-run=(\w+)", low)):
+            k.deny("Headless Unreal editor scripts and commandlets are not allowed for editor "
+                   "work; use the Unreal MCP in the open editor (builds: RunUAT BuildCookRun).")
         for w in calls:
             script = godot_script(w)
             if script is not None and not headless_probe(w, script):
@@ -982,31 +1307,91 @@ def check_shell(data, root, policy):
                    "names. Kill the PID you started: taskkill /PID <pid> /T /F or Stop-Process "
                    "-Id <pid>.")
 
-    # git hygiene (user's commit policy): stage specific files, no force push, no secrets
-    for segment in re.split(r"&&|\|\||;|\n", command):
-        seg = segment.strip()
-        if re.match(r"git\s+add\s+(-A\b|--all\b|\.(\s|$))", seg):
+    # git hygiene (user's commit policy): stage specific files, no force push, no secrets.
+    # Parsed per simple command, options by meaning (bug hunt 2026-10-20: -vA, :/, -uf, +HEAD,
+    # commit -n, `git -C . add -A` passed the old patterns; a commit message quoting
+    # --no-verify was denied).
+    staged = []
+    for words in shell_segments(command):
+        check_git(words, root, staged)
+
+
+GIT_GLOBAL_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path",
+                    "--config-env", "--super-prefix"}
+GIT_ALL_PATHS = {".", "./", ":/", ":/.", "*", ":(top)", ":(glob)**", "-A", "--all"}
+
+
+def git_subcommand(words):
+    """(subcommand, its arguments) of a git command line, global options skipped, or (None, [])."""
+    if program(words).removesuffix(".exe") != "git":
+        return None, []
+    i = 1
+    while i < len(words) and words[i].startswith("-"):
+        i += 2 if words[i] in GIT_GLOBAL_VALUE else 1
+    return (words[i].lower(), words[i + 1:]) if i < len(words) else (None, [])
+
+
+def short_flags(args, value_letters):
+    """Letters of the short-option clusters (-vA, -uf), stopping at a value-taking letter."""
+    letters, skip = set(), False
+    for a in args:
+        if skip:
+            skip = False
+            continue
+        if a == "--":
+            break
+        if a.startswith("-") and not a.startswith("--") and len(a) > 1:
+            for j, ch in enumerate(a[1:]):
+                letters.add(ch)
+                if ch in value_letters:
+                    skip = j == len(a) - 2
+                    break
+    return letters
+
+
+def check_git(words, root, staged):
+    sub, args = git_subcommand(words)
+    if sub is None:
+        return
+    long_opts = {a.split("=", 1)[0] for a in args if a.startswith("--")}
+    if sub == "add":
+        plain = [a for a in args if not a.startswith("-") or a == "-"]
+        literal = args[args.index("--") + 1:] if "--" in args else []
+        if "A" in short_flags(args, "") or "--all" in long_opts or \
+                any(p.rstrip("/") in ("", ".", ":", ":/.") or p in GIT_ALL_PATHS
+                    for p in plain + literal):
             k.deny("Stage specific files (git add <paths>), not everything — framework state and "
                    "generated files must not slip into commits.")
-        if re.match(r"git\s+push\b", seg) and re.search(r"\s(--force(?!-with-lease)|-f\b)", seg):
+        for name in plain + literal:
+            if is_secret_file(name):
+                k.deny(f"{name} is a secrets file: never stage it. Make sure it is git-ignored.")
+            if os.path.isdir(os.path.join(root, name)):
+                for found in git_names(root, "ls-files", "--others", "--modified",
+                                       "--exclude-standard", "--", name):
+                    if is_secret_file(found):
+                        k.deny(f"git add {name} would stage {found}, a secrets file. Stage the "
+                               "files you mean by name and git-ignore it.")
+                    staged.append(found)
+            else:
+                staged.append(name)
+    if sub == "push":
+        refs = [a for a in args if not a.startswith("-")]
+        if "f" in short_flags(args, "o") or "--force" in long_opts or \
+                any(r.startswith("+") for r in refs):
             k.deny("Force push is not allowed. Use --force-with-lease only if the user asked.")
-        if re.match(r"git\s+commit\b", seg) and "--no-verify" in seg:
-            k.deny("Do not skip git hooks (--no-verify).")
-        if re.match(r"git\s+add\b", seg):
-            for name in git_words(seg)[2:]:
-                if is_secret_file(name):
-                    k.deny(f"{name} is a secrets file: never stage it. Make sure it is "
-                           "git-ignored.")
-        if re.match(r"git\s+commit\b", seg):
-            paths, everything = commit_paths(git_words(seg))
-            names = git_names(root, "diff", "--cached", "--name-only") + paths
-            if everything:  # -a commits every modified tracked file
-                names += git_names(root, "diff", "--name-only")
-            for name in names:
-                if is_secret_file(name):
-                    k.deny(f"{name} would be committed; secrets files must not be committed. "
-                           "Unstage it (git restore --staged), leave it out of the commit and "
-                           "make sure it is git-ignored.")
+    if sub in ("commit", "push", "merge", "rebase", "am", "cherry-pick", "revert", "pull"):
+        if "--no-verify" in long_opts or (sub == "commit" and "n" in short_flags(args, "mFCctS")):
+            k.deny("Do not skip git hooks (--no-verify / commit -n).")
+    if sub == "commit":
+        paths, everything = commit_paths(["git", "commit"] + args)
+        names = git_names(root, "diff", "--cached", "--name-only") + paths + staged
+        if everything:  # -a commits every modified tracked file
+            names += git_names(root, "diff", "--name-only")
+        for name in names:
+            if is_secret_file(name):
+                k.deny(f"{name} would be committed; secrets files must not be committed. "
+                       "Unstage it (git restore --staged), leave it out of the commit and "
+                       "make sure it is git-ignored.")
 
 
 SECRET_NAME = re.compile(r"\.env(\..+)?|.+\.(key|pem|p12|pfx)|credentials\.json|"
@@ -1019,7 +1404,7 @@ def is_secret_file(name):
     base = path.rsplit("/", 1)[-1]
     if base == ".env.example":
         return False
-    return bool(SECRET_NAME.fullmatch(base)) or "secrets" in path.lower().split("/")[:-1]
+    return bool(SECRET_NAME.fullmatch(base)) or "secrets" in path.lower().split("/")
 
 
 def git_words(segment):
@@ -1091,9 +1476,9 @@ def take_editor(data, policy, resource, path):
     # A session that was killed (usage limit, Ctrl-C, crash) never runs its Stop hooks, so its
     # lock lingers. Another session's lock therefore expires sooner than one inside this session.
     if held and held.get("session", session) != session:
-        ttl = float(policy.get("editor_lock_other_session_ttl", 120))
+        ttl = k.number(policy, "editor_lock_other_session_ttl", 120)
     else:
-        ttl = float(policy.get("editor_lock_ttl", 600))
+        ttl = k.number(policy, "editor_lock_ttl", 600)
     # The main session hands the editor to the role it delegates to: its own doctor probes must
     # not lock its agents out (live: the producer's probe blocked the animator for the TTL).
     handed_over = held and held.get("owner") == "main" and me != "main" and \
@@ -1103,7 +1488,7 @@ def take_editor(data, policy, resource, path):
     qpath = os.path.join(os.path.dirname(path), "queue.json")
     queues = k.load_json(qpath, {})
     line = [w for w in queues.get(resource, []) if now - w.get("ts", 0) < QUEUE_STALE_S]
-    lease = float(policy.get("editor_lease_s", 900))
+    lease = k.number(policy, "editor_lease_s", 900)
 
     def wait(reason):
         mine = next((w for w in line if w["owner"] == me), None)
@@ -1170,7 +1555,7 @@ def check_scene_first(data, policy):
         path, code = "", str(tool_input.get("commands", "")).replace("\\n", "\n")
     else:
         return
-    rel = str(path).replace("res://", "").lstrip("/")
+    rel = res_rel(path)
     if rel.startswith("tests/"):
         return  # probes and test suites may build throwaway nodes
     if tool != "batch_execute" and not str(path).endswith(".gd"):
@@ -1194,16 +1579,16 @@ def check_godot_review(data, role):
     if tool in GODOT_REVIEW_TOOLS:
         return
     if tool in ("script_create", "script_patch"):
-        rel = str(tool_input.get("path") or "").replace("res://", "").lstrip("/")
-        if k.path_matches(rel, GODOT_REVIEW_WRITES):
+        rel = res_rel(tool_input.get("path"))
+        if rel and k.path_matches(rel, GODOT_REVIEW_WRITES):
             return
     allowed = GODOT_REVIEW_OPS.get(tool)
     if allowed is None or op not in allowed:
         k.deny(f"{role} is read-only: {tool} {op} can change the project. Run, observe and "
                "probe the game; describe the change in your handoff for the owning role.")
     if tool == "filesystem_manage" and op == "write_text":
-        rel = str(params.get("path") or tool_input.get("path") or "").replace("res://", "")
-        if not k.path_matches(rel.lstrip("/"), GODOT_REVIEW_WRITES):
+        rel = res_rel(params.get("path") or tool_input.get("path"))
+        if not rel or not k.path_matches(rel, GODOT_REVIEW_WRITES):
             k.deny(f"{role} may write files through the Godot MCP only under "
                    f"{', '.join(GODOT_REVIEW_WRITES)} (probes, captures, reports).")
 
@@ -1254,11 +1639,30 @@ def check_godot_text_write(data, root, policy):
                                             "content": content}}, root, policy)
 
 
+# Editor calls that change the project, in C# a read-only role sends through execute_code (bug
+# hunt 2026-10-20: the kiln:probe marker alone let a probe save the scene).
+UNITY_CODE_WRITES = re.compile(
+    r"\b(EditorSceneManager\s*\.\s*(Save|Mark|NewScene|OpenScene|CloseScene)|"
+    r"AssetDatabase\s*\.\s*(Create|Delete|Move|Copy|Import|Save|Rename|Refresh|StartAssetEditing|"
+    r"ForceReserialize)|PrefabUtility\s*\.\s*(Save|Apply|Revert|Unpack|Replace|Instantiate)|"
+    r"DestroyImmediate|EditorUtility\s*\.\s*SetDirty|Undo\s*\.\s*Record|"
+    r"(File|Directory)\s*\.\s*(Write|Create|Delete|Move|Copy|Append|Replace)|PlayerSettings\s*\.|"
+    r"BuildPipeline\s*\.|AssetImporter|\bnew\s+GameObject\b|CreatePrimitive|AddComponent\s*<)")
+# Tool groups (MCP for Unity v10.3.0 manage_tools): visibility is per session, so a fresh
+# session's read-only role must be able to turn on the groups its probes need.
+UNITY_READ_GROUPS = {"testing", "scripting_ext", "profiling", "docs"}
+
+
 def unity_is_read(short, tool_input):
     """Read-only use of an MCP for Unity tool (names and actions from its v10.3.0 sources)."""
     action = str(tool_input.get("action") or "")
     if short == "execute_code":
-        return action in ("", "execute") and "kiln:probe" in str(tool_input.get("code") or "")
+        code = str(tool_input.get("code") or "")
+        return action in ("", "execute") and "kiln:probe" in code and \
+            not UNITY_CODE_WRITES.search(re.sub(r"//[^\n]*", "", code))
+    if short == "manage_tools":
+        return action in ("list_groups", "sync") or (
+            action == "activate" and str(tool_input.get("group") or "") in UNITY_READ_GROUPS)
     if short == "manage_scene" and action == "validate":
         return not tool_input.get("auto_repair")
     return short in UNITY_READ_TOOLS or bool(UNITY_READ_ACTIONS.match(action))
@@ -1307,11 +1711,16 @@ def check_unity(data, policy, role):
         action = str(tool_input.get("action") or "")
         if tool == "execute_code":
             k.deny(f"{role} is read-only: execute_code is allowed only for probes (action "
-                   "execute, code marked '// kiln:probe') that read state, never for edits.")
+                   "execute, code marked '// kiln:probe') that read state - no saving, asset, "
+                   "prefab, settings, file or object-creating calls.")
         k.deny(f"{role} is read-only: {tool} {action} changes the project. Describe the "
                "change in your handoff for the owning role.")
     if policy.get("scene_first", "on") != "on":
         return
+    if tool == "execute_code":  # scenes are not built in bulk through code (engine-unity)
+        hits = csharp_constructions(str(tool_input.get("code") or ""))
+        if hits:
+            k.deny(scene_first_reason(hits, "//"))
     for path, code in unity_script_payloads(tool, tool_input):
         if re.search(r"(^|/)(editor|tests?)/", path.lower()):
             continue
@@ -1343,9 +1752,16 @@ def is_engine_read(data):
         if short in ("list_toolsets", "describe_toolset", "unreal_mcp_status"):
             return True
         name, args = unreal_call(data)
-        if re.search(r"console", name, re.I):
+        action = str(args.get("action") or "")
+        if re.search(r"console", name + " " + action, re.I):
             return bool(UNREAL_SAFE_CONSOLE.match(str(args.get("command") or args.get("cmd") or "")))
-        return bool(UNREAL_READ_TOOLS.match(name))
+        if action:  # a fallback server: the operation is the action (bug hunt 2026-10-20)
+            if UNREAL_CHANGE_WORD.search(action):
+                return False
+            return name in UNREAL_READ_TOOLS_PLAIN or bool(UNREAL_READ_ACTIONS.match(action)) or \
+                bool(re.fullmatch(r"(start|stop)_?pie|(run|stop)_?tests|kiln_probe\w*|"
+                                  r"inject_input\w*|highres_shot", action, re.I))
+        return bool(UNREAL_READ_TOOLS.match(name)) and not UNREAL_CHANGE_WORD.search(name)
     return False
 
 
@@ -1356,8 +1772,10 @@ def check_unreal(data, policy, role):
                "project. Read-only roles use get/find/list/capture/log/PIE/test tools, the Kiln "
                "probe toolset and stat/csvprofile/trace console commands. Describe the change in "
                "your handoff for the owning role.")
-    if policy.get("scene_first", "on") == "on" and UNREAL_GENERATORS.match(name):
-        k.deny(f"{name} generates level content procedurally. Build levels by placing actors, "
+    action = str(args.get("action") or "")
+    if policy.get("scene_first", "on") == "on" and (UNREAL_GENERATORS.match(name) or
+                                                     UNREAL_GENERATORS.match(action)):
+        k.deny(f"{action or name} generates level content procedurally. Build levels by placing actors, "
                "level instances and packed level actors in the open editor so the user can edit "
                "them by hand.")
 
@@ -1366,11 +1784,23 @@ GAME_START = re.compile(r"__(project_run|startpie)$|__manage_editor$", re.I)
 
 
 def starts_windowed_game(data):
+    """Godot project_run, Unity Play mode (manage_editor play, the Edit/Play menu item), Unreal
+    PIE - Epic's server wraps it in call_tool, fallback servers put it in `action` (bug hunt
+    2026-10-20: neither was seen)."""
     tool = data.get("tool_name") or ""
+    tool_input = data.get("tool_input") or {}
+    if tool.endswith("__execute_menu_item"):
+        return re.sub(r"\s", "", str(tool_input.get("menu_path") or tool_input.get("menuPath")
+                                     or tool_input.get("path") or "")).lower() == "edit/play"
+    if UNREAL_PREFIX.match(tool):
+        name, args = unreal_call(data)
+        return bool(re.fullmatch(r"(start_?pie|play_in_editor|play)", name, re.I) or
+                    re.fullmatch(r"(start_?pie|play_in_editor|play)", str(args.get("action") or ""),
+                                 re.I))
     if not GAME_START.search(tool):
         return False
     if tool.endswith("__manage_editor"):  # MCP for Unity: action play enters Play mode
-        return str((data.get("tool_input") or {}).get("action") or "").lower() == "play"
+        return str(tool_input.get("action") or "").lower() == "play"
     return True
 
 
@@ -1382,7 +1812,7 @@ def check_mcp(data, root, policy):
     if tool.startswith("mcp__godot-ai__"):
         if tool.endswith(("__script_create", "__script_patch")):
             rel = str((data.get("tool_input") or {}).get("path") or "")
-            deny_acceptor_probe(rel.replace("res://", "").lstrip("/"), role)
+            deny_acceptor_probe(res_rel(rel), role)
             ti = data.get("tool_input") or {}
             check_godot3(str(ti.get("content") or ti.get("new_text") or ""), rel)
         check_scene_first(data, policy)

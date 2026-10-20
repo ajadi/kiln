@@ -96,6 +96,16 @@ class Capsules(unittest.TestCase):
         code, res = run(self.root, "capsules", "store/steam", "--screenshots", "store/steam/shots",
                         "--answers", answers)
         self.assertEqual((code, res["verdict"]), (0, "pass"), res)
+        # bug hunt 2026-10-20: empty answers, or no screenshot check, are not a pass
+        code, res = run(self.root, "capsules", "store/steam", "--answers", answers)
+        self.assertEqual(res["verdict"], "not assessed", res)
+        for item in data["items"]:
+            item["answer"] = {}
+        with open(answers, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        code, res = run(self.root, "capsules", "store/steam", "--screenshots", "store/steam/shots",
+                        "--answers", answers)
+        self.assertEqual((res["verdict"], len(res["unanswered"])), ("not assessed", 8), res)
 
     def test_wrong_size_missing_asset_opaque_logo_and_few_screenshots(self):
         self.make_all(skip=("vertical",), wrong=(1232, 700))
@@ -234,6 +244,8 @@ class AiDisclosure(unittest.TestCase):
         prov("art/generated/crate", {"service": "meshy", "version": "image-to-3d meshy-6",
                                      "ai_generated": True, "outputs": [{"file": "crate.glb"}]})
         prov("audio/generated/wind", {"tool": "stable-audio-open", "version": "1.0"}, ["wind.ogg"])
+        prov("art/generated/sign", {"tool": "flux", "ai_generated": True,
+                                    "outputs": [{"file": "sign.png"}]})
         prov("art/library/barrel", {"kind": "library", "source": "kenney"}, ["barrel.glb"])
         prov("ref/boards/look", {"tool": "flux", "ai_generated": True,
                                  "outputs": [{"file": "a.png"}]})
@@ -248,10 +260,11 @@ class AiDisclosure(unittest.TestCase):
         self.assertEqual(res["pre_generated"]["3D models"], ["meshy image-to-3d meshy-6"])
         self.assertIn("sound and music", res["pre_generated"])
         self.assertIn("text", res["pre_generated"])
-        self.assertEqual(res["shipping"], 3)                     # ref/ never ships, library skipped
+        self.assertEqual(res["shipping"], 4)                     # ref/ never ships, library skipped
         self.assertEqual(res["live_candidates"][0]["file"], "scripts/npc.gd")
         text = open(os.path.join(root, "production", "release", "AI_DISCLOSURE.md")).read()
         self.assertIn("guardrails", text)
+        self.assertIn("- text: 1 items", text)          # not counted inside "images and textures"
         self.assertNotIn("kenney", text)
 
 
@@ -340,6 +353,19 @@ class Deck(unittest.TestCase):
                         res["warnings"])
         code, res = run(root, "deck", "--scene", "res://menu.tscn", "--skip", "Fine")
         self.assertEqual((code, res["verdict"]), (0, "pass"), res)
+
+    def test_integer_scale_never_goes_below_one(self):
+        # bug hunt 2026-10-20: a 1920x1080 base in integer mode read 0.667 on the Deck; Godot
+        # keeps 1.0 (its get_stretch_transform at 1280x800, checked live)
+        root = temp()
+        with open(os.path.join(root, "project.godot"), "w") as fh:
+            fh.write(PROJECT.replace("640", "1920").replace("400", "1080") +
+                     'window/stretch/scale_mode="integer"\n')
+        with open(os.path.join(root, "menu.tscn"), "w") as fh:
+            fh.write('[gd_scene format=3]\n\n[node name="M" type="Control"]\n\n'
+                     '[node name="T" type="Label" parent="."]\ntext = "hi"\n')
+        code, res = run(root, "deck", "--scene", "res://menu.tscn")
+        self.assertEqual(res["stretch_scale"], 1.0, res)
 
 
 WEB_PRESET = '''[preset.0]

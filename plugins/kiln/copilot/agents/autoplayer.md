@@ -1,7 +1,7 @@
 ---
 name: autoplayer
 description: Autoplayer — plays the game through on its own (end to end or a chosen part) toward objectives from GAME.md / the slice, many seeded runs while the user is away, with traces, scheduled frames, stuck and crash detection, and a morning report the acceptance roles use instead of waiting for an on-screen session. Read-only on game content; writes autoplay scenarios and reports. Use for full-flow gates, soak tests and night runs.
-tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/api_manage, godot-ai/filesystem_manage, unity/*, unreal/*
+tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/api_manage, godot-ai/filesystem_manage, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: sonnet
 reasoning-effort: high
 maxTurns: 150

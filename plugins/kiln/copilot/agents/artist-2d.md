@@ -1,7 +1,7 @@
 ---
 name: artist-2d
 description: 2D artist and animator — makes sprites, tilesets, parallax backgrounds, UI art and frame-by-frame or skeletal 2D animation with a locked palette, chosen by style (hand-placed pixel art, Blender pre-renders quantised to the palette, SVG vector, licence-gated AI images), sets up sprite frames, tilesets/terrains, 2D lights and canvas shaders in the engine through its MCP, and proves the result with palette, mixel, silhouette, contrast and baseline checks. Use for any 2D art or 2D animation task.
-tools: view, grep, glob, create, edit, shell, web_fetch, skill, blender/*, godot-ai/*, unity/*, unreal/*
+tools: view, grep, glob, create, edit, shell, web_fetch, skill, blender/*, godot-ai/*, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: opus
 reasoning-effort: high
 maxTurns: 300

@@ -102,5 +102,45 @@ class AssetBudget(unittest.TestCase):
         self.assertEqual(rows["cup.glb"]["verdict"], "PASS")
 
 
+class AssetBudgetEdges(unittest.TestCase):
+    """Bug hunt 2026-10-20: embedded .gltf textures read 0, no file matched read PASS, a broken
+    GLB crashed the run."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="kiln-budget-")
+
+    def gltf(self, name, images, buffers=None, views=None):
+        data = {"asset": {"version": "2.0"}, "images": images, "buffers": buffers or [],
+                "bufferViews": views or [], "meshes": [], "nodes": []}
+        with open(os.path.join(self.root, name), "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+
+    def test_embedded_textures_of_a_gltf_are_measured(self):
+        import base64
+        png = io.BytesIO()
+        Image.new("RGBA", (4096, 2048), (9, 9, 9, 255)).save(png, "PNG")
+        uri = "data:image/png;base64," + base64.b64encode(png.getvalue()).decode()
+        self.gltf("a.gltf", [{"uri": uri}])
+        buf = "data:application/octet-stream;base64," + base64.b64encode(png.getvalue()).decode()
+        self.gltf("b.gltf", [{"bufferView": 0, "mimeType": "image/png"}],
+                  [{"byteLength": len(png.getvalue()), "uri": buf}],
+                  [{"buffer": 0, "byteOffset": 0, "byteLength": len(png.getvalue())}])
+        with open(os.path.join(self.root, "budgets.json"), "w", encoding="utf-8") as fh:
+            json.dump({"*": {"texture_px": 1024}}, fh)
+        code, res = run(self.root, "*.gltf", "--budgets", "budgets.json")
+        self.assertEqual(code, 1, res)
+        for row in res["assets"]:
+            self.assertEqual(row["texture_px"], 4096, row)
+            self.assertEqual(row["verdict"], "FAIL")
+
+    def test_nothing_matched_or_a_broken_glb_is_not_assessed(self):
+        code, res = run(self.root, "assets/**/*.glb")
+        self.assertEqual((code, res["verdict"]), (2, "NOT ASSESSED"), res)
+        with open(os.path.join(self.root, "cut.glb"), "wb") as fh:
+            fh.write(struct.pack("<III", 0x46546C67, 2, 100))   # a header and nothing else
+        code, res = run(self.root, "*.glb")
+        self.assertEqual((code, res["verdict"]), (2, "NOT ASSESSED"), res)
+
+
 if __name__ == "__main__":
     unittest.main()

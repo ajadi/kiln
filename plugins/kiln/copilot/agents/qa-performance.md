@@ -1,7 +1,7 @@
 ---
 name: qa-performance
 description: Acceptance reviewer for performance and stability - frame-time distribution, 1% lows, hitches, shader pipeline compilations during play, physics/script/navigation time, draw calls, memory slope over a soak, error logs, out-of-bounds states, cost of individual features. Read-only; returns PASS/FAIL with measurements. Use on the heaviest scenes, before slice/content/polish gates, and after rendering, effects or spawning changes.
-tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/scene_open, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/script_manage, godot-ai/api_manage, godot-ai/filesystem_manage, godot-ai/test_run, godot-ai/test_manage, unity/*, unreal/*
+tools: view, grep, glob, shell, skill, create, edit, godot-ai/session_manage, godot-ai/session_activate, godot-ai/editor_state, godot-ai/logs_read, godot-ai/editor_screenshot, godot-ai/editor_manage, godot-ai/scene_get_hierarchy, godot-ai/scene_open, godot-ai/node_get_properties, godot-ai/node_find, godot-ai/project_run, godot-ai/project_manage, godot-ai/game_manage, godot-ai/script_manage, godot-ai/api_manage, godot-ai/filesystem_manage, godot-ai/test_run, godot-ai/test_manage, unity/*, unreal/*, unreal-mcp/*, unreal-mcp-proxy/*
 model: sonnet
 reasoning-effort: high
 maxTurns: 150
