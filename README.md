@@ -59,9 +59,10 @@ gemini extensions disable kiln --scope user        # off everywhere ...
 gemini extensions enable kiln --scope workspace    # ... on in this project (run it there)
 ```
 
-The roles become Gemini subagents (`kiln-<role>`), the commands are `/kiln:<name>`, and the same
-safety hooks run. Python must be on PATH. Update with `gemini extensions update kiln`, then
-`/kiln:update all`.
+Gemini's build of Kiln lives on its own branch, [`gemini-extension`](https://github.com/ajadi/kiln/tree/gemini-extension):
+that is what `--ref gemini-extension` picks, so keep it in the command. The roles become Gemini
+subagents (`kiln-<role>`), the commands are `/kiln:<name>`, and the same safety hooks run.
+Python must be on PATH. Update with `gemini extensions update kiln`, then `/kiln:update all`.
 Checked with gemini-cli 0.64.0 against a local test server. A session with a real Gemini model
 has not been run yet.
 </details>
@@ -80,9 +81,10 @@ copilot plugin disable kiln@kiln                    # off everywhere ...
 '{"enabledPlugins": {"kiln@kiln": true}}'` (`<kiln>`: the installed plugin,
 `~/.copilot/installed-plugins/kiln/kiln`; in a clone, `plugins/kiln`). The roles are Copilot agents
 `kiln:<role>`, and the same safety hooks run. Python must be on PATH. Checked with Copilot CLI
-1.0.97 against a local test model. A session with a real Copilot model has not been run yet.
-Update: `copilot plugin marketplace update kiln`, then `copilot plugin update kiln` (from GitHub's
-CLI reference, not run here yet), then say "update Kiln in all projects".
+1.0.97 against a local test model; install, disable, enable and update checked with 1.0.100
+(`kiln` and `kiln@kiln` both work). A session with a real Copilot model has not been run yet.
+Update: `copilot plugin marketplace update kiln`, then `copilot plugin update kiln`, then say
+"update Kiln in all projects".
 </details>
 
 <details>

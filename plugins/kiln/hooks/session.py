@@ -50,13 +50,14 @@ def state_lines(root):
     return lines
 
 
-def command(name, runtime):
+def command(name, runtime, args=""):
     """How this runtime's user and model call a Kiln command (README "Commands")."""
+    tail = f" {args}" if args else ""
     if runtime == "codex":
-        return f"$kiln:{name}"
+        return f"$kiln:{name}{tail}"
     if runtime in ("copilot", "opencode"):
-        return f"the Kiln `{name}` skill (the user names it in words)"
-    return f"/kiln:{name}"
+        return f"the Kiln `{name}` skill{' with `' + args + '`' if args else ''} (the user asks in words)"
+    return f"/kiln:{name}{tail}"
 
 
 def workflow_line(runtime):
@@ -154,8 +155,8 @@ def machine_lines(root, policy, version):
     if behind:
         lines.append(f"{len(behind)} other Kiln project{'s' if len(behind) > 1 else ''} on "
                      f"this machine {'are' if len(behind) > 1 else 'is'} older than Kiln "
-                     f"{version} ({', '.join(behind[:5])}): {command('update', k.runtime())} "
-                     "with `all` updates them from here (the user confirms once).")
+                     f"{version} ({', '.join(behind[:5])}): {command('update', k.runtime(), 'all')} "
+                     "updates them from here (the user confirms once).")
     return lines
 
 

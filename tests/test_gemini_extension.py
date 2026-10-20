@@ -47,6 +47,15 @@ class Build(unittest.TestCase):
         self.assertEqual((manifest["name"], manifest["version"]), ("kiln", version))
         self.assertTrue(os.path.isfile(os.path.join(self.out, manifest["contextFileName"])))
 
+    def test_the_branch_has_a_readme_that_says_how_to_install_it(self):
+        # the branch page on GitHub: a user who lands there learns the --ref, setup and update
+        with open(os.path.join(self.out, "README.md"), encoding="utf-8") as fh:
+            text = fh.read()
+        for want in ("--ref gemini-extension", "gemini extensions enable kiln --scope workspace",
+                     "/kiln:setup", "gemini extensions update kiln", "/kiln:update all",
+                     self.report["version"]):
+            self.assertIn(want, text)
+
     def test_every_role_is_a_gemini_agent_with_only_allowed_keys(self):
         roles = glob.glob(os.path.join(PLUGIN, "agents", "*.md"))
         agents = glob.glob(os.path.join(self.out, "agents", "*.md"))

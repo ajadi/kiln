@@ -19,7 +19,7 @@ allowed-tools: Read, Glob, Grep, Bash, PowerShell, Edit
    | Claude Code | `claude plugin marketplace update kiln`, then `claude plugin uninstall kiln@kiln --scope project` and `claude plugin install kiln@kiln --scope project` (a cache per version; a same-version update does not refresh it) |
    | Codex | `codex plugin marketplace upgrade kiln` replaces the installed copy with the new version (checked live, Codex 0.163); a same-version change needs `codex plugin remove kiln@kiln` + `codex plugin add kiln@kiln`; keep it off at user scope (setup §6) |
    | Gemini CLI | `gemini extensions update kiln` |
-   | Copilot CLI | `copilot plugin marketplace update kiln`, then `copilot plugin update kiln` (GitHub's CLI plugin reference; not run live yet) |
+   | Copilot CLI | `copilot plugin marketplace update kiln`, then `copilot plugin update kiln` (checked live, Copilot CLI 1.0.100) |
    | OpenCode | `git -C <kiln clone> pull` (the clone `opencode_setup.py` was run from) |
 
    Plugin changes load when a session starts: tell the user to restart the session, and run
