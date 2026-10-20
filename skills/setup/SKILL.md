@@ -298,7 +298,9 @@ Codex session the workspace `.codex/` folder is read-only to commands.
    table header stops Codex from starting): `--file .codex/config.toml --on`, then
    `--file .codex/config.toml --plugin mattpocock-skills@mattpocock --off` and the same for any
    other overlapping pack from §1b item 9; `--off` without `--file` for the user config if Kiln
-   should stay off elsewhere. `--check` / `--repair` when Codex reports a broken config. Codex loads project config only for trusted projects — trust the
+   should stay off elsewhere. Run `--check` first on a machine that had an older Kiln, and
+   `--repair` when it fails or Codex reports a broken config (the Codex app may say only "Can't
+   verify project trust"). Codex loads project config only for trusted projects — trust the
    folder when Codex asks.
 3. MCP servers, once per machine, with the same names as in Claude Code (the guard and the role
    instructions use them): `codex mcp add blender -- <blender-mcp executable>`,

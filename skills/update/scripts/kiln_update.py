@@ -67,6 +67,30 @@ def changes_since(version):
     return out
 
 
+def codex_configs():
+    """Codex config.toml files that do not parse: the user's (~/.codex or CODEX_HOME) and this
+    project's. Kiln up to 0.8.0 had agents append to them by hand, and a block glued to the next
+    table header stops Codex from starting or from reading which projects are trusted (field
+    reports 2026-10-19 and 2026-10-20: "Can't verify project trust"). None without Python 3.11."""
+    if sys.version_info < (3, 11):
+        return None
+    sys.path.insert(0, os.path.join(PLUGIN, "scripts"))
+    import codex_config
+    out = []
+    for path in (codex_config.default_file(), os.path.join(".codex", "config.toml")):
+        try:
+            with open(path, encoding="utf-8-sig") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        error = codex_config.parse_error(text)
+        if error:
+            out.append({"file": path.replace("\\", "/"), "error": error,
+                        "glued_header": bool(any(codex_config.GLUED.match(line)
+                                                 for line in text.splitlines()))})
+    return out
+
+
 def status():
     pv = plugin_version()
     proj, ok = project_version()
@@ -80,8 +104,14 @@ def status():
                "confirm every guessed touches: line the migration reports",
                "Codex in runtimes: re-run scripts/codex_agents.py",
                "OpenCode in runtimes: re-run scripts/opencode_setup.py --project ."]
+    broken = codex_configs() or []
+    for b in broken:
+        nxt.insert(0, f"{b['file']} does not parse ({b['error']}): "
+                   + ("python scripts/codex_config.py --repair --file " + b["file"]
+                      if b["glued_header"] else "show the user the line; never edit it by hand"))
     return {"project_version": proj, "plugin_version": pv, "behind": behind,
-            "changes": changes_since(proj) if behind else [], "next": nxt}, 0
+            "changes": changes_since(proj) if behind else [], "codex_config_broken": broken,
+            "next": nxt}, 0
 
 
 def apply():
