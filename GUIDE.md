@@ -107,7 +107,19 @@ OpenAI Codex works the same way with its own switches: the plugin stays off in y
 
 ### Updating
 
-- Get the new Kiln: `claude plugin marketplace update kiln`.
+- Get the new Kiln, in the agent you use:
+
+  | Agent | Command |
+  |---|---|
+  | Claude Code | `claude plugin marketplace update kiln` |
+  | OpenAI Codex | `codex plugin marketplace upgrade kiln` (replaces the installed copy) |
+  | Gemini CLI | `gemini extensions update kiln` |
+  | GitHub Copilot CLI | `copilot plugin marketplace update kiln`, then `copilot plugin update kiln` |
+  | OpenCode | `git -C ~/kiln pull` in the Kiln clone |
+  | other agents (skills only) | `npx skills@latest update` |
+
+  Then restart the agent, and bring the projects up to it (below). Codex and OpenCode keep copies
+  of the roles in each project (`.codex/agents/`, `.opencode/`); the update regenerates them.
 - In one project: **`/kiln:update`** refreshes the project's copy, migrates its task files and
   settings, and lists what changed since that project's version.
 - In every project at once: **`/kiln:update all`** from any Kiln project. Kiln knows every

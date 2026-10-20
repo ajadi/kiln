@@ -108,8 +108,35 @@ class UpdateCheck(unittest.TestCase):
                            input=json.dumps({"session_id": "s", "source": "startup"}),
                            capture_output=True, text=True, timeout=30)
         ctx = p.stdout
-        self.assertIn("codex plugin", ctx)
+        self.assertIn("codex plugin marketplace upgrade kiln", ctx)
         self.assertNotIn("claude plugin marketplace update", ctx)
+
+    def test_copilot_and_opencode_sessions_are_not_told_slash_commands(self):
+        for runtime in ("copilot", "opencode"):
+            e = Env()
+            e.cache({"latest": "9.9.9", "checked": time.time()})
+            payload = {"sessionId": "s", "source": "new"} if runtime == "copilot" else \
+                {"session_id": "s", "source": "startup", "hook_event_name": "SessionStart"}
+            p = subprocess.run([sys.executable, "-B", SESSION, "start", "--runtime", runtime],
+                               env=e.env(), input=json.dumps(payload), capture_output=True,
+                               text=True, timeout=30)
+            self.assertIn("Kiln 9.9.9 is out", p.stdout, runtime)
+            self.assertNotIn("/kiln:pipeline", p.stdout, runtime)
+            self.assertNotIn("claude plugin marketplace update", p.stdout, runtime)
+
+    def test_every_runtime_gets_its_own_update_commands(self):
+        # every agent's session names its own way to update (Gemini, Copilot and OpenCode were
+        # told Claude Code's commands)
+        sys.path.insert(0, os.path.dirname(SESSION))
+        import update_check
+        for runtime, want in (("gemini", "gemini extensions update kiln"),
+                              ("copilot", "copilot plugin update kiln"),
+                              ("opencode", "git pull"),
+                              ("claude", "claude plugin marketplace update kiln")):
+            self.assertIn(want, update_check.UPDATE_HOW[runtime])
+            for other in ("claude plugin", "codex plugin", "gemini extensions", "copilot plugin"):
+                if runtime not in other:
+                    self.assertNotIn(other, update_check.UPDATE_HOW[runtime], runtime)
 
     def test_a_check_in_flight_is_not_started_twice(self):
         # Review: due() stayed true until the background check finished.

@@ -15,7 +15,9 @@ Checks 1–4 are the MCP check of `/kiln:setup` step 8 (`scripts/mcp_check.py re
 visible tool names + probe calls → `verify`): run it again and report its problems; the rows
 below say what each failure usually means.
 
-1. **MCP servers registered** — `claude mcp list`: `blender` plus the engine's server (`godot-ai`,
+1. **MCP servers registered** — the agent's list (Claude Code `claude mcp list`, Codex `codex mcp
+   list`, Gemini CLI `gemini mcp list`, OpenCode `opencode mcp list`; Copilot CLI: the tool
+   names this session sees, from `mcp_check.py`): `blender` plus the engine's server (`godot-ai`,
    `unity` or `unreal` per `engine=` in `manifest.md`) present and connected. Confirm their
    origin: `blender` → the Blender Lab `blender-mcp` executable; `godot-ai` → `godot-ai attach`;
    `unity` → `http://localhost:8080/mcp`; `unreal` → `http://127.0.0.1:8000/mcp`. Any other Blender
@@ -54,7 +56,18 @@ below say what each failure usually means.
    `echo '{"tool_name":"Write","tool_input":{"file_path":"<scene file>"}}' | CLAUDE_PROJECT_DIR="$PWD" python "${CLAUDE_PLUGIN_ROOT}/hooks/guard.py"`
    with `scenes/x.tscn` (Godot), `Assets/x.unity` (Unity) or `Content/x.umap` (Unreal) must
    print a JSON deny. No output → manifest missing `framework=kiln` or Python not found.
-   Also confirm the plugin is enabled for this project: `claude plugin list`.
+   Also confirm the plugin is enabled for this project: `claude plugin list`. The other
+   runtimes, each with its own payload (all checked to deny):
+   - Gemini CLI: `{"tool_name":"write_file","tool_input":{"file_path":"<scene file>","content":"x"},"hook_event_name":"BeforeTool","session_id":"s","cwd":"<project>"}`
+     into `guard.py --runtime gemini`; `gemini extensions list` shows kiln enabled for this
+     workspace.
+   - Copilot CLI: `{"toolName":"create","toolArgs":{"path":"<scene file>","file_text":"x"},"sessionId":"s","cwd":"<project>"}`
+     into `guard.py --runtime copilot`; `.github/copilot/settings.json` enables `kiln@kiln`.
+   - OpenCode: the Claude Code payload into `guard.py --runtime opencode` (the project's
+     `.opencode/plugins/kiln.js` converts OpenCode's calls to it); that file names this Kiln
+     clone (`KILN_ROOT`), and `.opencode/agents/` holds a `kiln-<role>.md` per role - otherwise
+     re-run `scripts/opencode_setup.py --project .`.
+   - Codex: item 9.
 6. **Manifest** — `framework=kiln`, `engine`, `dimension`, `repo_access`, `mcp_only=on` (warn if
    off), `model_generators` / `audio_generators` / `video_generators` (report; `api` needs a key in
    the environment: `gen_api.py services` says which keys are set, never their values, and
@@ -62,7 +75,8 @@ below say what each failure usually means.
    api`), `asset_libraries` (not `off` → `assets_api.py search polyhaven wood --kind texture
    --limit 1` answers: the libraries are reachable),
    `kind` (report `prototype` prominently: reviews are light), `user_gates`.
-   Other skill packs: `claude plugin list --json` (and `codex plugin list` for Codex) — a
+   Other skill packs: `claude plugin list --json` (Codex `codex plugin list`, Gemini CLI
+   `gemini extensions list`) — a
    general-purpose pack enabled in this project whose model-invoked skills overlap Kiln (e.g.
    `mattpocock-skills`) → warn and offer `enabledPlugins` `false` at project scope (setup §1b item 9).
 7. **Repo** — git present; LFS installed if `.gitattributes` uses it; engine caches ignored
@@ -102,5 +116,12 @@ below say what each failure usually means.
    - Pipe-test the Codex guard with an `apply_patch` payload:
      `{"tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\n*** Add File: <scene file>\n+x\n*** End Patch\n"}}`
      into `python guard.py --runtime codex` must print a JSON deny.
+10. **Gemini CLI, Copilot CLI, OpenCode** (when `runtimes` includes them) — the pipe tests in
+    item 5; Python on PATH for the hook command (`node .../py.cjs` finds python, python3 or py -3
+    for Gemini; Copilot calls `python` on Windows, `python3` elsewhere; OpenCode's plugin calls
+    the same). Versions Kiln was checked with: gemini-cli 0.64, Copilot CLI 1.0.97, OpenCode
+    1.19.0 - an older one → say so. Gemini: Kiln's policy file in `~/.gemini/policies/kiln.toml`
+    (setup offers it) or skills ask before loading. OpenCode: the `.opencode/skills/<name>` links
+    point at the clone (`opencode_setup.py` re-made them after a move).
 
 End with the single most important fix if anything failed, or "ready" if all passed.

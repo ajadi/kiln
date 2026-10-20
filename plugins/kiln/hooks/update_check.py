@@ -53,6 +53,22 @@ def due():
     return time.time() - k.load_json(cache_path(), {}).get("checked", 0) > CHECK_EVERY_S
 
 
+# How each runtime gets a new Kiln, then the update skill brings every project up to it (bug
+# hunt 2026-10-20 follow-up: Gemini, Copilot and OpenCode sessions were told Claude Code's way).
+UPDATE_HOW = {
+    "claude": "`claude plugin marketplace update kiln`, then `/kiln:update all` (every project on "
+              "this machine)",
+    "codex": "`codex plugin marketplace upgrade kiln` (replaces the installed copy), then the "
+             "update skill with `all` (every project on this machine; it regenerates the roles)",
+    "gemini": "`gemini extensions update kiln`, then `/kiln:update all` (every project on this "
+              "machine)",
+    "copilot": "`copilot plugin marketplace update kiln`, then `copilot plugin update kiln`, then "
+               "the Kiln update skill with `all` (every project on this machine)",
+    "opencode": "`git pull` in the Kiln clone, then the Kiln update skill with `all` (every "
+                "project on this machine; it re-runs opencode_setup.py in each)",
+}
+
+
 def notice(installed, version_key, runtime="claude"):
     """The session-start line when a newer release was seen, else None."""
     if switched_off() or not installed:
@@ -60,10 +76,7 @@ def notice(installed, version_key, runtime="claude"):
     latest = k.load_json(cache_path(), {}).get("latest")
     if not latest or version_key(latest) <= version_key(installed):
         return None
-    how = ("`codex plugin remove kiln@kiln`, then `codex plugin add kiln@kiln`, then the update "
-           "skill with `all` (every project on this machine)" if runtime == "codex" else
-           "`claude plugin marketplace update kiln`, then `/kiln:update all` (every project on "
-           "this machine)")
+    how = UPDATE_HOW.get(runtime, UPDATE_HOW["claude"])
     return (f"Kiln {latest} is out (installed: {installed}). Tell the user once, at the start: "
             f"update with {how} - only after the user's yes. Do not mention it again this "
             "session.")

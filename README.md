@@ -46,7 +46,8 @@ codex plugin add kiln@kiln
 ```
 
 Then, in your project: turn it on in `.codex/config.toml` and generate the roles
-([Codex details](#openai-codex)).
+([Codex details](#openai-codex)). Update: `codex plugin marketplace upgrade kiln` (it replaces
+the installed copy), then `$kiln:update all` (it regenerates the roles in every project).
 </details>
 
 <details>
@@ -59,7 +60,8 @@ gemini extensions enable kiln --scope workspace    # ... on in this project (run
 ```
 
 The roles become Gemini subagents (`kiln-<role>`), the commands are `/kiln:<name>`, and the same
-safety hooks run. Python must be on PATH. Update with `gemini extensions update kiln`.
+safety hooks run. Python must be on PATH. Update with `gemini extensions update kiln`, then
+`/kiln:update all`.
 Checked with gemini-cli 0.64.0 against a local test server. A session with a real Gemini model
 has not been run yet.
 </details>
@@ -79,6 +81,8 @@ copilot plugin disable kiln@kiln                    # off everywhere ...
 `~/.copilot/installed-plugins/kiln/kiln`; in a clone, `plugins/kiln`). The roles are Copilot agents
 `kiln:<role>`, and the same safety hooks run. Python must be on PATH. Checked with Copilot CLI
 1.0.97 against a local test model. A session with a real Copilot model has not been run yet.
+Update: `copilot plugin marketplace update kiln`, then `copilot plugin update kiln` (from GitHub's
+CLI reference, not run here yet), then say "update Kiln in all projects".
 </details>
 
 <details>
@@ -93,6 +97,8 @@ Kiln runs as a plugin of this project only: the roles are subagents `kiln-<role>
 linked in, and the same safety hooks run (Python must be on PATH). The autopilot keeps going in
 a running OpenCode; a one-shot `opencode run` stops after its answer. Checked with OpenCode
 1.19.0 against a local test model. A session with a real model has not been run yet.
+Update: `git -C ~/kiln pull`, then say "update Kiln in all projects" (it re-runs
+`opencode_setup.py` in each one: the plugin file and the roles are copies).
 </details>
 
 <details>
@@ -140,6 +146,20 @@ installed without your yes), and shows what it installed.
   description.
 
 Say it in your own words, in any language, or use the commands below.
+
+### 4. Update
+
+| Agent | Get the new Kiln | Then, in any Kiln project |
+|---|---|---|
+| Claude Code | `claude plugin marketplace update kiln` | `/kiln:update all` |
+| OpenAI Codex | `codex plugin marketplace upgrade kiln` | `$kiln:update all` (regenerates the roles) |
+| Gemini CLI | `gemini extensions update kiln` | `/kiln:update all` |
+| GitHub Copilot CLI | `copilot plugin marketplace update kiln`, then `copilot plugin update kiln` | "update Kiln in all projects" |
+| OpenCode | `git -C ~/kiln pull` | "update Kiln in all projects" (re-runs `opencode_setup.py` per project) |
+| Any other agent | `npx skills@latest update` | - |
+
+Restart the agent after updating: plugins and roles load when a session starts. Kiln tells you
+when a new version is out.
 
 ## Commands
 

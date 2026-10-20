@@ -78,7 +78,8 @@ def status():
     if behind:
         nxt = ["python kiln_update.py apply  (pipeline.py migrate + framework_version)",
                "confirm every guessed touches: line the migration reports",
-               "Codex in runtimes: re-run scripts/codex_agents.py"]
+               "Codex in runtimes: re-run scripts/codex_agents.py",
+               "OpenCode in runtimes: re-run scripts/opencode_setup.py --project ."]
     return {"project_version": proj, "plugin_version": pv, "behind": behind,
             "changes": changes_since(proj) if behind else [], "next": nxt}, 0
 
