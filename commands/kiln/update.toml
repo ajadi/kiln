@@ -1,2 +1,2 @@
-description = "Bring this project, or every Kiln project on this machine (`all`), up to the current Kiln - refresh the installed plugin, migrate task files and manifests, regenerate Codex agents, and tell the user what changed since each project's Kiln version. Projects are found by themselves (every Kiln session "
+description = "Bring this project, or every Kiln project on this machine (`all`), up to the current Kiln - refresh the installed plugin (Claude Code, Codex, Gemini CLI, Copilot CLI or OpenCode), migrate task files and manifests, regenerate the Codex and OpenCode roles, and tell the user what changed since each pro"
 prompt = "Use the Kiln skill `update`: activate it with activate_skill (name \"update\") and follow it.\nArguments (may be empty): {{args}}\n"

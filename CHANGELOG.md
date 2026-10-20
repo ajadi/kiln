@@ -1010,4 +1010,12 @@ A bug hunt by four independent reviewers (2026-10-20); every fix has a test that
   the request (not 16k) and record the size used; explore_report's reachable cells come from the
   procgen search (void, legend walls and air no longer count); silhouette_iou fits a render on
   another canvas size without stretching it and reads Windows paths in `--pairs`.
+- **Every agent gets its own instructions.** README and GUIDE say how to update Kiln in each agent
+  (Codex: `codex plugin marketplace upgrade kiln` replaces the installed copy, checked live;
+  Gemini CLI, Copilot CLI, OpenCode, skills-only agents); `/kiln:update` refreshes the plugin and
+  regenerates the per-project copies (Codex and OpenCode roles) in whichever agent runs it;
+  `/kiln:doctor` checks MCP servers and the hooks in Gemini CLI, Copilot CLI and OpenCode too
+  (each runtime's guard payload, checked to deny); the new-version notice and the session's
+  command hints name each runtime's own commands (Copilot and OpenCode were told slash commands
+  they do not have).
 

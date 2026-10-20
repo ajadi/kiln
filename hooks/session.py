@@ -50,6 +50,30 @@ def state_lines(root):
     return lines
 
 
+def command(name, runtime):
+    """How this runtime's user and model call a Kiln command (README "Commands")."""
+    if runtime == "codex":
+        return f"$kiln:{name}"
+    if runtime in ("copilot", "opencode"):
+        return f"the Kiln `{name}` skill (the user names it in words)"
+    return f"/kiln:{name}"
+
+
+def workflow_line(runtime):
+    if runtime == "codex":
+        return ("Workflow skills of the kiln plugin: pipeline, status, run, doctor (mention with $ "
+                "or pick in /skills); Kiln roles are the custom agents kiln-<role>.")
+    if runtime in ("copilot", "opencode"):
+        return ("Workflow skills of Kiln: pipeline, status, run, doctor - there are no Kiln slash "
+                "commands here: the user asks in words and you load the skill; Kiln roles are "
+                + ("the agents kiln:<role>." if runtime == "copilot" else
+                   "the subagents kiln-<role>."))
+    if runtime == "gemini":
+        return ("Workflow: /kiln:pipeline, /kiln:status, /kiln:run, /kiln:doctor; Kiln roles are "
+                "the subagents kiln-<role> (invoke_agent).")
+    return "Workflow: /kiln:pipeline, /kiln:status, /kiln:run, /kiln:doctor."
+
+
 def start(data, root, policy):
     source = data.get("source") or "startup"
     lines = [f"Kiln project '{policy.get('project_name', os.path.basename(root))}': "
@@ -60,16 +84,13 @@ def start(data, root, policy):
              f"recommended option, record PROXY, list it in the report; ask: ask and wait). "
              + (f"Engine rules: skill kiln:engine-{policy.get('engine', 'godot')}. "
                 if policy.get("engine", "godot") != "none" else "No game engine. ")
-             + ("Workflow skills of the kiln plugin: pipeline, status, run, doctor (mention with $ "
-                "or pick in /skills); Kiln roles are the custom agents kiln-<role>."
-                if k.runtime() == "codex" else
-                "Workflow: /kiln:pipeline, /kiln:status, /kiln:run, /kiln:doctor.")]
+             + workflow_line(k.runtime())]
     version = plugin_version()
     older = policy.get("framework_version")
     if version and older and k_version(older) < k_version(version):
         lines.append(f"Kiln {version} is installed, the project was set up with "
-                     f"{policy['framework_version']}: run /kiln:update (migrates task files and "
-                     "the manifest, shows what changed).")
+                     f"{policy['framework_version']}: run {command('update', k.runtime())} "
+                     "(migrates task files and the manifest, shows what changed).")
     if not k.throwaway(root):  # test projects never read or write this machine's state
         lines += machine_lines(root, policy, version)
     if str(policy.get("problem_reports", "on")).lower() == "off":
@@ -133,8 +154,8 @@ def machine_lines(root, policy, version):
     if behind:
         lines.append(f"{len(behind)} other Kiln project{'s' if len(behind) > 1 else ''} on "
                      f"this machine {'are' if len(behind) > 1 else 'is'} older than Kiln "
-                     f"{version} ({', '.join(behind[:5])}): /kiln:update all updates them "
-                     "from here (the user confirms once).")
+                     f"{version} ({', '.join(behind[:5])}): {command('update', k.runtime())} "
+                     "with `all` updates them from here (the user confirms once).")
     return lines
 
 
