@@ -8,6 +8,17 @@ numpy + Pillow.
          [--tol 4] [--min-add 0.001]
   python frames.py ramp --change "cap/fade/*.png" --steady "cap/held/*.png" [--box x,y,w,h]
          [--decorrelated 0.5]
+  python frames.py review cap/*.png --scene plaza --out production/captures/T12/review
+  python frames.py verdict production/captures/T12/review/review.json --a a.json --b b.json
+
+review   the frames that differ from their baseline only, each changed region as one image
+         (baseline | new | changed pixels, cropped with context, enlarged) with REVIEW.md: fixed
+         questions (intended? broken? which glitch class? evidence) and review.json to answer.
+         A vision model judges captured frames like these; it never plays the game.
+verdict  two reviewers' answers (each their own copy of review.json, made without seeing the
+         other): a glitch both see is FAIL, both clean and intended is PASS, clean but nobody
+         asked for it is UNINTENDED, a split is DISPUTED - settled by engine data, not a third
+         opinion. Exit 1 unless PASS.
 
 Baselines live in production/baselines/<scene>/ (committed): one PNG per fixed camera, named by
 the camera. Capture them from the same placed cameras every time (Godot: a Camera3D per view,
@@ -137,6 +148,105 @@ def compare_one(path, scene, a):
     return res
 
 
+GLITCHES = ["missing or extra object", "clipping or intersection", "floating object",
+            "stretched, missing or wrong texture", "z-fighting or flicker",
+            "wrong colour or lighting", "UI overlap or text cut off", "pose or animation error",
+            "camera inside geometry", "other"]
+
+
+def review(a):
+    """A review pack of only the frames that differ from the baseline: per changed region the
+    baseline, the new frame and the difference side by side, cropped with context and enlarged,
+    plus fixed questions. A vision model (or a person) judges captured frames, never plays: VLMs
+    finish under 1 % of real-time game benchmarks, and they miss small regressions unless shown
+    exactly where to look (research 2026-10-19)."""
+    os.makedirs(a.out, exist_ok=True)
+    results = [compare_one(p, a.scene, a) for p in expand(a.images)]
+    items = []
+    for res, path in zip(results, expand(a.images)):
+        if res["verdict"] != "FAIL" or not res.get("regions"):
+            continue
+        new = Image.open(path).convert("RGB")
+        old = Image.open(os.path.join(BASE, a.scene, os.path.basename(path))).convert("RGB")
+        diff_mask = np.abs(box(gray(path), 1) - box(gray(os.path.join(BASE, a.scene,
+                                                                      os.path.basename(path))), 1)) > a.tol
+        for i, reg in enumerate(res["regions"][:a.max_regions]):
+            x, y, w, h = reg["bbox"]
+            pad = max(16, max(w, h) // 4)
+            x0, y0 = max(0, x - pad), max(0, y - pad)
+            x1, y1 = min(new.width, x + w + pad), min(new.height, y + h + pad)
+            crops = [old.crop((x0, y0, x1, y1)), new.crop((x0, y0, x1, y1))]
+            dm = np.asarray(new.crop((x0, y0, x1, y1))).copy()
+            dm[diff_mask[y0:y1, x0:x1]] = (255, 0, 255)
+            crops.append(Image.fromarray(dm))
+            k = max(1, min(8, 256 // max(1, y1 - y0)))
+            cw, ch = (x1 - x0) * k, (y1 - y0) * k
+            sheet = Image.new("RGB", (cw * 3 + 8, ch + 18), (30, 30, 30))
+            draw = ImageDraw.Draw(sheet)
+            for j, (c, label) in enumerate(zip(crops, ("baseline", "new", "changed"))):
+                sheet.paste(c.resize((cw, ch), Image.NEAREST), (j * (cw + 4), 18))
+                draw.text((j * (cw + 4) + 2, 2), label, fill=(230, 230, 230))
+            name = f"{os.path.splitext(res['image'])[0]}_r{i}.png"
+            sheet.save(os.path.join(a.out, name))
+            items.append({"id": f"{res['image']}#{i}", "image": res["image"], "bbox": reg["bbox"],
+                          "share": reg["share"], "pack": name,
+                          "answer": {"intended": None, "glitch": None, "class": None,
+                                     "evidence": ""}})
+    lines = [f"# Visual review: {a.scene}", "",
+             "Each pack shows the baseline, the new capture and the changed pixels (magenta). "
+             "For every item answer in your own copy of review.json, without seeing the other "
+             "reviewer's answers:", "",
+             "1. `intended`: is this change what the task asked for? (true / false)",
+             "2. `glitch`: is anything here broken? (true / false)",
+             f"3. `class`: if broken, one of: {', '.join(GLITCHES)}",
+             "4. `evidence`: what you see, in one line (where, what).", "",
+             "Then `frames.py verdict review.json --a <yours> --b <the other reviewer's>`. A "
+             "glitch both reviewers see fails; a disagreement is DISPUTED until engine data "
+             "(an overlap query, a position, a measured contrast) settles it.", ""]
+    lines += [f"- {it['id']}: `{it['pack']}` region {it['bbox']} ({it['share']:.2%} of the frame)"
+              for it in items] or ["- no frame differs from its baseline: nothing to review"]
+    with open(os.path.join(a.out, "REVIEW.md"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    with open(os.path.join(a.out, "review.json"), "w", encoding="utf-8") as fh:
+        json.dump({"scene": a.scene, "items": items}, fh, indent=1)
+    unchanged = sum(1 for r in results if r["verdict"] == "PASS")
+    return {"scene": a.scene, "frames": len(results), "unchanged": unchanged,
+            "items_to_review": len(items), "out": a.out.replace("\\", "/"),
+            "verdict": "REVIEW" if items else "PASS"}, 0
+
+
+def verdict(a):
+    """Two independent reviews of one pack: agreement decides, disagreement is DISPUTED."""
+    def load(path):
+        with open(path, encoding="utf-8") as fh:
+            return {it["id"]: it.get("answer") or {} for it in json.load(fh)["items"]}
+    with open(a.review, encoding="utf-8") as fh:
+        ids = [it["id"] for it in json.load(fh)["items"]]
+    ra, rb = load(a.a), load(a.b)
+    out, worst = [], "PASS"
+    for i in ids:
+        x, y = ra.get(i, {}), rb.get(i, {})
+        if x.get("glitch") is None or y.get("glitch") is None:
+            state = "UNANSWERED"
+        elif x["glitch"] and y["glitch"]:
+            state = "FAIL"
+        elif not x["glitch"] and not y["glitch"]:
+            state = "PASS" if x.get("intended") and y.get("intended") else "UNINTENDED"
+        else:
+            state = "DISPUTED"
+        out.append({"id": i, "verdict": state, "a": x, "b": y})
+        rank = {"PASS": 0, "UNINTENDED": 1, "DISPUTED": 2, "UNANSWERED": 2, "FAIL": 3}
+        if rank[state] > rank[worst]:
+            worst = state
+    return {"items": out, "verdict": worst,
+            "next": {"PASS": "accept the intended changes (frames.py accept --why)",
+                     "UNINTENDED": "a change nobody asked for: find its cause before accepting",
+                     "DISPUTED": "settle it with engine data, not a third opinion",
+                     "UNANSWERED": "both reviewers answer every item",
+                     "FAIL": "send the glitch to the owning role with the pack"}[worst]}, \
+        0 if worst == "PASS" else 1
+
+
 def _sequence(pattern, crop):
     paths = expand([pattern])
     if len(paths) < 2:
@@ -234,9 +344,21 @@ def main():
     r.add_argument("--box", help="x,y,w,h in pixels")
     r.add_argument("--decorrelated", type=float, default=0.5,
                    help="0..1: how far toward unrelated frames a consecutive pair may go")
+    v = sub.add_parser("review")
+    v.add_argument("images", nargs="+")
+    v.add_argument("--scene", required=True)
+    v.add_argument("--out", required=True)
+    v.add_argument("--min-ssim", type=float, default=0.97)
+    v.add_argument("--min-share", type=float, default=0.002)
+    v.add_argument("--tol", type=float, default=12.0)
+    v.add_argument("--max-regions", type=int, default=6)
+    d = sub.add_parser("verdict")
+    d.add_argument("review")
+    d.add_argument("--a", required=True)
+    d.add_argument("--b", required=True)
     a = ap.parse_args()
-    if a.cmd in ("anim", "ramp"):
-        res, code = (anim if a.cmd == "anim" else ramp)(a)
+    if a.cmd in ("anim", "ramp", "review", "verdict"):
+        res, code = {"anim": anim, "ramp": ramp, "review": review, "verdict": verdict}[a.cmd](a)
         print(json.dumps(res, indent=1))
         sys.exit(code)
     images = expand(a.images)

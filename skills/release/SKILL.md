@@ -1,6 +1,6 @@
 ---
 name: release
-description: "Builds, CI and store release for Kiln games - first standalone build from the vertical slice on, versioning, export per engine (Godot presets and --export-release, Unity build method and build profiles, Unreal BuildCookRun), keeping ref/production/tools/tests/design/research out of builds, build audit, smoke and soak with numbers, crash logs, GitHub Actions, Steam (SteamPipe, store assets with exact sizes, reviews, AI disclosure), itch.io, code signing, age ratings, store copy and credits. Use for any export, build, packaging, CI or publishing task."
+description: "Builds, CI and store release for Kiln games - first standalone build from the vertical slice on, versioning, export per engine (Godot presets and --export-release, Unity build method and build profiles, Unreal BuildCookRun), keeping ref/production/tools/tests/design/research out of builds, build audit, smoke and soak with numbers, crash logs, GitHub Actions, Steam (SteamPipe, store assets with exact sizes, capsule review, Steam Deck text size, reviews, AI disclosure draft), Google Play (target API, 16 KB pages), web hosting headers, itch.io, code signing, age ratings, store copy and credits. Use for any export, build, packaging, CI or publishing task."
 user-invocable: false
 ---
 
@@ -17,10 +17,15 @@ rated without the user's explicit consent for that platform; autopilot never pro
 | `build.py build --preset <p> [--debug] [--dry-run]` | the engine's documented build command, printed; fails unless the artefact is new and non-empty; sizes, log errors |
 | `build.py smoke <exe> --seconds 60 --log <file>` | launch outside the editor; pass = alive or exit 0, 0 error lines in output and fresh log; kills the process tree |
 | `build.py smoke <exe> --seconds 3600 --sample-every 900 --warmup 120` | soak: memory samples, `--max-growth 20` |
+| `store_check.py capsules store/steam --screenshots <dir>` | Steam capsule sizes, formats, library logo transparency, screenshots; a review pack for the text rules, `--answers` for the verdict |
+| `store_check.py deck --scene res://ui/<menu>.tscn` | Godot: every text Control's pixel size at 1280×800 with the stretch settings, hidden menus too; < 9 px fails |
+| `store_check.py android <aab/apk>` | target API ≥ 36, 64-bit libraries on 16 KB ELF alignment, APK zip offsets; no file = the Android presets |
+| `store_check.py web <export> [--url]` | Godot web: threads on → COOP/COEP on the host (live headers, `_headers`), .wasm MIME |
+| `store_check.py ai-disclosure` | `production/release/AI_DISCLOSURE.md`: Steam survey draft from provenance files, `production/ai-content.csv`, runtime model calls |
 | `${extensionPath}${/}skills${/}release/references/engine-builds.md` | presets, templates, Unity build method (C#), BuildCookRun flags, logs, symbols |
 | `${extensionPath}${/}skills${/}release/references/ci.md` | GitHub Actions per engine, caching, secrets, approvals |
 | `${extensionPath}${/}skills${/}release/references/steam.md` | SteamPipe, store assets, reviews and timelines, AI disclosure |
-| `${extensionPath}${/}skills${/}release/references/distribution.md` | itch.io butler, signing, IARC, store copy, credits and licences |
+| `${extensionPath}${/}skills${/}release/references/distribution.md` | itch.io butler, web hosting, Google Play, signing, IARC, store copy, credits and licences |
 
 Engine executables: `--machine ~/.kiln/machine.json` (the default; `godot_exe`, `unity_exe`,
 `unreal_exe`) or `--engine-exe`. Output: `export/<preset>/` (git-ignored).
@@ -32,7 +37,7 @@ Engine executables: `--machine ~/.kiln/machine.json` (the default; `godot_exe`, 
 | 3 tech plan | "hello build" per target platform: templates/SDK/toolchain proven, smoke pass |
 | 6 vertical slice | gate: release export of the slice passes audit + smoke; the cold playtest runs that build, not the editor |
 | 7–8 content, polish | every batch/round ends with audit → build → smoke; CI on pushes to main |
-| 9 release | release candidate, soak, clean-machine launch, store material, signing, user decision |
+| 9 release | release candidate, soak, clean-machine launch, store material and `store_check.py` per target store, signing, user decision |
 
 Export-only failures — resources loaded by string path but filtered out, editor-only autoloads,
 debug-only code, case-sensitive paths in the pack, shader compile stutter — show only in builds.
@@ -101,7 +106,12 @@ GitHub secrets; store uploads only from manual `workflow_dispatch` behind requir
   reviews 3–5 business days each (submit ≥ 7 ahead). Capsules header 920×430, small 462×174,
   main 1232×706, vertical 748×896; library 600×900, hero 3840×1240, logo PNG 1280 w / 720 h;
   ≥ 5 gameplay screenshots 1920×1080. steamcmd uploads to a beta branch; default goes live in the
-  web UI only. Content survey: disclose AI-generated content players consume.
+  web UI only. Content survey: disclose AI-generated content players consume (draft with
+  `store_check.py ai-disclosure`). Deck Verified: smallest text ≥ 9 px at 1280×800.
+- **Google Play**: AAB, target API 36 (from 31 Aug 2026), 64-bit native libraries aligned to
+  16 KB — `store_check.py android`.
+- **Web**: Godot 4.7 exports are single-threaded by default; threads need COOP/COEP on the host
+  — `store_check.py web --url`.
 - **itch.io**: `butler push export/windows <user>/<game>:windows --userversion <v> --if-changed`.
 - **Signing**: Windows Azure Artifact Signing or OV (EV no longer skips SmartScreen); macOS
   Developer ID + hardened runtime + notarytool + stapler.

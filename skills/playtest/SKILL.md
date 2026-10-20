@@ -112,6 +112,16 @@ screen. The autoplayer plays toward objectives with scripts in `${extensionPath}
 | `presence.py` | exit 0 when the user is away (`.kiln/away` or OS idle ≥ `--min-idle` s) |
 | `autoplay_loop.py` | N seeded runs while the user stays away, each with its log and exit code; stops when they return |
 | `autoplay_report.py` | `REPORT.md`: objectives reached per seed, stuck runs, crashes mid-run vs at exit |
+| `explorer.gd` | the agent plays its own level without a route: from a scenario's `_play()`, holds one direction at a time toward the least-visited neighbouring cell (seeded random steps, a jump when walking does not move), records visits and stuck steps per cell (`explore.json`); novelty-seeking bots find reachability bugs scripted routes miss |
+| `explore_report.py` | merges explorer runs into `heatmap.png` (visited grey, stuck red) with the worst snags; with `--reachable <layout>` the coverage of the reachable cells and the cells never visited; gates on coverage and on a cell that eats a large share of steps (live: ≥ 90 % of a test maze in 120 game s) |
+| `input_replay.gd` | records a session's input per physics frame (a human playing or a script) and plays it back exactly with state hashes every N frames: under `--fixed-fps` and one seed the replay matches the recording, so after a change `first_divergence()` names the first frame where behaviour changed (live: two replays identical; a 15 % slower controller diverged) |
+
+Deterministic by default: `--fixed-fps 60` (one frame = one physics tick, same deltas every run),
+one seeded RandomNumberGenerator per system, the seed in the summary; a failure is replayed with
+its seed and input file, never "it happened once". Captures for review: Godot Movie Maker,
+`godot --path . --fixed-fps 60 --write-movie production/captures/<task>/run.avi --quit-after N -s
+<scenario>` (windowed: headless renders nothing; the user away or `on_screen=slot`), the same
+frames every time.
 
 Objectives and stuck time use game time (with `--fixed-fps` a headless run is far faster than the
 wall clock); `--minutes` limits the wall clock. A crash after "AUTOPLAY done" is a shutdown crash

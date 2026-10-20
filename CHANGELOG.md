@@ -850,3 +850,77 @@ Fixes from a code review of the whole project, each with a test:
   else is refused before a download. `licenses.py` lists library assets by source and page, with
   their credit line. Checked live without keys: a Poly Haven texture and HDRI and an ambientCG
   material.
+
+## 0.10.0 — 2026-10-20
+
+- **Godot lint and the Godot 3 ban.** New engine-godot `godot_lint.py`: GDScript checked for
+  Godot 3 API (`yield`, `export var`, `onready`, `setget`, `.instance()`, string `connect`,
+  `KinematicBody` and the other renamed classes, `Pool*Array`, `deg2rad`, `File`, ...; each
+  with its Godot 4 form), and `.tscn` / `.tres` for what loads wrong without a compile error
+  (undefined resource ids, missing parents, duplicate siblings, connections to missing nodes,
+  `format=2`, duplicate uids across the project, embedded scripts). The guard refuses
+  `script_create` / `script_patch` and `.gd` writes with Godot 3 API and names the Godot 4 form.
+  `references/known-good.gd` is a Godot 4 pattern to keep in context. Checked live: no false
+  finding on two real projects (70 files), Godot 4.7.2 parses the known-good script and rejects
+  `yield`, and a scene the linter fails does not load right in Godot.
+
+- **Levels winnable, both ways.** procgen `procgen_check.py` adds side-view platformer layouts
+  (reachability with the controller's jump height and width in tiles, falls, ladders, one-way
+  platforms, hazards; a pit deeper than the jump is a softlock), consumed keys in grids (a key
+  spent on the wrong door), push-box puzzles (solved by search over pushes with dead squares
+  pruned, "unknown" past `--max-states`), softlocks in grids, and `"return": true` (the start
+  reachable again from every goal and exit) for graphs, grids and platformers. level-design runs
+  it on hand-made levels too. Checked on 400 generated levels: a naive push-box generator made
+  152 of 200 unsolvable and a platformer generator 5 of 200 dead, all found in about 2 s each.
+
+- **Feel constants as tested values.** New controls-camera `feel_constants.gd` (one resource
+  for coyote time, jump buffer, variable jump, hit-stop and latency limits, each with its source:
+  Celeste's Player.cs where it states them) and `feel_windows.gd` for headless probes: the jump
+  windows after leaving the ground and before landing, measured in frames, and input latency over
+  varied press frames with its jitter. qa-feel checks each window within ±1 frame of the
+  resource and jitter ≤ 1 frame. Checked live in Godot 4.7.2: a controller built on the resource
+  passes, one without coyote time fails.
+
+- **2D: blob autotiles, real pixel art from AI, reviews at game speed.** New art-2d
+  `autotile.py` (`build`: the 47-tile blob set from five source tiles by quarter pieces with
+  `terrain.json` neighbour bits; `check`: every seam two tiles can share) and `godot_terrain.gd`
+  (the set as a Godot terrain, Match Corners and Sides); `pixelfix.py` (`snap`: finds the pixel
+  grid of an upscaled AI image, one colour per block, the palette cut by k-means or mapped to
+  the project palette, hard alpha); `sprite_qa.py alpha` catches a painted checkerboard posing
+  as transparency; `sheet.py preview` writes a GIF per animation at its game speed and a
+  numbered contact sheet. Checked live: Godot 4.7.2 painted a terrain shape and picked the
+  matching tile for every cell; the grid is found at block sizes 3 to 32 and refused on photos
+  and noise.
+
+- **The agent plays its own game.** New playtest `explorer.gd` (a novelty-seeking bot for an
+  autoplay scenario: toward the least-visited cells, stuck steps per cell), `explore_report.py`
+  (merged heatmap, worst snags, coverage of a level layout's reachable cells) and
+  `input_replay.gd` (input recorded per physics frame, played back exactly with state hashes;
+  after a change the first diverging frame is named). playtest makes runs deterministic by
+  default (`--fixed-fps`, seeds) and names Movie Maker for review captures. Checked live in
+  Godot 4.7.2: the explorer covered at least 90 % of a test maze in 120 game seconds, two replays
+  matched the recording, a slower controller diverged.
+
+- **Vision models judge captured frames, two reviewers decide.** acceptance `frames.py review`
+  sends only the frames that differ from their baseline: each changed region as one image
+  (baseline | new | changed pixels, cropped and enlarged) with fixed questions and a
+  `review.json` to answer; `frames.py verdict` merges two independent answers (a glitch both see
+  fails, a split is DISPUTED until engine data settles it, an unasked change is UNINTENDED).
+  acceptance states the rule that a vision model never plays the game; the verifier uses the
+  review for several changed regions.
+
+- **Store checks before a release.** New release `store_check.py`: Steam capsules (exact sizes,
+  formats, the library logo's transparent background, screenshots at 1920×1080 16:9) with a
+  review pack for the no-extra-text rule and the small capsule at 120×45; Steam Deck text
+  (`deck_text.gd` measures every text Control at 1280×800 with the stretch settings, hidden
+  menus too; under 9 px fails); Google Play (target API 36 from the APK's binary manifest or the
+  AAB's protobuf manifest, 64-bit native libraries aligned to 16 KB, APK zip offsets); web (a
+  threaded Godot export needs COOP/COEP on the host, checked on the live page); and a draft of
+  Steam's AI disclosure from provenance files, `production/ai-content.csv` and runtime model
+  calls. ci.md gains a store-check job and macOS notarisation on a Linux runner. Checked live:
+  Godot 4.7.2's Android template passes (API 36, 16 KB), its web exports are single-threaded by
+  default, a threaded export fails without the headers and passes with them.
+
+- **README and GUIDE brought up to date.** README: what is new in 0.10, the check scripts grouped
+  by area, the hooks list, OpenCode 1.19.0. GUIDE: the skills, commands and touches tables, the
+  hooks, and the production files the new checks write.

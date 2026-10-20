@@ -156,7 +156,8 @@ Read a skill's `references/` files only when its SKILL.md points you to them for
   hand-write the engine's scene/resource files. Godot: `.gd`, `.tscn`, `.tres` and
   `project.godot` are created and changed only with the MCP (`script_create` / `script_patch`,
   scene and resource tools) — Edit/Write on them is denied while the editor is open, so do not
-  try them first (live run: three roles lost turns that way).
+  try them first (live run: three roles lost turns that way). After changing scenes or scripts,
+  run engine-godot `godot_lint.py --root .` and fix what it fails before the handoff.
 - Do not talk to MCP servers through the shell (no custom clients, no HTTP to their ports).
 - Headless engine runs are for checking, not building: Godot `--headless -s <script>` is allowed
   for probes and tests under `tests/` or `.kiln/tmp/` (any flags such as `--fixed-fps 60`, any

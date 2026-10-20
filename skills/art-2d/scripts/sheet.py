@@ -7,6 +7,8 @@
   python sheet.py check art/hero/hero.json [--padding 1] [--extrude 1] [--max-size 4096]
   python sheet.py godot art/hero/hero.json --res-dir res://art/hero --parent Main/Hero
          [--setup player|frames] [--node Sprite] [--player AnimationPlayer] [--pixel-art]
+  python sheet.py preview "art/hero/*.png" --out production/captures/T12/hero [--fps 10]
+         [--tag-fps run=12] [--scale 4]      # a GIF per tag at game speed + a numbered contact sheet
 
 pack   frames named <tag>_<index>.png or <tag>-<index>.png, or one folder per tag (frames in name
        order), become animations. Writes the sheet PNG and an Aseprite-compatible json-array data
@@ -787,10 +789,67 @@ def cmd_godot(a):
     emit(out)
 
 
+def cmd_preview(a):
+    """Review frames the way the player sees them: one animated GIF per tag at its game speed
+    (nearest-neighbour scale) and one contact sheet with every frame numbered - a stray shape on
+    two of seven frames shows on the sheet, a pop or a slide only at speed."""
+    try:
+        groups = group_frames(expand_inputs(a.frames))
+    except SystemExit as e:
+        emit({"problems": [str(e)], "verdict": "fail"})
+    if not groups:
+        emit({"problems": ["no frames found"], "verdict": "fail"})
+    from PIL import ImageDraw
+    os.makedirs(a.out, exist_ok=True)
+    tag_fps = parse_map(a.tag_fps)
+    written, sheet_rows = [], []
+    for tag, frames in groups:
+        imgs = [Image.open(p).convert("RGBA") for p, _ in frames]
+        w = max(i.width for i in imgs)
+        h = max(i.height for i in imgs)
+        scaled = []
+        for im in imgs:
+            canvas = Image.new("RGBA", (w, h), a.background + (255,))
+            canvas.alpha_composite(im, ((w - im.width) // 2, h - im.height))
+            scaled.append(canvas.resize((w * a.scale, h * a.scale), Image.NEAREST))
+        fps = tag_fps.get(tag, a.fps)
+        name = os.path.join(a.out, f"{tag or 'anim'}.gif")
+        rgb = [s.convert("RGB") for s in scaled]
+        rgb[0].save(name, save_all=True, append_images=rgb[1:], duration=int(round(1000 / fps)),
+                    loop=0, disposal=2)
+        written.append({"tag": tag, "frames": len(imgs), "fps": fps,
+                        "gif_frame_ms": int(round(100 / fps)) * 10,   # GIF keeps 1/100 s
+                        "gif": name.replace("\\", "/")})
+        sheet_rows.append((tag, scaled))
+    cell_w = max(s[0].width for _, s in sheet_rows)
+    cell_h = max(s[0].height for _, s in sheet_rows) + 12
+    cols = max(len(s) for _, s in sheet_rows)
+    sheet = Image.new("RGB", (cols * (cell_w + 4) + 4, len(sheet_rows) * (cell_h + 4) + 4),
+                      (40, 40, 40))
+    draw = ImageDraw.Draw(sheet)
+    for r, (tag, scaled) in enumerate(sheet_rows):
+        for c, im in enumerate(scaled):
+            x, y = 4 + c * (cell_w + 4), 4 + r * (cell_h + 4)
+            sheet.paste(im.convert("RGB"), (x, y + 12))
+            draw.text((x + 2, y), f"{tag} {c}", fill=(230, 230, 230))
+    path = os.path.join(a.out, "contact_sheet.png")
+    sheet.save(path)
+    emit({"animations": written, "contact_sheet": path.replace("\\", "/"), "verdict": "pass",
+          "next": "look at the GIFs at game speed and the sheet frame by frame"})
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
+    v = sub.add_parser("preview")
+    v.add_argument("frames", nargs="+", help="frame files, folders or glob patterns")
+    v.add_argument("--out", required=True, help="folder for the GIFs and the contact sheet")
+    v.add_argument("--fps", type=float, default=10.0)
+    v.add_argument("--tag-fps", default="", help="per tag, e.g. run=12,idle=6")
+    v.add_argument("--scale", type=int, default=4, help="nearest-neighbour zoom")
+    v.add_argument("--background", default="60,60,70",
+                   type=lambda s: tuple(int(x) for x in s.split(",")))
     p = sub.add_parser("pack")
     p.add_argument("frames", nargs="+", help="frame files, folders or glob patterns")
     p.add_argument("--out", required=True, help="sheet PNG")
@@ -827,7 +886,7 @@ def main(argv=None):
     g.add_argument("--fps", type=float, default=10.0, help="for frames without duration")
     g.add_argument("--max-size", type=int, default=4096)
     a = parser.parse_args(argv)
-    {"pack": cmd_pack, "check": cmd_check, "godot": cmd_godot}[a.cmd](a)
+    {"pack": cmd_pack, "check": cmd_check, "godot": cmd_godot, "preview": cmd_preview}[a.cmd](a)
 
 
 if __name__ == "__main__":

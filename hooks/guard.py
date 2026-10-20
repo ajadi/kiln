@@ -288,6 +288,8 @@ def check_write(data, root, policy):
             k.deny(f"{rel} is a Blender file. Change it in the open Blender through the "
                    "Blender Lab MCP and save it there.")
 
+    if engine == "godot" and rel.lower().endswith(".gd"):
+        check_godot3(tool_input.get("content") or tool_input.get("new_string") or "", rel)
     if (engine == "unity" and rel.lower().endswith(".cs")
             and policy.get("scene_first", "on") == "on"
             and not re.search(r"(^|/)(editor|tests?)/", rel.lower())):
@@ -1206,6 +1208,36 @@ def check_godot_review(data, role):
                    f"{', '.join(GODOT_REVIEW_WRITES)} (probes, captures, reports).")
 
 
+_GODOT_LINT = None
+
+
+def check_godot3(code, path):
+    """Godot 3 API in GDScript (engine-godot godot_lint.py's table): models trained on public code
+    write Godot 3 forms that fail in 4.x; the error names the Godot 4 form."""
+    global _GODOT_LINT
+    if not code:
+        return
+    if _GODOT_LINT is None:
+        scripts = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "skills", "engine-godot", "scripts")
+        sys.path.insert(0, scripts)
+        try:
+            import godot_lint
+            _GODOT_LINT = godot_lint
+        except ImportError:
+            _GODOT_LINT = False
+        finally:
+            sys.path.remove(scripts)
+    if not _GODOT_LINT:
+        return
+    hits = [h for h in _GODOT_LINT.lint_gdscript(code) if h["severity"] == "error"]
+    if hits:
+        k.deny(f"{path or 'This script'} uses Godot 3 API: " + "; ".join(
+            f"line {h['line']} `{h['found']}` -> {h['godot4']}" for h in hits[:8]) +
+            ". Write the Godot 4 form (engine-godot godot4-pitfalls.md; confirm with api_manage). "
+            "A deliberate use (a comment quoting Godot 3) can carry '# kiln:godot3-ok'.")
+
+
 def check_godot_text_write(data, root, policy):
     """filesystem_manage write_text is a raw text write: the same file rules as Write apply, so
     scenes, resources and scripts cannot be hand-written through the MCP either."""
@@ -1351,6 +1383,8 @@ def check_mcp(data, root, policy):
         if tool.endswith(("__script_create", "__script_patch")):
             rel = str((data.get("tool_input") or {}).get("path") or "")
             deny_acceptor_probe(rel.replace("res://", "").lstrip("/"), role)
+            ti = data.get("tool_input") or {}
+            check_godot3(str(ti.get("content") or ti.get("new_text") or ""), rel)
         check_scene_first(data, policy)
         if role in MCP_READ_ONLY:
             check_godot_review(data, role)

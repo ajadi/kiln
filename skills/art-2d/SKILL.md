@@ -31,7 +31,12 @@ Qwen-Image, Qwen-Image-Edit (pose and view changes) and Z-Image-Turbo (Apache-2.
 a SynthID watermark; apps for EEA users must use the paid tier). **Not** FLUX.1-dev, FLUX.2-dev
 or FLUX.2-klein-9B (non-commercial). A concept for image-to-3D follows image-to-model §2a.
 Consistency needs a LoRA, IP-Adapter or ControlNet; pixel art from AI still needs palette
-quantisation and hand cleanup. AI output is not copyrightable in the US and Steam requires an AI
+quantisation and hand cleanup: `scripts/pixelfix.py snap <ai.png> --out <sprite.png> --colors N`
+(or `--palette art/palette.hex`) finds the pixel grid of the upscaled image, keeps one colour
+per block, cuts the palette and makes alpha hard (live sample: 100+ colours back to 6, the
+16x16 sprite recovered from an 8x soft, noisy, offset image). Describe the shape to keep, not
+the shape to avoid; generate large and shrink; fix the canvas and baseline. A "transparent"
+background from an image model can be a painted checkerboard: `sprite_qa.py alpha` catches it. AI output is not copyrightable in the US and Steam requires an AI
 disclosure — record provenance per file.
 
 ## 2. Resolution and scale (pixel art)
@@ -69,6 +74,14 @@ disclosure — record provenance per file.
 - Tile sizes 8, 16 or 32 px. Terrain autotiling: 16-tile marching squares (corners) or the
   47-tile blob (48 with empty) for corners + sides; Godot terrain modes Match Corners and Sides /
   Corners / Sides. Pad each tile 1 px (extrude) against seams.
+- **Blob sets are built, not drawn 47 times:** five source tiles (isolated, vertical,
+  horizontal, inner, fill) → `scripts/autotile.py build <strip.png> --tile 16 --out
+  art/tiles/<terrain>` writes the 47 tiles from quarter pieces and `terrain.json` (8 neighbour
+  bits each); `autotile.py check` tests every seam two tiles can share (an image model does not
+  make a correct set; check any set you did not build). `scripts/godot_terrain.gd` turns it
+  into a Godot terrain (Match Corners and Sides, peering bits from the json) through the
+  engine-godot run-once route; live: Godot's `set_cells_terrain_connect` picked the matching
+  tile for every cell of a test shape.
 - Separate layers: decoration, terrain with collision, hazards, foreground. Hazards share one
   visual language with an animated tell.
 - Parallax scroll factors: far 0.1–0.25, mid 0.5, gameplay 1.0, foreground 1.2–1.5 (sparse,
@@ -112,12 +125,14 @@ Animation + PSD Importer; sprites Filter Point, Compression None for pixel art.
 | Check | Gate |
 |---|---|
 | `sprite_qa.py palette <sprites> --palette art/palette.hex` | 0 out-of-palette pixels, colours ≤ the bible's count |
-| `sprite_qa.py alpha` (pixel art) | 0 semi-transparent pixels |
+| `sprite_qa.py alpha` (pixel art) | 0 semi-transparent pixels; no painted checkerboard |
 | `sprite_qa.py mixels <in-game capture> --scale k` | broken blocks ≤ 0.2%: integer scale, no rotation, no filtering |
 | `sprite_qa.py silhouettes <enemy types>` | pairwise IoU ≤ 0.75 |
 | `sprite_qa.py contrast <sprite> --bg <capture>` | silhouette edge (outline) ≥ 3:1 gameplay sprites, ≥ 4.5:1 weak points; `--gate worst` when every colour region must read (the mean of a blue sprite with a light outline read 2.46:1 while the outline gave 8.4:1) |
 | `sprite_qa.py clusters <sprites>` | 0 orphan pixels, 0 outline gaps (fill leaking through the outline) |
 | `sprite_qa.py frames <cycle frames>` | fixed canvas, baseline within 1 px for grounded cycles |
+| `sheet.py preview <frames> --out <dir>` | looked at: a GIF per animation at its game speed and a numbered contact sheet (a stray shape on two frames shows only on the sheet, a pop only at speed) |
+| `autotile.py check` (terrain sets) | 47 masks, 0 broken seams |
 | in game | camera on whole pixels (no jitter), animation durations as specified, 0 tile-seam pixels while the camera moves at fractional speeds |
 
 ## Tile maps from a reference

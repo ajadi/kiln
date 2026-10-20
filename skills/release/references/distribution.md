@@ -1,4 +1,4 @@
-# Distribution — itch.io, signing, ratings, store copy, credits
+# Distribution — itch.io, web, Google Play, signing, ratings, store copy, credits
 
 Read when publishing outside Steam, signing builds, rating the game, writing store text or
 building the credits. Every account, payment, upload and questionnaire answer is the user's.
@@ -7,7 +7,7 @@ building the credits. Every account, payment, upload and questionnaire answer is
 
 ```
 butler login                                   # once per machine; CI uses BUTLER_API_KEY
-butler push export/windows <user>/<game>:windows --userversion 0.9.0 --if-changed
+butler push export/windows <user>/<game>:windows --userversion 0.10.0 --if-changed
 butler push export/linux   <user>/<game>:linux   --userversion-file export/VERSION
 butler push export/windows <user>/<game>:windows-beta --hidden --dry-run
 ```
@@ -22,8 +22,26 @@ butler push export/windows <user>/<game>:windows-beta --hidden --dry-run
 - butler sends only patches after the first push. CI: secret `BUTLER_API_KEY` (from the API keys
   page, source `wharf`); a leaked key is revoked there. `-i <creds file>` selects another account.
 - Web builds: upload a zip with `index.html` at its root, mark it playable in the browser on the
-  game page (Godot web exports need the page's SharedArrayBuffer option when threads are on —
-  UNVERIFIED for 4.7 defaults).
+  game page. Godot 4.7 web exports are single-threaded by default (`variant/thread_support=false`,
+  checked live on 4.7.2) and run on any static host or portal iframe. With thread support on, the
+  page needs cross-origin isolation (COOP `same-origin`, COEP `require-corp`): on itch.io tick
+  "SharedArrayBuffer support"; elsewhere set the headers (`_headers` on Netlify/Cloudflare Pages)
+  or enable the PWA option, whose service worker adds them after one reload.
+  `store_check.py web export/web --url <page>` checks the export and the live headers.
+
+## Google Play (Android)
+
+- New apps and updates target Android 16, API 36, since 31 Aug 2026 (extension to 1 Nov 2026 on
+  request); existing apps below API 35 stop reaching new users on newer devices. Godot 4.7.2's
+  templates target 36 (`gradle_build/target_sdk` empty = template default).
+- New apps upload an AAB: Godot needs the Gradle build (`gradle_build/use_gradle_build`, export
+  format AAB). An APK is fine for itch.io and sideloading.
+- 16 KB pages: every 64-bit native library (arm64-v8a, x86_64) needs ELF LOAD segments aligned to
+  16 KB (0x4000); uncompressed libraries in an APK also sit on 16 KB zip offsets. Godot 4.7.2's
+  own libraries pass (checked live); GDExtension and plugin `.so` files are the usual failures —
+  relink with `-Wl,-z,max-page-size=16384`.
+- `store_check.py android export/android/game.aab` checks the target API and every library;
+  without a file it reads the Android presets.
 
 ## Windows code signing
 

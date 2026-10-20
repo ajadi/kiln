@@ -49,3 +49,7 @@ Reference set — Celeste (pixels at 320×180, 8 px tiles, per second):
   offset rounded to whole pixels in pixel art; hit-stop per entity 2–6 frames.
 - Acceptance: jump apex within ±1 px and time to apex within ±1 tick of the design; input to
   first moved pixel 1–2 frames; no sub-pixel camera jitter.
+- Feel constants are a named resource, not literals: controls-camera `feel_constants.gd`
+  (coyote, buffer, variable jump, hit-stop, latency limits, with sources) as `data/feel.tres`,
+  read by the controller and tested by a probe with `feel_windows.gd` (windows in frames,
+  latency and its jitter).

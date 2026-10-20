@@ -119,7 +119,17 @@ tests/                    # GDScript test suites run with test_run
 - Keep frequently compared names as `const` StringNames (`const FIRE := &"fire"`) and compare
   StringName to StringName; do not call String methods on StringNames in hot code.
 - Godot 3 habits are the most common agent mistake — check `godot4-pitfalls.md` in this skill's
-  folder before writing GDScript, and confirm unfamiliar APIs with `api_manage`.
+  folder before writing GDScript, and confirm unfamiliar APIs with `api_manage`. Models copy the
+  API of the code next to them: keep [references/known-good.gd](references/known-good.gd) (all
+  Godot 4, parsed clean by Godot 4.7.2) in context as the pattern. The guard refuses a script
+  with Godot 3 API (`yield`, `export var`, `.instance()`, string `connect`, `KinematicBody`, ...)
+  and names the Godot 4 form.
+- **Lint before the handoff:** `python ${extensionPath}${/}skills${/}engine-godot/scripts/godot_lint.py --root .`
+  checks every `.gd` for Godot 3 API and every `.tscn` / `.tres` for what loads wrong without a
+  compile error: an ExtResource / SubResource id that is not defined, a node whose parent does
+  not exist, two siblings with one name, a connection to a missing node, a Godot 3 file
+  (`format=2`), two files with one uid. A scene it fails does not load right in Godot either;
+  run it after any scene change and in the verifier's pass.
 
 ## Registries (single owner of a shared fact)
 

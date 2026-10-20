@@ -12,7 +12,8 @@
 
 palette      colours used vs the project palette (.hex one colour per line, .gpl, or a palette
              PNG); out-of-palette pixels must be 0, colour count within --max-colors
-alpha        pixel art uses only alpha 0 or 255; counts semi-transparent pixels
+alpha        pixel art uses only alpha 0 or 255; counts semi-transparent pixels; a fully opaque image
+             with a grey checkerboard painted round the edges fails (fake transparency)
 mixels       an in-game capture at integer scale k must consist of k x k single-colour blocks;
              searches the grid offset, reports the fraction of broken blocks (mixed pixel sizes,
              sub-pixel positions, rotation or filtering show up here)
@@ -135,15 +136,47 @@ def check_palette(paths, palette_path, max_colors, bits=0, max_distance=None):
     return results
 
 
+def painted_checkerboard(img):
+    """Cell size of a grey checkerboard painted where a transparent background should be (image
+    models asked for transparency sometimes paint one: research 2026-10-19), or 0."""
+    h, w = img.shape[:2]
+    b = max(4, min(h, w) // 12)
+    band = np.zeros((h, w), bool)
+    band[:b], band[-b:], band[:, :b], band[:, -b:] = True, True, True, True
+    rgb = img[..., :3].astype(int)
+    grey = (rgb.max(-1) - rgb.min(-1)) < 16
+    if grey[band].mean() < 0.85:
+        return 0
+    lum = rgb.mean(-1)
+    lo, hi = np.percentile(lum[band], 5), np.percentile(lum[band], 95)
+    if hi - lo < 12:
+        return 0
+    bright = lum > (lo + hi) / 2
+    ys, xs = np.nonzero(band)
+    for p in (4, 5, 6, 8, 10, 12, 16, 20, 24, 32):
+        for ox in range(p):
+            for oy in (0, p // 2):
+                pattern = (((xs + ox) // p + (ys + oy) // p) % 2).astype(bool)
+                agree = (pattern == bright[ys, xs]).mean()
+                if agree > 0.92 or agree < 0.08:
+                    return p
+    return 0
+
+
 def check_alpha(paths):
     results = []
     for path in paths:
-        a = rgba(path)[..., 3]
+        img = rgba(path)
+        a = img[..., 3]
         semi = int(((a > 0) & (a < 255)).sum())
-        results.append({"file": path, "semi_transparent_px": semi,
-                        "verdict": "fail" if semi else "pass",
-                        "problems": [f"{semi} semi-transparent px (pixel art: alpha 0 or 255)"]
-                        if semi else []})
+        problems = [f"{semi} semi-transparent px (pixel art: alpha 0 or 255)"] if semi else []
+        fake = painted_checkerboard(img) if (a == 255).all() else 0
+        if fake:
+            problems.append(f"no transparency: a {fake}-px grey checkerboard is painted where the "
+                            "background should be transparent (an image model's fake "
+                            "transparency) - cut the background out and check alpha in code")
+        results.append({"file": path, "semi_transparent_px": semi, "painted_checkerboard": fake,
+                        "verdict": "fail" if problems else "pass", "problems": problems})
     return results
 
 
