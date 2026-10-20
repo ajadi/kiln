@@ -34,6 +34,7 @@ claude plugin install kiln-start@kiln --scope user
 
 Then, in your project folder: `/kiln-start:here`, and restart Claude Code there.
 You get everything: the commands, 31 specialist roles, the safety hooks and the checks.
+Update: `claude plugin marketplace update kiln`, then `/kiln:update all`.
 </details>
 
 <details>
