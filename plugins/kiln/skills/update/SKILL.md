@@ -10,7 +10,10 @@ allowed-tools: Read, Glob, Grep, Bash, PowerShell, Edit
 `$ARGUMENTS` = `status` → only step 1. `all` → the "Every project" section instead.
 
 1. `python "${CLAUDE_SKILL_DIR}/scripts/kiln_update.py" status` from the project root: project
-   version, plugin version, the changelog entries in between.
+   version, plugin version, the changelog entries in between, and `codex_config_broken`: a Codex
+   config.toml (the user's or this project's) that does not parse - older Kiln versions appended
+   to it by hand. Repair it first, as `next` says (`codex_config.py --repair`, with the user's
+   yes; never by hand), and tell the user to trust the project in Codex again.
 2. Refresh the installed plugin when the Kiln repository is newer than the installed copy, in
    the agent this session runs in:
 

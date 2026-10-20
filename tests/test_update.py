@@ -16,9 +16,11 @@ PLUGIN = os.path.join(HERE, "..", "plugins", "kiln")
 SCRIPT = os.path.join(PLUGIN, "skills", "update", "scripts", "kiln_update.py")
 
 
-def run(root, *args):
+def run(root, *args, codex_home=None):
+    # never the user's own ~/.codex: status reads the Codex config to find a broken one
+    env = dict(os.environ, CODEX_HOME=codex_home or tempfile.mkdtemp(prefix="kiln-cxh-"))
     p = subprocess.run([sys.executable, "-B", SCRIPT, *args], cwd=root, capture_output=True,
-                       text=True, timeout=60)
+                       text=True, timeout=60, env=env)
     return p.returncode, json.loads(p.stdout)
 
 
@@ -48,6 +50,22 @@ class Update(unittest.TestCase):
         self.assertIn(plugin_version(), versions)
         self.assertNotIn("0.6.0", versions)
         self.assertIn("migrate", " ".join(res["next"]))
+
+    def test_status_finds_a_codex_config_broken_by_an_old_kiln(self):
+        # field report 2026-10-20 ("Can't verify project trust" in the Codex app): Kiln 0.7.x
+        # appended `enabled = false` by hand and the next table got glued to it
+        root = self.project("0.7.0")
+        home = tempfile.mkdtemp(prefix="kiln-cxh-")
+        with open(os.path.join(home, "config.toml"), "w", encoding="utf-8") as fh:
+            fh.write('[plugins."kiln@kiln"]\n'
+                     "enabled = false[projects.'C:\\Data\\MysticWood']\n"
+                     'trust_level = "trusted"\n')
+        code, res = run(root, "status", codex_home=home)
+        self.assertEqual(len(res["codex_config_broken"]), 1, res)
+        self.assertTrue(res["codex_config_broken"][0]["glued_header"])
+        self.assertIn("--repair", res["next"][0])
+        code, res = run(root, "status")
+        self.assertEqual(res["codex_config_broken"], [])
 
     def test_apply_migrates_and_records_the_version(self):
         root = self.project("0.6.0")

@@ -1023,4 +1023,10 @@ A bug hunt by four independent reviewers (2026-10-20); every fix has a test that
   it, turning it on in a project, setup and update. The main README links the branch. Copilot
   CLI's install, disable, enable and update were checked live with 1.0.100 (`kiln` and
   `kiln@kiln` both work).
+- **A Codex config broken by an older Kiln is found and repaired.** Field report: the Codex app
+  said "Can't verify project trust" on a machine with Kiln 0.7.0, which had agents append to
+  `~/.codex/config.toml` by hand (a block glued to the next table header hides the trusted
+  projects). `kiln_update.py status` now checks the user's and the project's Codex config and
+  names the `codex_config.py --repair` fix; doctor checks both files; setup checks first on a
+  machine that had an older Kiln.
 
