@@ -1018,4 +1018,9 @@ A bug hunt by four independent reviewers (2026-10-20); every fix has a test that
   (each runtime's guard payload, checked to deny); the new-version notice and the session's
   command hints name each runtime's own commands (Copilot and OpenCode were told slash commands
   they do not have).
+- **The Gemini branch explains itself.** The `gemini-extension` branch gets a README (built by
+  gemini_extension.py): why Gemini's build lives on its own branch, the `--ref` that installs
+  it, turning it on in a project, setup and update. The main README links the branch. Copilot
+  CLI's install, disable, enable and update were checked live with 1.0.100 (`kiln` and
+  `kiln@kiln` both work).
 
