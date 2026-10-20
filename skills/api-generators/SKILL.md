@@ -18,7 +18,8 @@ user-invocable: false
 3. Ask the user exactly that, in their language, and wait. Spending money is never decided for
    the user, in either `user_gates` mode, and never under autopilot: there, `request <job> --why
    "..."` adds the estimate to `production/SPEND_REQUESTS.md` and the run goes on with work that
-   needs no money; the autopilot report asks one yes/no per row. A no: mark the row declined.
+   needs no money; the autopilot report asks one yes/no per row. A no: `gen_api.py decline
+   <job>` (marks the row declined; submit refuses a row that is not waiting).
 4. On the user's yes: `submit <job>`. The guard lets it through only after a user message newer
    than the estimate. It refuses a stale estimate (1 h; a spend request 7 days) or a changed one, a service
    outside `gen_services`, and anything over `gen_spend_cap_usd` (default 5) or the day's

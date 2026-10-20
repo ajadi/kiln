@@ -9,6 +9,9 @@ import { join } from "node:path"
 const KILN_ROOT = process.env.KILN_PLUGIN_ROOT || "__KILN_ROOT__"
 const PYTHON = process.platform === "win32" ? "python" : "python3"
 const SERVERS = ["unreal-mcp-proxy", "unreal-mcp", "godot-ai", "blender", "unity", "unreal"]
+const VENDOR = new RegExp("^((?:claude_ai_)?(?:meshy|tripo|rodin|hyper3d|stability|fal|replicate|" +
+  "leonardo|scenario|sloyd|pixellab|3daistudio|elevenlabs|suno|udio|stableaudio)" +
+  "(?:[_-]?(?:mcp|ai|api|server|official))*)_(.+)$", "i")
 
 function hook(directory, script, args, payload) {
   const p = spawnSync(PYTHON, ["-B", join(KILN_ROOT, "hooks", script), ...args, "--runtime", "opencode"], {
@@ -35,6 +38,9 @@ function toKiln(tool, args) {
   for (const server of SERVERS) {
     if (tool.startsWith(server + "_")) return [`mcp__${server}__${tool.slice(server.length + 1)}`, args]
   }
+  // paid generators' MCP servers: the guard's spending rules (kiln_hooklib VENDOR_SERVER)
+  const vendor = VENDOR.exec(tool)
+  if (vendor) return [`mcp__${vendor[1]}__${vendor[2]}`, args]
   return [null, null]
 }
 

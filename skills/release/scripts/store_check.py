@@ -208,14 +208,17 @@ def cmd_capsules(a):
             answered = {i["asset"]: i.get("answer") for i in json.load(fh).get("items", [])}
         for i in items:
             ans = answered.get(i["asset"])
-            if not isinstance(ans, dict):
+            # both answers must be given as true/false (bug hunt 2026-10-20: {} counted)
+            if not isinstance(ans, dict) or not all(isinstance(ans.get(q), bool)
+                                                    for q in ("extra_text", "logo_legible")):
                 unanswered.append(i["asset"])
                 continue
             if ans.get("extra_text"):
                 problems.append(f"{i['asset']}: text beyond the title - {ans.get('evidence', '')}")
             if ans.get("logo_legible") is False:
                 problems.append(f"{i['asset']}: logo not legible - {ans.get('evidence', '')}")
-    verdict = "fail" if problems else ("pass" if a.answers and not unanswered else "not assessed")
+    verdict = "fail" if problems else ("pass" if a.answers and not unanswered and a.screenshots
+                                       else "not assessed")
     if not a.answers and not problems:
         warnings.append(f"sizes pass; text rules wait for the review: {B.norm(review)}")
     return emit({"command": "capsules", "assets": assets, "screenshots": len(shots),
@@ -730,7 +733,7 @@ def cmd_ai_disclosure(a):
              "faster (code assistants, editor helpers).", "",
              "## Pre-generated content (made with AI during development, ships in the game)", ""]
     if by_cat:
-        lines += [f"- {c}: {len([i for i in shipping if c in i['category']])} items - "
+        lines += [f"- {c}: {len([i for i in shipping if c in i['category'].split(', ')])} items - "
                   f"{', '.join(sorted(t))}" for c, t in sorted(by_cat.items())]
         lines += ["", "Draft answer (edit before pasting; say how people reviewed or changed the "
                   "output):", "",

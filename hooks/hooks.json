@@ -11,7 +11,7 @@
             "timeout": 10000
           }
         ],
-        "matcher": "^(run_shell_command|write_file|replace|mcp_(blender|godot-ai|unity|unreal|unreal-mcp|unreal-mcp-proxy)_.*)$"
+        "matcher": "^(run_shell_command|write_file|replace|mcp_.*)$"
       },
       {
         "hooks": [

@@ -38,8 +38,8 @@ func stretch_scale() -> float:
 	if mode == "disabled":
 		return factor
 	var s := _h / bh if aspect == "ignore" else minf(_w / bw, _h / bh)
-	if integer and s >= 1.0:
-		s = floorf(s)
+	if integer:  # Godot never scales below 1 in integer mode (bug hunt 2026-10-20, checked live)
+		s = maxf(1.0, floorf(s))
 	return s * factor
 
 

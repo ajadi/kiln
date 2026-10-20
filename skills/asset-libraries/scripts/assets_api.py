@@ -150,7 +150,21 @@ class PolyHaven:
         files = fetch_json(f"{self.api}/files/{urllib.parse.quote(item['id'])}")
         md5 = lambda f: ("md5", f["md5"]) if f.get("md5") else None  # noqa: E731
         if item["kind"] == "hdri":
-            entry = files["hdri"].get(a.res) or files["hdri"][sorted(files["hdri"])[0]]
+            entry = files["hdri"].get(a.res.lower()) or files["hdri"].get(a.res)
+            if not entry:
+                # the nearest size at or below the request, by number (bug hunt 2026-10-20: a
+                # string sort fell back to "16k", the largest file)
+                def k(r):  # "2k" = 2048 px, "512" = 512 px
+                    m = re.match(r"\s*(\d+)\s*(k?)", str(r).lower())
+                    return (int(m.group(1)) * (1024 if m.group(2) else 1)) if m else 0
+                want = k(a.res)
+                sizes = sorted(files["hdri"], key=k)
+                below = [r for r in sizes if k(r) <= want]
+                if not sizes:
+                    raise SystemExit(f"polyhaven {item['id']} has no HDRI files")
+                pick_res = below[-1] if below else sizes[0]
+                entry = files["hdri"][pick_res]
+                item["res_used"] = pick_res
             f = entry["hdr"]
             return [(f["url"], os.path.basename(urllib.parse.urlparse(f["url"]).path), md5(f))], files
         entry = files.get("gltf", {}).get(a.res)
@@ -637,7 +651,9 @@ def cmd_fetch(a, root):
                 "page_url": item["page"], "api_url": item["api_url"], "licence": item["licence"],
                 "licence_url": LICENCE_URLS.get(item["licence"], ""),
                 "attribution": item["attribution"], "flags": item.get("flags", []),
-                "modified": False, "variant": {"res": a.res, "format": a.format, "only": a.only},
+                "modified": False, "variant": {"res": item.get("res_used", a.res),
+                                               "res_asked": a.res, "format": a.format,
+                                               "only": a.only},
                 "retrieved_utc": now_utc(), "files": written, "evidence": names}
 
     out, prov = write_item(root, a.into, src.name, a.id, build)

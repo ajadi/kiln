@@ -2,7 +2,8 @@
 
 UNVERIFIED: written from Epic's create-toolset skill (EpicGames/unreal-engine-skills-for-claude-
 code-plugin) and the Epic-authored toolset_registry package as shipped in public plugins
-(toolset_registry.tool_call, toolset_registry.registration.Registration); not yet run in a live
+(toolset_registry.tool_call; registration through unreal.ToolsetRegistry.register_toolset_class,
+as the skill says "Registration is never automatic"); not yet run in a live
 UE 5.8 editor. Expected toolset name in list_toolsets: "kiln_toolset.KilnToolset" (Python toolsets
 are listed as <module>.<Class>). Python names marked "UNVERIFIED" below are tried with fallbacks.
 
@@ -13,7 +14,8 @@ Install (builder role, once per project):
   3. <Project>/Content/Python/init_unreal.py (create it if missing) gets:
          import kiln_toolset
          kiln_toolset.register()
-  4. Restart the editor (or run the console command ModelContextProtocol.RefreshTools), then
+  4. Restart the editor (init_unreal.py runs at editor start; RefreshTools only re-polls toolsets
+     already registered, and Epic's docs say adding a tool needs a restart), then
      list_toolsets -> describe_toolset on the Kiln toolset.
 
 Every tool acts on the running Play-In-Editor world and only reads or drives play: none edits
@@ -28,10 +30,8 @@ import unreal
 
 try:
     import toolset_registry
-    from toolset_registry.registration import Registration
 except ImportError:  # ToolsetRegistry (Unreal MCP / AllToolsets) not enabled
     toolset_registry = None
-    Registration = None
 
 # Same allowlist as the Kiln guard (UNREAL_SAFE_CONSOLE): profiling, tracing and screenshots.
 SAFE_CONSOLE = re.compile(r"^\s*(stat\s+\S+|csvprofile\s+\S+|trace\.\S+|highresshot\b|profilegpu\b)",
@@ -245,22 +245,30 @@ if toolset_registry is not None and hasattr(unreal, "ToolsetDefinition"):
                                                               "Screenshots")
             return unreal.Paths.convert_relative_path_to_full(folder)
 
-    _registration = Registration([KilnToolset])
 else:
     KilnToolset = None
-    _registration = None
+
+
+def _registry():
+    return getattr(unreal, "ToolsetRegistry", None)
 
 
 def register():
-    """Registers the Kiln toolset; False when the ToolsetRegistry is unavailable."""
-    if _registration is None:
-        unreal.log_warning("Kiln toolset not registered: ToolsetRegistry is not enabled.")
+    """Registers the Kiln toolset with unreal.ToolsetRegistry (Epic's create-toolset skill). A
+    missing registry is an error in the Output Log, not a silent warning (bug hunt 2026-10-20)."""
+    registry = _registry()
+    if KilnToolset is None or registry is None:
+        unreal.log_error("Kiln toolset NOT registered: enable the Unreal MCP (ModelContextProtocol) "
+                         "and AllToolsets plugins (ToolsetRegistry missing).")
         return False
-    return _registration.register()
+    registry.register_toolset_class(KilnToolset)
+    unreal.log("Kiln toolset registered: list_toolsets shows kiln_toolset.KilnToolset.")
+    return True
 
 
 def unregister():
     for key in list(_holds):
         _stop_hold(key)
-    if _registration is not None:
-        _registration.unregister()
+    registry = _registry()
+    if KilnToolset is not None and registry is not None:
+        registry.unregister_toolset_class(KilnToolset)

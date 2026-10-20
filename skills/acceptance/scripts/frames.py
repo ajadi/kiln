@@ -15,6 +15,8 @@ review   the frames that differ from their baseline only, each changed region as
          (baseline | new | changed pixels, cropped with context, enlarged) with REVIEW.md: fixed
          questions (intended? broken? which glitch class? evidence) and review.json to answer.
          A vision model judges captured frames like these; it never plays the game.
+         A frame that fails without a region (size changed, SSIM only) is one whole-frame
+         item; no image or a frame without a baseline is NOT ASSESSED (exit 2).
 verdict  two reviewers' answers (each their own copy of review.json, made without seeing the
          other): a glitch both see is FAIL, both clean and intended is PASS, clean but nobody
          asked for it is UNINTENDED, a split is DISPUTED - settled by engine data, not a third
@@ -30,7 +32,8 @@ compare  per image: SSIM of the luminance (7x7 windows) and the changed regions 
          <name>_diff.png (changed pixels in magenta over the new frame, boxes outlined).
 accept   makes the new capture the baseline and appends the reason to HISTORY.md: an intended
          change is accepted on purpose, never by re-running baseline over it silently.
-A capture without a baseline is NOT ASSESSED. Output: JSON; exit 1 if any image fails.
+A capture without a baseline, or no capture at all, is NOT ASSESSED. Output: JSON; exit 1 if
+any image fails, 2 if one is not assessed and none fails.
 
 anim     is an effect moving at all? Two sequences of the same frames, consecutive frames one
          step apart (1/60 s or the engine's fixed step): effect ON and effect OFF. Per frame pair
@@ -164,10 +167,28 @@ def review(a):
     results = [compare_one(p, a.scene, a) for p in expand(a.images)]
     items = []
     for res, path in zip(results, expand(a.images)):
-        if res["verdict"] != "FAIL" or not res.get("regions"):
+        if res["verdict"] != "FAIL":
             continue
         new = Image.open(path).convert("RGB")
         old = Image.open(os.path.join(BASE, a.scene, os.path.basename(path))).convert("RGB")
+        if not res.get("regions"):
+            # a size change or an SSIM-only failure has no region: the whole frame is the item
+            # (bug hunt 2026-10-20: these frames were dropped and the review said PASS)
+            h = min(256, old.height, new.height) or 1
+            crops = [im.resize((max(1, round(im.width * h / im.height)), h)) for im in (old, new)]
+            sheet = Image.new("RGB", (crops[0].width + crops[1].width + 4, h + 18), (30, 30, 30))
+            draw = ImageDraw.Draw(sheet)
+            for c, label, x in ((crops[0], "baseline", 0), (crops[1], "new", crops[0].width + 4)):
+                sheet.paste(c, (x, 18))
+                draw.text((x + 2, 2), label, fill=(230, 230, 230))
+            name = f"{os.path.splitext(res['image'])[0]}_whole.png"
+            sheet.save(os.path.join(a.out, name))
+            items.append({"id": f"{res['image']}#whole", "image": res["image"],
+                          "bbox": [0, 0, new.width, new.height], "share": 1.0, "pack": name,
+                          "problems": res.get("problems", []),
+                          "answer": {"intended": None, "glitch": None, "class": None,
+                                     "evidence": ""}})
+            continue
         diff_mask = np.abs(box(gray(path), 1) - box(gray(os.path.join(BASE, a.scene,
                                                                       os.path.basename(path))), 1)) > a.tol
         for i, reg in enumerate(res["regions"][:a.max_regions]):
@@ -210,9 +231,12 @@ def review(a):
     with open(os.path.join(a.out, "review.json"), "w", encoding="utf-8") as fh:
         json.dump({"scene": a.scene, "items": items}, fh, indent=1)
     unchanged = sum(1 for r in results if r["verdict"] == "PASS")
+    missing = [r["image"] for r in results if r["verdict"] == "NOT ASSESSED"]
+    verdict = "REVIEW" if items else ("NOT ASSESSED" if missing or not results else "PASS")
     return {"scene": a.scene, "frames": len(results), "unchanged": unchanged,
-            "items_to_review": len(items), "out": a.out.replace("\\", "/"),
-            "verdict": "REVIEW" if items else "PASS"}, 0
+            "items_to_review": len(items), "not_assessed": missing,
+            "out": a.out.replace("\\", "/"), "verdict": verdict}, \
+        2 if verdict == "NOT ASSESSED" else 0
 
 
 def verdict(a):
@@ -375,8 +399,11 @@ def main():
     else:
         results = [compare_one(p, a.scene, a) for p in images]
         failed = any(r["verdict"] == "FAIL" for r in results)
-        res, code = {"scene": a.scene, "results": results,
-                     "verdict": "FAIL" if failed else "PASS"}, 1 if failed else 0
+        # no image, or one without a baseline, is not a pass (bug hunt 2026-10-20)
+        unknown = not results or any(r["verdict"] == "NOT ASSESSED" for r in results)
+        overall = "FAIL" if failed else ("NOT ASSESSED" if unknown else "PASS")
+        res, code = {"scene": a.scene, "results": results, "verdict": overall}, \
+            {"FAIL": 1, "NOT ASSESSED": 2, "PASS": 0}[overall]
     print(json.dumps(res, indent=1))
     sys.exit(code)
 

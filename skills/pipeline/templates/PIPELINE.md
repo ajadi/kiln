@@ -81,6 +81,7 @@ files: production/RELEASE.md
 - [ ] Release checklist complete (no unticked item) — check: nogrep:^\s*- \[ \]@production/RELEASE.md
 - [ ] Licence registry built (licenses.py) — check: filled:production/LICENSES.md
 - [ ] No unknown or non-commercial licence ships — check: nogrep:(?i)\|\s*(unknown|non-commercial|cc by-nc[^|]*)\s*\|[^|]*\|\s*yes\s*\|@production/LICENSES.md
+- [ ] Every CC BY item that ships names whom to credit — check: nogrep:(?i)\|\s*cc[ -]by[^|]*\|\s*\|\s*yes\s*\|@production/LICENSES.md
 - [ ] Saves from earlier builds load (save-system fixtures) — manual
 - [ ] Release build launches (build.py smoke) — check: grep:"verdict": "pass"@production/builds/release/smoke.json
 - [ ] 60-minute soak passes (build.py smoke --seconds 3600 --sample-every 900) — check: grep:"verdict": "pass"@production/builds/release/soak.json

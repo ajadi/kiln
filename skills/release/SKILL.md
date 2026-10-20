@@ -72,9 +72,11 @@ without a named cause is a leak until explained (working).
 ## Build → smoke → soak
 
 1. `audit` → `build --dry-run` (read the command) → `build`. The guard allows only these headless
-   commands — Godot `--export-*`, Unity `-batchmode -executeMethod <...Build...>`, Unreal `RunUAT
-   BuildCookRun` (plus Godot probe/test scripts under `tests/` or `.kiln/tmp/` and `--check-only`
-   parse checks); presets and settings change in the open editor through the MCP.
+   commands — Godot `--export-*`, Unity `-batchmode -executeMethod KilnRelease.KilnBuild.Build`
+   (or a method in manifest `unity_build_methods`), Unreal `RunUAT BuildCookRun` (plus Godot
+   probe/test scripts under `tests/` or `.kiln/tmp/` and `--check-only` parse checks); presets and
+   settings change in the open editor through the MCP. Unity with the editor open: build there
+   with MCP for Unity `manage_build` (batch mode cannot open a project the editor holds).
 2. `smoke` ≥ 60 s (working) with the game's log: Godot `-- --log-file <abs path>` (4.5+, release
    templates too; default `%APPDATA%\Godot\app_userdata\<project>\logs\godot.log`); Unity
    `-- -logFile <path>` (default `%USERPROFILE%\AppData\LocalLow\<Company>\<Product>\Player.log`);

@@ -924,3 +924,90 @@ Fixes from a code review of the whole project, each with a test:
 - **README and GUIDE brought up to date.** README: what is new in 0.10, the check scripts grouped
   by area, the hooks list, OpenCode 1.19.0. GUIDE: the skills, commands and touches tables, the
   hooks, and the production files the new checks write.
+
+## Unreleased (fixes after 0.10.0)
+
+A bug hunt by four independent reviewers (2026-10-20); every fix has a test that failed before.
+
+- **Guard: shell bypasses closed.** Line continuations (bash `\`, PowerShell backtick) are joined
+  before any check; deleting, moving or renaming framework files (`mv manifest.md`, `rm -rf
+  .claude`) is refused and engine files follow the Write rules; PowerShell parameters are read
+  by meaning (`Out-File -Encoding utf8 x` writes x), copies into a folder and `cp -t`, `cd` before
+  a relative path, `bash -c` / `cmd /c` / `powershell -Command` and `$(...)` are unwrapped;
+  `python -X utf8 gen_api.py submit` is a submit; `import os, bpy`, a here-document piped into
+  python and `uv run python -` are bpy code; MCP ports by `127.1` and `[::1]`; `Stop-Process
+  <pid>` is no longer refused.
+- **Guard: git parsed by option.** `git add -vA`, `:/`, `-- .`, `git -C . add -A`, a folder with a
+  secret staged and committed in one line, `push -uf`, `+HEAD:main`, `commit -n` are refused; a
+  commit message that mentions --no-verify is not.
+- **Guard: roles and paths.** Effort copies of roles (`verifier-high`) are their role; built-in
+  agents (general-purpose, Codex default) follow the producer's rule and never change framework
+  files; the other runtimes' configs (`.opencode/plugins/`, `opencode.json`, Copilot and Gemini
+  settings, `.codex/agents/`) are protected; a role cannot create a task file naming itself;
+  Windows spellings of a path (`\\?\`, `\\localhost\D$`, `::$DATA`) are the same file; `..` cannot
+  leave tests/probes.
+- **Paid generators' MCP servers reach the guard in every runtime** (the hook matchers only
+  covered the editors' servers, so `model_generators=off` did not stop a Meshy MCP call).
+- **Codex / OpenCode apply_patch**: a role's handoff appended to its task file is no longer
+  refused (the patch is applied before the spec lines are compared).
+- **Hooks**: a manifest with a BOM, spaces around `=` or saved as UTF-16 is read the same from
+  every folder; a non-numeric lock time keeps the default instead of opening the editor to two
+  roles; the editor queue has one lock.
+- **Paid generators: the caps hold.** A spend ledger line that does not parse stops every submit
+  (a blank line used to end the count and lift the daily cap); a create is counted before it is
+  sent, so a timeout or 5xx that may have been charged counts against the cap (a refusal by the
+  service is taken back); `gen_api.py decline <job>` records the user's no and submit refuses a
+  spend request that is not waiting; caps that are not a number (`nan`, `-1`) stop the submit;
+  `status` of a job never sent answers instead of crashing; `--opt` without `=` is explained.
+- **CC BY output names whom to credit.** Meshy free-plan output gets an attribution line in its
+  provenance; licenses.py and the Phase 9 gate fail a shipping CC BY item with nobody to credit.
+- **No more false passes.** A probe whose script errors after some rows passed is NOT ASSESSED
+  (probe_base counts script errors through a Godot Logger), and `check(..., "~", ...)` compares
+  vectors by distance; a QA-contract state whose setup errors is not recorded; QA-contract UI
+  states fail on ui_check layout problems (an upper-case compare never matched) and are laid out
+  at the project's window size, not the 64x64 headless window; `frames.py review` packs a frame
+  that fails without a region (size change, SSIM only) as one whole-frame item, and `compare` /
+  `review` with no image or no baseline are NOT ASSESSED (exit 2); `autotile.py check` checks
+  every pair two tiles can really show (169 each way; 47 were checked); a night run that never
+  started counts as a mid-run crash; `asset_budget.py` measures textures embedded in a .gltf and
+  is NOT ASSESSED for no file or a broken GLB; a capsule review needs true/false answers and the
+  screenshot check before it passes; the AI-disclosure counts no longer count text inside
+  "images and textures".
+- **Unity and Unreal, checked against their MCP servers' sources** (no live editor yet). Unity:
+  a release build with the editor open goes through MCP for Unity `manage_build` (batch mode
+  cannot open a project the editor holds; `build.py` says so while `Temp/UnityLockfile` exists);
+  headless `-executeMethod` runs only `KilnRelease.KilnBuild.Build` or a method in manifest
+  `unity_build_methods` (a name with "build" in it is no longer enough); tool groups persist
+  only through the editor's toggle window (setup turns on testing, scripting_ext, profiling, vfx
+  and docs; sessions `manage_tools sync`; read-only roles may activate their groups); model
+  import settings go through an AssetPostprocessor or `ModelImporter` (manage_asset reaches only
+  textures); captures pass `output_folder`; `execute_code` probes that save, change assets or
+  create objects are refused, and builder `execute_code` that builds scenes is too; `.anim`,
+  `.shadergraph`, `.vfx`, `.spriteatlas`, `.lighting` and other editor assets are protected;
+  `FindAnyObjectByType` in KilnProbe. Unreal: the UE 5.6/5.7 fallback server's `action` decides
+  read or change; `find_or_create_*` is not a read; PIE through `call_tool` and Unity's Edit/Play
+  menu item wait for a screen slot; plugin and subfolder `Config/*.ini` are protected;
+  `-ExecCmds="py ..."` and commandlets other than cook are refused; roles accept the
+  `unreal-mcp` / `unreal-mcp-proxy` server names Epic's proxy and plugin write; the Kiln toolset
+  registers through `unreal.ToolsetRegistry.register_toolset_class` and logs an error when it
+  cannot; an Unreal project for Kiln is a C++ project (the probe is a C++ component); Live
+  Coding through the toolset is marked unverified, with a fallback.
+- **Measurements to the frame.** Godot 4.7 shows a press made inside a physics tick to
+  `is_action_just_pressed` one tick late (checked live), which moved coyote time by -1, the jump
+  buffer by +2 and made a replay diverge from its own recording. probe_base's `ticks()` now
+  resumes at the end of a tick (after every node), so a press lands on the next one;
+  feel_windows counts the buffer from 1 tick before landing; frame-counter controllers read
+  exactly their C and B; input_replay presses frame N's events at the end of frame N-1 and records
+  analog strength changes while held. `analyze.py frames` fails on frames over --max-frame-ms
+  (100) and reports 2x spikes instead of failing on them; deck_text keeps scale 1 in integer
+  stretch mode below 1 (as Godot does); headless autoplay takes no screenshots and reports no
+  hitches; known-good.gd no longer allows a second jump in the air.
+- **Smaller fixes.** godot_lint (and the guard) no longer refuse a Godot 4 method chain whose
+  lines start with `.`, nor a node under an editable instanced scene; `json_config.py merge`
+  replaces program lines (`command`, `args`) instead of joining them, merges `Plugins` entries
+  by `Name`, and reads UTF-16 files; procgen platformers pick up keys mid-jump, and a push-box
+  level that starts solved is solved; Poly Haven HDRIs fall back to the nearest size at or below
+  the request (not 16k) and record the size used; explore_report's reachable cells come from the
+  procgen search (void, legend walls and air no longer count); silhouette_iou fits a render on
+  another canvas size without stretching it and reads Windows paths in `--pairs`.
+

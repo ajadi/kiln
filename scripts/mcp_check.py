@@ -70,8 +70,11 @@ SERVERS = {
                   "manage_camera", "create_script", "script_apply_edits", "validate_script",
                   "read_console", "run_tests", "get_test_job", "execute_code", "apply_text_edits",
                   "manage_tools", "manage_profiler"],
-        "groups": "only the core group is on by default: enable testing (run_tests, get_test_job), "
-                  "scripting_ext (execute_code) and profiling (manage_profiler) with manage_tools",
+        "groups": "only the core group is on by default, and manage_tools activate lasts one MCP "
+                  "session: turn on testing (run_tests, get_test_job), scripting_ext "
+                  "(execute_code), profiling (manage_profiler), vfx (manage_shader, "
+                  "manage_texture) and docs (unity_reflect, unity_docs) in Window > MCP for "
+                  "Unity > Tools (persists), then manage_tools sync in each session",
         "probe": {"tool": "manage_scene", "args": {"action": "get_active"}},
         "verified": True,
     },

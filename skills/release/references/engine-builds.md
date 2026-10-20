@@ -72,8 +72,13 @@ to instantiate (Godot AI's export plugin strips its `_mcp_game_helper` autoload,
 ## Unity 6
 
 **Build method** — C# in an Editor folder, written directly, checked with `validate_script` and
-`read_console` before use. The name contains "Build" (the guard allows only such
-`-executeMethod` calls). Arguments come from `build.py build` (`-kilnPreset`, `-kilnOut`,
+`read_console` before use. The guard runs headless only `KilnRelease.KilnBuild.Build` or a method
+listed in manifest `unity_build_methods=Ns.Class.Method,...` (a name that merely contains "build"
+is not enough). Batch mode cannot open a project the editor has open (Unity command-line docs,
+6000.2), and Kiln keeps the editor open for the MCP: in the open editor build with MCP for Unity
+`manage_build {action: build, profile: <Build Profile asset>, output_path}` and poll `{action:
+status, job_id}`; `build.py build` (batch mode) is for CI and a closed editor, and refuses while
+`Temp/UnityLockfile` exists. Arguments come from `build.py build` (`-kilnPreset`, `-kilnOut`,
 `-kilnDevelopment`):
 
 ```csharp

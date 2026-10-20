@@ -160,8 +160,11 @@ def render_credits(rows):
 
 
 def risky(rows):
-    return [r for r in rows if r[4] == "yes" and (r[2].startswith("unknown")
-                                                  or r[2].startswith("non-commercial"))]
+    """Shipping rows with an unknown or non-commercial licence, or a CC BY licence and nobody to
+    credit (bug hunt 2026-10-20: Meshy free-plan output passed with an empty attribution)."""
+    return [r for r in rows if r[4] == "yes" and (
+        r[2].startswith("unknown") or r[2].startswith("non-commercial")
+        or (re.match(r"cc by\b", r[2], re.I) and not str(r[3]).strip()))]
 
 
 def render(rows):

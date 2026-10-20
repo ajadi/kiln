@@ -6,7 +6,8 @@ Per run (run_NNN/summary.json, log.txt, exit.json): seed, verdict, objectives re
 events, hitches (frames after a screenshot excluded and counted apart), and the crash class:
   exit     the game printed "AUTOPLAY done" and then exited abnormally (a shutdown crash: engine
            teardown, audio driver, physics server) - report it, but it is not a gameplay crash
-  mid-run  abnormal exit before "AUTOPLAY done", or a timeout
+  mid-run  abnormal exit before "AUTOPLAY done", a timeout, or a run that never got going (no
+           "AUTOPLAY done" and no summary.json, whatever the exit code: a script parse error)
 Writes <night>/REPORT.md (runs, % of objectives reached, failures with their seeds) and prints the
 same as JSON. Exit 0.
 """
@@ -42,6 +43,8 @@ def main():
         crash = None
         if exit_info.get("timed_out"):
             crash = "mid-run"
+        elif not finished and not summary:  # never ran to the end: a parse error, a crash on
+            crash = "mid-run"               # load (bug hunt 2026-10-20: exit 1 read as a FAIL)
         elif code not in (0, 1):            # 1 = a FAIL verdict, not a crash
             crash = "exit" if finished else "mid-run"
         seed = summary.get("seed", exit_info.get("seed"))
@@ -75,7 +78,8 @@ def main():
     for r in results:
         stuck = "; ".join(f"t={s.get('t')} at {s.get('where')}" for s in r["stuck"][:2]) or "-"
         lines.append(f"| {r['run']} | {r['seed']} | {r['verdict']} | {r['crash'] or '-'} | "
-                     f"{stuck} | {r['hitches']} (+{r['hitches_after_shot']}) |")
+                     f"{stuck} | " + ("n/a (headless)" if r["hitches"] is None else
+                                      f"{r['hitches']} (+{r['hitches_after_shot']})") + " |")
     with open(os.path.join(night, "REPORT.md"), "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
     print(json.dumps(rep, indent=1))

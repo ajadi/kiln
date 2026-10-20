@@ -44,9 +44,28 @@ var _finished := false
 var _start_ms := 0
 var _pace_origin_us := 0
 var _pace_frame := 0
+var _errors := _ErrorCounter.new()
+var _tick_end: Node
+
+
+## Script errors while the probe runs (Godot 4.5+ Logger). A script error ends `_run` early, and
+## the rows it had written so far would read PASS (bug hunt 2026-10-20), so any script error
+## makes the verdict NOT ASSESSED.
+class _ErrorCounter extends Logger:
+	var script_errors: Array = []
+	var mutex := Mutex.new()
+
+	func _log_error(function: String, file: String, line: int, code: String, rationale: String,
+			_editor_notify: bool, error_type: int, _script_backtraces: Array) -> void:
+		if error_type == ERROR_TYPE_SCRIPT:
+			mutex.lock()
+			script_errors.append("%s:%d %s: %s" % [file.get_file(), line, function,
+				rationale if rationale != "" else code])
+			mutex.unlock()
 
 
 func _initialize() -> void:
+	OS.add_logger(_errors)
 	Input.use_accumulated_input = false
 	headless = DisplayServer.get_name() == "headless"
 	_start_ms = Time.get_ticks_msec()
@@ -63,8 +82,25 @@ func _initialize() -> void:
 
 
 func _begin() -> void:
+	_tick_end = _TickEnd.new()  # kiln:runtime-node probe timing helper
+	root.add_child(_tick_end)
 	await _run()
 	finish()
+
+
+## Runs last in every physics tick. `ticks()` waits for it, so a probe resumes after the tick's
+## nodes have run, and a press made then is seen by the next tick. Godot 4.7 shows a press made
+## inside a tick (as after `await physics_frame`, before the nodes) to is_action_just_pressed one
+## tick late, which moved every measured window by a frame (bug hunt 2026-10-20, checked live).
+class _TickEnd extends Node:
+	signal tick_done
+
+	func _init() -> void:
+		process_physics_priority = 2147483647
+		process_mode = Node.PROCESS_MODE_ALWAYS
+
+	func _physics_process(_delta: float) -> void:
+		tick_done.emit()
 
 
 ## Override in the probe. May await (ticks(), process_frame, timers).
@@ -81,9 +117,11 @@ func _process(_delta: float) -> bool:
 	return false
 
 
+## Wait for n whole physics ticks: returns after the n-th tick's nodes ran (state is that tick's
+## result); press() then lands on the next tick.
 func ticks(n: int = 1) -> void:
 	for i in n:
-		await physics_frame
+		await _tick_end.tick_done
 
 
 func press(action: StringName, strength: float = 1.0) -> void:
@@ -125,7 +163,7 @@ func note(text: String) -> void:
 
 
 ## One acceptance row. op: "<", "<=", ">", ">=", "==", "!=", or "~" (abs(value - threshold) <=
-## tolerance). A row whose value comes from the formula under test cannot fail: measure the
+## tolerance; the distance for vectors). A row whose value comes from the formula under test cannot fail: measure the
 ## world, not the implementation.
 func check(id: String, value, op: String, threshold, source: String = "", tolerance: float = 0.0) -> bool:
 	var ok := false
@@ -136,7 +174,11 @@ func check(id: String, value, op: String, threshold, source: String = "", tolera
 		">=": ok = value >= threshold
 		"==": ok = value == threshold
 		"!=": ok = value != threshold
-		"~": ok = absf(float(value) - float(threshold)) <= tolerance
+		"~":
+			if (value is Vector2 or value is Vector3) and typeof(value) == typeof(threshold):
+				ok = value.distance_to(threshold) <= tolerance
+			else:
+				ok = absf(float(value) - float(threshold)) <= tolerance
 		_: note("unknown op %s in %s" % [op, id])
 	rows.append({"id": id, "value": _plain(value), "op": op, "threshold": _plain(threshold),
 		"source": source, "verdict": "PASS" if ok else "FAIL"})
@@ -148,8 +190,11 @@ func finish() -> void:
 		return
 	if rows.is_empty():
 		note("no check rows: _run ended before its checks (script error above, or no check() calls)")
+	for e in _errors.script_errors:
+		note("script error: " + e)
 	var failed := rows.any(func(r): return r["verdict"] == "FAIL")
-	var verdict := "NOT ASSESSED" if rows.is_empty() else ("FAIL" if failed else "PASS")
+	var verdict := "NOT ASSESSED" if rows.is_empty() or not _errors.script_errors.is_empty() \
+		else ("FAIL" if failed else "PASS")
 	_write(verdict)
 	quit(0 if verdict == "PASS" else (1 if verdict == "FAIL" else 2))
 

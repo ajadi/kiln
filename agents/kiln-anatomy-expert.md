@@ -36,6 +36,8 @@ tools:
   - "mcp_blender_search_api_docs"
   - "mcp_unity_*"
   - "mcp_unreal_*"
+  - "mcp_unreal-mcp_*"
+  - "mcp_unreal-mcp-proxy_*"
 max_turns: 100
 timeout_mins: 180
 ---

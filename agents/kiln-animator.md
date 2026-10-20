@@ -15,6 +15,8 @@ tools:
   - "mcp_godot-ai_*"
   - "mcp_unity_*"
   - "mcp_unreal_*"
+  - "mcp_unreal-mcp_*"
+  - "mcp_unreal-mcp-proxy_*"
 max_turns: 400
 timeout_mins: 180
 ---

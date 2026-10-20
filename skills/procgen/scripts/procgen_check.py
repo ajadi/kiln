@@ -173,7 +173,7 @@ def check_platformer(layout, args, res):
     keys = {c: r[4:] for c, r in role.items() if r.startswith("key:")}
     doors = {c: r[5:] for c, r in role.items() if r.startswith("door:")}
     bit = {k: 1 << i for i, k in enumerate(sorted(set(keys.values())))}
-    if len(starts) != 1 or not exits:
+    if len(starts) != 1 or (not exits and not getattr(args, "coverage_only", False)):
         summary_problem(res, f"{len(starts)} start cells and {len(exits)} exits (one start, one or "
                              "more exits needed)")
         return
@@ -194,21 +194,30 @@ def check_platformer(layout, args, res):
         return at(c) == "ladder" or at(below) in ("solid", "platform", "ladder") or \
             (at(below).startswith("door:") and not passable(below, mask))
 
-    def fall(c, mask):
-        """Where a player at c ends up standing, or None (hazard, out of the map)."""
+    def fall_path(c, mask):
+        """(where a player at c ends up standing or None, the cells passed on the way)."""
+        path = []
         while True:
+            path.append(c)
             if at(c) == "hazard" or at(c) == "out":
-                return None
+                return None, path
             if support(c, mask):
-                return c
+                return c, path
             c = (c[0], c[1] + 1)
             if c[1] >= height:
-                return None
+                return None, path
             if not passable(c, mask):
-                return None
+                return None, path
 
-    def pick(c, mask):
-        return mask | bit.get(keys.get(c), 0)
+    def fall(c, mask):
+        return fall_path(c, mask)[0]
+
+    def pick(cells, mask):
+        """Keys are picked up on every cell the move passes, mid-jump too (bug hunt 2026-10-20:
+        only the landing cell counted, so a key hanging in the air was never collected)."""
+        for c in cells:
+            mask |= bit.get(keys.get(c), 0)
+        return mask
 
     def neighbours(state):
         (x, y), mask = state
@@ -216,36 +225,40 @@ def check_platformer(layout, args, res):
         for dx in (-1, 1):
             t = (x + dx, y)
             if passable(t, mask):
-                land = fall(t, mask)
+                land, path = fall_path(t, mask)
                 if land:
-                    out.add(land)
+                    out.add((land, pick(path, mask)))
         if at((x, y)) == "ladder" or at((x, y + 1)) == "ladder":
             for t in ((x, y - 1), (x, y + 1)):
                 if passable(t, mask) and at(t) != "hazard":
-                    land = t if at(t) == "ladder" else fall(t, mask)
+                    land, path = (t, [t]) if at(t) == "ladder" else fall_path(t, mask)
                     if land:
-                        out.add(land)
+                        out.add((land, pick(path, mask)))
+        rise = []
         for h in range(1, jh + 1):
             col = (x, y - h)
             if not passable(col, mask) or at(col) == "hazard":
                 break
+            rise.append(col)
             for direction in (-1, 1):
+                across = []
                 for d in range(0, jw + 1):
                     t = (x + direction * d, y - h)
                     if not passable(t, mask) or at(t) == "hazard":
                         break
-                    land = fall(t, mask)
+                    across.append(t)
+                    land, path = fall_path(t, mask)
                     if land:
-                        out.add(land)
-        for land in out:
-            if land != (x, y):
-                yield (land, pick(land, mask)), 1
+                        out.add((land, pick(rise + across + path, mask)))
+        for land, got in out:
+            if land != (x, y) or got != mask:
+                yield (land, got), 1
 
     start = fall(starts[0], 0)
     if start is None:
         summary_problem(res, "the start has no ground under it")
         return
-    init = (start, pick(start, 0))
+    init = (start, pick([start], 0))
     dist, prev, best, capped = search(init, neighbours, lambda s: s[0] in exits)
 
     def touched(target):
@@ -271,6 +284,7 @@ def check_platformer(layout, args, res):
                          lambda s: s[0] == start, res)
         res["critical_path"] = int(dist[best]) + 1
     res["standing_places"] = len({s[0] for s in dist})
+    REACHED[id(res)] = {s[0] for s in dist}
     res["jump"] = {"height": jh, "width": jw}
 
 
@@ -336,6 +350,8 @@ def check_sokoban(layout, args, res):
     start_area = reach(player, boxes)
     start = (min(start_area), frozenset(boxes))
     seen, todo, solved = {start: 0}, deque([(start, start_area)]), None
+    if frozenset(boxes) == frozenset(goals):  # solved as laid out (bug hunt 2026-10-20: the
+        solved = 0                            # check ran only after a push: "unsolvable")
     while todo and solved is None:
         (_, bx), area = todo.popleft()
         pushes = seen[(min(area), bx)]
@@ -560,7 +576,7 @@ def check_grid(layout, args, res):
     if len(starts) != 1:
         summary_problem(res, f"{len(starts)} start cells (exactly one needed)")
         return
-    if not exits:
+    if not exits and not getattr(args, "coverage_only", False):
         summary_problem(res, "no exit cell")
         return
     solid = {"wall", "void"}
@@ -634,6 +650,7 @@ def check_grid(layout, args, res):
             check_return(dist, neighbours, lambda s: s[0] in exits | goals,
                          lambda s: s[0] == start, res)
     reached = {s[0] for s in dist}
+    REACHED[id(res)] = reached
     for c in sorted(exits | goals):
         if c not in reached:
             summary_problem(res, f"{roles[c]} at x={c[0]} y={c[1]} unreachable")
@@ -658,6 +675,24 @@ def check_grid(layout, args, res):
 
 
 # ---------------------------------------------------------------- driver
+
+REACHED = {}  # id(result) -> the cells a grid or platformer search reached
+
+
+def reachable_cells(layout, **options):
+    """The cells a player can reach in a grid or platformer layout (standing places for a
+    platformer), by the same search as the check; None for other layout types. Used by the
+    playtest skill's explore_report.py for coverage."""
+    defaults = dict(min_path=None, max_path=None, max_step=2.0, max_dead_end_ratio=1.0,
+                    strict_dead_ends=False, max_unreachable=1.0, max_dead_end_tips=None,
+                    max_states=300_000, coverage_only=True)
+    defaults.update(options)
+    args = argparse.Namespace(**defaults)
+    res = {"problems": [], "warnings": []}
+    kind = layout.get("type") or ("grid" if "cells" in layout else "graph")
+    {"grid": check_grid, "platformer": check_platformer}.get(kind, lambda *x: None)(layout, args, res)
+    return REACHED.pop(id(res), None)
+
 
 def check_file(path, args):
     res = {"file": path.replace("\\", "/"), "problems": [], "warnings": []}
@@ -694,6 +729,7 @@ def check_file(path, args):
         if args.max_path is not None and path_len > args.max_path:
             summary_problem(res, f"critical path {path_len} > {args.max_path:g}")
     res["verdict"] = "fail" if res["problems"] else "pass"
+    REACHED.pop(id(res), None)
     return res
 
 

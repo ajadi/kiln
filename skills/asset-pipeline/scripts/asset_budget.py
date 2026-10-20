@@ -16,10 +16,11 @@ Budgets (JSON, committed): {"<glob>": {"triangles": N, "draw_calls": N, "materia
 "bones": N, "texture_px": N (largest side), "vram_mb": N (compressed), "lod_ratio": 0.5 (each LOD
 level at most this share of the one before, +10 %)}, ...}; the first glob that
 matches a file applies ("*" last as the default). Totals give the whole set. Output: JSON; exit 1
-when a file is over its budget.
+when a file is over its budget, 2 when nothing matched or a file could not be read.
 """
 
 import argparse
+import base64
 import fnmatch
 import glob
 import json
@@ -27,6 +28,7 @@ import os
 import re
 import struct
 import sys
+import urllib.parse
 
 MAGIC, JSON_CHUNK, BIN_CHUNK = 0x46546C67, 0x4E4F534A, 0x004E4942
 LOD = re.compile(r"^(.*?)_LOD(\d+)$", re.I)
@@ -50,6 +52,8 @@ def load(path):
         elif kind == BIN_CHUNK:
             blob = chunk
         off += 8 + n
+    if not isinstance(gltf, dict):
+        raise ValueError("no JSON chunk (a truncated or broken GLB)")
     return gltf, blob
 
 
@@ -70,19 +74,37 @@ def image_size(raw):
     return None
 
 
-def image_bytes(gltf, blob, img, base):
-    if "bufferView" in img and blob is not None:
-        bv = gltf["bufferViews"][img["bufferView"]]
-        start = bv.get("byteOffset", 0)
-        return blob[start:start + bv["byteLength"]]
-    uri = img.get("uri", "")
-    if uri and not uri.startswith("data:"):
+def uri_bytes(uri, base, limit=None):
+    """The bytes a glTF uri names: a base64 data: URI or a file next to the asset."""
+    if uri.startswith("data:"):
+        head, _, payload = uri.partition(",")
         try:
-            with open(os.path.join(base, uri), "rb") as fh:
-                return fh.read(65536)
-        except OSError:
+            return base64.b64decode(payload) if ";base64" in head else \
+                urllib.parse.unquote_to_bytes(payload)
+        except ValueError:
             return None
-    return None
+    try:
+        with open(os.path.join(base, urllib.parse.unquote(uri)), "rb") as fh:
+            return fh.read(limit) if limit else fh.read()
+    except OSError:
+        return None
+
+
+def image_bytes(gltf, blob, img, base):
+    """An image's bytes: from a buffer view (the GLB's binary chunk, or a .gltf buffer given as a
+    data URI or a .bin file), a data: URI, or a file (bug hunt 2026-10-20: embedded textures of
+    a .gltf were never measured, so their VRAM read 0)."""
+    if "bufferView" in img:
+        bv = gltf["bufferViews"][img["bufferView"]]
+        buf = gltf.get("buffers", [{}])[bv.get("buffer", 0)]
+        data = blob if blob is not None and "uri" not in buf else \
+            uri_bytes(buf.get("uri", ""), base) if buf.get("uri") else None
+        if data is None:
+            return None
+        start = bv.get("byteOffset", 0)
+        return data[start:start + bv["byteLength"]]
+    uri = img.get("uri", "")
+    return uri_bytes(uri, base, None if uri.startswith("data:") else 65536) if uri else None
 
 
 def measure(path):
@@ -156,7 +178,8 @@ def main():
     for path in files:
         try:
             row = measure(path)
-        except (ValueError, KeyError, IndexError, struct.error) as exc:
+        except (ValueError, KeyError, IndexError, struct.error, AttributeError, TypeError,
+                OSError) as exc:
             rows.append({"file": path, "verdict": "NOT ASSESSED", "problems": [str(exc)]})
             continue
         pattern, limits = budget_for(row["file"], budgets)
@@ -185,10 +208,13 @@ def main():
               "vram_mb_compressed": round(sum(r["vram_mb_compressed"] for r in ok), 3),
               "vram_mb_uncompressed": round(sum(r["vram_mb_uncompressed"] for r in ok), 3)}
     heaviest = sorted(ok, key=lambda r: -r["triangles"])[:a.top]
+    unknown = not rows or any(r["verdict"] == "NOT ASSESSED" for r in rows)
+    verdict = "FAIL" if failed else ("NOT ASSESSED" if unknown else "PASS")
     print(json.dumps({"assets": rows, "totals": totals,
                       "heaviest": [[r["file"], r["triangles"]] for r in heaviest],
-                      "verdict": "FAIL" if failed else "PASS"}, indent=1))
-    sys.exit(1 if failed else 0)
+                      "verdict": verdict,
+                      **({"note": "no .glb/.gltf matched"} if not rows else {})}, indent=1))
+    sys.exit({"FAIL": 1, "NOT ASSESSED": 2, "PASS": 0}[verdict])
 
 
 if __name__ == "__main__":

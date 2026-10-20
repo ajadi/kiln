@@ -27,6 +27,8 @@ tools:
   - "mcp_godot-ai_filesystem_manage"
   - "mcp_unity_*"
   - "mcp_unreal_*"
+  - "mcp_unreal-mcp_*"
+  - "mcp_unreal-mcp-proxy_*"
 max_turns: 150
 timeout_mins: 180
 ---

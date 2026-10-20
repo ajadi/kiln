@@ -70,9 +70,11 @@ thresholds below are in metres and seconds for every engine.
       the distance from the target to the weapon segment (two probes) must be <= --radius
       (the target's hit radius, metres). Place targets all round the character and give each
       its own impact frame; a miss names the target and its distance.
-  python analyze.py frames <dump> [--budget-ms 16.67] [--skip 0]
-      frame-time mean, p95, p99, 1% low fps, hitches (> 2x rolling median or > 50 ms);
-      GPU/CPU render times when recorded. --skip drops the first N frames (loading).
+  python analyze.py frames <dump> [--budget-ms 16.67] [--max-frame-ms 100] [--skip 0]
+      frame-time mean, p95, p99, 1% low fps, hitches (> 2x rolling median or > 50 ms, counted
+      and reported); fails on the mean over budget, a 1% low under 75 % of the target fps, or
+      any frame over --max-frame-ms. GPU/CPU render times when recorded. --skip drops the first N
+      frames (loading).
   python analyze.py settle <dump> --pos <probe> [--speed 0.03] [--max-s 5]
       first time after which the body stays below --speed m/s (debris sleep / death collapse).
   python analyze.py reaction <dump> --input <probe> --response <probe> [--max-ticks 2]
@@ -625,11 +627,16 @@ def frames(d, a):
         raise NotAssessed("no frame samples")
     med = np.array([np.median(ms[max(0, i - 30):i + 1]) for i in range(len(ms))])
     hitches = int(((ms > 2 * med) | (ms > 50)).sum())
+    # the gate (qa-performance, optimization): no frame over --max-frame-ms after loading; spikes
+    # over 2x the rolling median are counted and reported, not failed on (bug hunt 2026-10-20:
+    # one 5 ms frame among 2 ms ones failed a 16.67 ms budget)
+    severe = int((ms > a.max_frame_ms).sum())
     low1 = 1000.0 / np.percentile(ms, 99)
-    ok = np.mean(ms) <= a.budget_ms and low1 >= 0.75 * (1000.0 / a.budget_ms) and hitches == 0
+    ok = np.mean(ms) <= a.budget_ms and low1 >= 0.75 * (1000.0 / a.budget_ms) and severe == 0
     extra = {"frames": int(len(ms)), "p95": round(float(np.percentile(ms, 95)), 3),
              "p99": round(float(np.percentile(ms, 99)), 3), "low1_fps": round(float(low1), 1),
-             "hitches": hitches, "worst_ms": round(float(ms.max()), 3)}
+             "hitches": hitches, "over_max_frame": severe, "max_frame_ms": a.max_frame_ms,
+             "worst_ms": round(float(ms.max()), 3)}
     for key in ("gpu_ms", "cpu_ms"):
         stats = _stats(d[key][a.skip:])
         if stats:
@@ -800,6 +807,8 @@ def main(argv=None):
     f = sub.add_parser("frames")
     f.add_argument("dump")
     f.add_argument("--budget-ms", type=float, default=16.67)
+    f.add_argument("--max-frame-ms", type=float, default=100.0,
+                   help="no frame may take longer (after --skip)")
     f.add_argument("--skip", type=int, default=0, help="frames to drop at the start")
     t = sub.add_parser("settle")
     t.add_argument("dump")

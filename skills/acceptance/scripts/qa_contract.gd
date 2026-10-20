@@ -51,6 +51,9 @@ func states() -> Array:
 
 func _run() -> void:
 	run_dir = _qa_dir()
+	if headless:  # the headless window is 64x64: lay the UI out at the project's size
+		root.size = Vector2i(int(ProjectSettings.get_setting("display/window/size/viewport_width", 1152)),
+			int(ProjectSettings.get_setting("display/window/size/viewport_height", 648)))
 	if scene_path() == "" or not ResourceLoader.exists(scene_path()):
 		note("scene_path() missing or not found: %s" % scene_path())
 		return
@@ -89,8 +92,12 @@ func _record(state: Dictionary) -> Dictionary:
 	var scene: Node = load(scene_path()).instantiate()
 	root.add_child(scene)
 	await process_frame
+	var errors_before: int = _errors.script_errors.size()
 	if state.has("apply"):
 		await state["apply"].call(scene)
+	if _errors.script_errors.size() > errors_before:  # the state was not set up: not recorded
+		entry["recorded"] = false
+		entry["error"] = _errors.script_errors[errors_before]
 	await process_frame
 	await process_frame          # containers sort and labels resize on the next frame
 	var frames := int(state.get("frames", 60))

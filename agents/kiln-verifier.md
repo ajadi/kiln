@@ -37,6 +37,8 @@ tools:
   - "mcp_blender_jump_to_view3d_object_by_name"
   - "mcp_unity_*"
   - "mcp_unreal_*"
+  - "mcp_unreal-mcp_*"
+  - "mcp_unreal-mcp-proxy_*"
 max_turns: 80
 timeout_mins: 180
 ---

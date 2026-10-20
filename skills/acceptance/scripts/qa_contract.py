@@ -55,8 +55,15 @@ def ui(state):
                 problems.append(f"{e['path']}: {out:.0f} px outside its container")
     vw, vh = state.get("viewport") or [1920, 1080]
     layout = tool(UI_CHECK, "layout", path, "--viewport", f"{int(vw)}x{int(vh)}")
-    if layout.get("verdict") == "FAIL":
-        problems.append("ui_check layout: " + "; ".join(str(p) for p in layout.get("problems", [])[:4]))
+    # ui_check.py answers in lower case and lists problems by kind (bug hunt 2026-10-20: the
+    # upper-case compare never matched, so ui states never failed on layout)
+    if str(layout.get("verdict", "")).lower() == "fail":
+        found = [f"{kind}: {item.get('path', item) if isinstance(item, dict) else item}"
+                 for kind in ("offscreen", "outside_safe_area", "overlapping_interactive",
+                              "small_targets", "collapsed")
+                 for item in layout.get(kind) or []]
+        problems.append("ui_check layout: " + "; ".join(str(p) for p in found[:4] or
+                                                        layout.get("problems", [])[:4]))
     return {"verdict": "FAIL" if problems else "PASS", "problems": problems,
             "elements": len(elements), "ui_check": layout.get("verdict")}
 

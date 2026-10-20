@@ -34,7 +34,9 @@ USER_GATE = re.compile(r"\u2014 user(\s+(REOPENED|REGRESSED)\b.*)?$")
 def leave_queues(root, owner, session):
     """Drop a stopped agent from every editor queue: a finished agent cannot be first in line."""
     path = os.path.join(k.kiln_dir(root), "queue.json")
-    with k.locked(path):
+    # the guard changes the queue under the locks.json lock: the same lock here, or a guard save
+    # from an earlier read puts a finished agent back at the head (bug hunt 2026-10-20)
+    with k.locked(os.path.join(k.kiln_dir(root), "locks.json")):
         queues = k.load_json(path, {})
         kept = {res: [w for w in line if w.get("owner") != owner
                       or w.get("session", session) != session] for res, line in queues.items()}
@@ -194,7 +196,7 @@ def stop(data, root, policy):
         return
     state_path = os.path.join(k.kiln_dir(root), "autopilot-state.json")
     signature = hashlib.sha1(repr((open_items, backlog, agent_gates)).encode()).hexdigest()
-    limit = int(policy.get("autopilot_max_nudges", 3))
+    limit = int(k.number(policy, "autopilot_max_nudges", 3))
     with k.locked(state_path):  # the owner fields are written by other sessions' hooks
         state = k.load_json(state_path, {})
         nudges = state.get("nudges", 0) + 1 if state.get("signature") == signature else 1
