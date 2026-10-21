@@ -360,6 +360,11 @@ of this repository it is `plugins/kiln`.
    `kiln-<role>` in `.codex/agents/`; re-run it after updating Kiln or changing `agent_model`.
 5. Open a new session, go to `/hooks` and trust the Kiln hooks.
 
+Codex reads a project's settings, and so Kiln, only in a folder you trusted. Make that choice
+once on the computer itself: run `codex` in the project folder (or open it in the Codex app) and
+choose to trust it. The Codex phone app cannot make it; it says "Can't verify project trust" until
+the folder is trusted on that computer.
+
 ## Developing Kiln
 
 ```bash
