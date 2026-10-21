@@ -301,7 +301,9 @@ Codex session the workspace `.codex/` folder is read-only to commands.
    should stay off elsewhere. Run `--check` first on a machine that had an older Kiln, and
    `--repair` when it fails or Codex reports a broken config (the Codex app may say only "Can't
    verify project trust"). Codex loads project config only for trusted projects — trust the
-   folder when Codex asks.
+   folder when Codex asks. Trust is chosen on the computer itself (`codex` in the folder, or the
+   Codex app); the Codex phone app cannot choose it and reports "Can't verify project trust" for
+   a folder never trusted there - tell the user so when they work through it.
 3. MCP servers, once per machine, with the same names as in Claude Code (the guard and the role
    instructions use them): `codex mcp add blender -- <blender-mcp executable>`,
    `codex mcp add godot-ai -- godot-ai attach`, `codex mcp add unity --url

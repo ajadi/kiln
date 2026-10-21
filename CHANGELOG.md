@@ -1029,4 +1029,8 @@ A bug hunt by four independent reviewers (2026-10-20); every fix has a test that
   projects). `kiln_update.py status` now checks the user's and the project's Codex config and
   names the `codex_config.py --repair` fix; doctor checks both files; setup checks first on a
   machine that had an older Kiln.
+- **Codex trust from a phone.** README and setup say that a Codex project must be trusted once on
+  the computer itself (`codex` in the folder, or the Codex app): the Codex phone app cannot make
+  that choice and only reports "Can't verify project trust" (field report 2026-10-21, a folder
+  never trusted on that computer; its config.toml was fine).
 
