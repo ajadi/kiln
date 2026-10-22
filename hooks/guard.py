@@ -1311,9 +1311,15 @@ def check_shell(data, root, policy):
     # Parsed per simple command, options by meaning (bug hunt 2026-10-20: -vA, :/, -uf, +HEAD,
     # commit -n, `git -C . add -A` passed the old patterns; a commit message quoting
     # --no-verify was denied).
-    staged = []
+    staged, cwd = [], data.get("cwd") or root
     for words in shell_segments(command):
-        check_git(words, root, staged)
+        if program(words).removesuffix(".exe") in CD_PROGS and len(words) > 1:
+            dest = words[1] if not words[1].lower().startswith("-") else \
+                (words[2] if len(words) > 2 else "")
+            if dest and dest != "-":
+                cwd = dest if os.path.isabs(dest) else os.path.join(cwd, dest)
+            continue
+        check_git(words, root, staged, cwd)
 
 
 GIT_GLOBAL_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path",
@@ -1323,12 +1329,30 @@ GIT_ALL_PATHS = {".", "./", ":/", ":/.", "*", ":(top)", ":(glob)**", "-A", "--al
 
 def git_subcommand(words):
     """(subcommand, its arguments) of a git command line, global options skipped, or (None, [])."""
+    sub, args, _ = git_context(words, ".")
+    return sub, args
+
+
+def git_context(words, cwd):
+    """(subcommand, its arguments, (folder, global options)) of a git command line: the folder
+    after every -C (each relative to the one before) and the --git-dir / --work-tree it names,
+    so the secrets check reads the index the command acts on (review 2026-10-21, KILN-REV-04:
+    `git -C nested commit` was checked against the Kiln root's index)."""
     if program(words).removesuffix(".exe") != "git":
-        return None, []
-    i = 1
+        return None, [], (cwd, [])
+    i, where, extra = 1, cwd, []
     while i < len(words) and words[i].startswith("-"):
-        i += 2 if words[i] in GIT_GLOBAL_VALUE else 1
-    return (words[i].lower(), words[i + 1:]) if i < len(words) else (None, [])
+        w = words[i]
+        name, _, inline = w.partition("=")
+        value = inline if inline else (words[i + 1] if i + 1 < len(words) else "")
+        if w == "-C":
+            where = value if os.path.isabs(value) else os.path.join(where, value)
+        elif name in ("--git-dir", "--work-tree"):
+            path = value if os.path.isabs(value) else os.path.join(where, value)
+            extra.append(f"{name}={path}")
+        i += 2 if w in GIT_GLOBAL_VALUE else 1
+    sub = (words[i].lower(), words[i + 1:]) if i < len(words) else (None, [])
+    return sub[0], sub[1], (where, extra)
 
 
 def short_flags(args, value_letters):
@@ -1349,10 +1373,14 @@ def short_flags(args, value_letters):
     return letters
 
 
-def check_git(words, root, staged):
-    sub, args = git_subcommand(words)
+def check_git(words, root, staged, cwd=None):
+    sub, args, (where, extra) = git_context(words, cwd or root)
     if sub is None:
         return
+    repo = os.path.normcase(os.path.abspath(where)) + "|" + "|".join(extra)
+
+    def names(*git_args):
+        return git_names(where, *extra, *git_args)
     long_opts = {a.split("=", 1)[0] for a in args if a.startswith("--")}
     if sub == "add":
         plain = [a for a in args if not a.startswith("-") or a == "-"]
@@ -1365,15 +1393,15 @@ def check_git(words, root, staged):
         for name in plain + literal:
             if is_secret_file(name):
                 k.deny(f"{name} is a secrets file: never stage it. Make sure it is git-ignored.")
-            if os.path.isdir(os.path.join(root, name)):
-                for found in git_names(root, "ls-files", "--others", "--modified",
-                                       "--exclude-standard", "--", name):
+            if os.path.isdir(os.path.join(where, name)):
+                for found in names("ls-files", "--others", "--modified", "--exclude-standard",
+                                   "--", name):
                     if is_secret_file(found):
                         k.deny(f"git add {name} would stage {found}, a secrets file. Stage the "
                                "files you mean by name and git-ignore it.")
-                    staged.append(found)
+                    staged.append((repo, found))
             else:
-                staged.append(name)
+                staged.append((repo, name))
     if sub == "push":
         refs = [a for a in args if not a.startswith("-")]
         if "f" in short_flags(args, "o") or "--force" in long_opts or \
@@ -1384,10 +1412,11 @@ def check_git(words, root, staged):
             k.deny("Do not skip git hooks (--no-verify / commit -n).")
     if sub == "commit":
         paths, everything = commit_paths(["git", "commit"] + args)
-        names = git_names(root, "diff", "--cached", "--name-only") + paths + staged
+        found = names("diff", "--cached", "--name-only") + paths + \
+            [n for r, n in staged if r == repo]
         if everything:  # -a commits every modified tracked file
-            names += git_names(root, "diff", "--name-only")
-        for name in names:
+            found += names("diff", "--name-only")
+        for name in found:
             if is_secret_file(name):
                 k.deny(f"{name} would be committed; secrets files must not be committed. "
                        "Unstage it (git restore --staged), leave it out of the commit and "

@@ -47,11 +47,18 @@ def default_config():
     """The machine's Kiln folder (~/.kiln, shared by both plugins and Codex); the old locations
     are read when the file is still there."""
     home = os.environ.get("KILN_HOME") or os.path.join(os.path.expanduser("~"), ".kiln")
-    for old in (os.path.join(os.environ.get("CLAUDE_PLUGIN_DATA") or "", "gpu.json"),
-                os.path.join(os.path.expanduser("~"), ".config", "kiln", "gpu.json")):
-        if os.path.isfile(old) and not os.path.isfile(os.path.join(home, "gpu.json")):
-            return old
-    return os.path.join(home, "gpu.json")
+    old = [os.path.join(os.path.expanduser("~"), ".config", "kiln", "gpu.json")]
+    # only a set, absolute plugin-data folder: an unset variable once made this the relative
+    # "gpu.json", and a project's file was run as the machine profile (review 2026-10-21,
+    # KILN-REV-02). The profile never comes from the project unless --config names it.
+    data = os.environ.get("CLAUDE_PLUGIN_DATA") or ""
+    if data and os.path.isabs(data):
+        old.insert(0, os.path.join(data, "gpu.json"))
+    for path in old:
+        if os.path.isabs(path) and os.path.isfile(path) and \
+                not os.path.isfile(os.path.join(home, "gpu.json")):
+            return path
+    return os.path.join(os.path.abspath(home), "gpu.json")
 
 
 def load_profile(path, name):

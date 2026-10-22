@@ -925,7 +925,7 @@ Fixes from a code review of the whole project, each with a test:
   by area, the hooks list, OpenCode 1.19.0. GUIDE: the skills, commands and touches tables, the
   hooks, and the production files the new checks write.
 
-## Unreleased (fixes after 0.10.0)
+## 0.10.1 — 2026-10-21
 
 A bug hunt by four independent reviewers (2026-10-20); every fix has a test that failed before.
 
@@ -1033,4 +1033,38 @@ A bug hunt by four independent reviewers (2026-10-20); every fix has a test that
   the computer itself (`codex` in the folder, or the Codex app): the Codex phone app cannot make
   that choice and only reports "Can't verify project trust" (field report 2026-10-21, a folder
   never trusted on that computer; its config.toml was fine).
+- **Code review 2026-10-21 (KILN-REV-01..10).** Each finding was checked against the code and
+  reproduced by a test before the fix.
+  - REV-01: `assets_api.py` refuses a source or id that is `.`, `..` or a path (`--id ..` named
+    art/library itself and replacing it deleted every pack); the destination must be strictly
+    inside `<into>/<source>`, and an existing item is moved aside until the new one is in place.
+  - REV-02: `gpu_job.py` no longer reads a `gpu.json` from the current folder when
+    CLAUDE_PLUGIN_DATA is unset (Codex, Gemini, OpenCode): the profile's commands came from the
+    project. The machine profile comes from ~/.kiln (KILN_HOME), an absolute plugin-data folder,
+    or an explicit --config.
+  - REV-03: `gen_api.py submit` checks the job, the caps and the ledger and reserves the cost in
+    one step under `.kiln/gen/spend.lock`; the network call comes after it. Two submits at once
+    can no longer pass the daily cap together or send one job twice. Meshy's API has no
+    idempotency key (its OpenAPI spec names none), so the job claim is the protection.
+  - REV-08: `qa_contract.py run` gives each run an id, removes the old qa_run.json first and
+    accepts only a manifest with this run's id; a Godot exit other than 0/1 is NOT ASSESSED. A
+    rerun with a syntax error or a missing scene no longer reports the previous PASS.
+  - REV-09: a QA-contract UI state passes only when ui_check.py answers "pass"; a helper that
+    did not answer (missing numpy/Pillow, output that is not JSON, NOT ASSESSED) is NOT ASSESSED.
+  - REV-10: with `.kiln/stop-after-task` the Stop hook lets the turn end when a task is BLOCKED,
+    and its "finish the task in progress" nudge counts against `autopilot_max_nudges` like every
+    other nudge; it no longer pushes a task that cannot finish without end.
+  - REV-04: the guard's git secrets check reads the index of the repository the command acts on:
+    `cd <dir> &&`, repeated `-C`, `--git-dir` and `--work-tree` are followed (a nested repo's
+    staged `.env` passed, and a clean nested commit was blamed for the parent's index).
+  - REV-05: `tools_check.py install` restores the Unix mode of ZIP entries (Godot for Linux and
+    macOS, git-lfs for macOS came out not executable) and makes the found executable executable;
+    a failed verification is not registered, and a registered folder is not "found".
+  - REV-07: the macOS Godot bundle's `Godot.app/Contents/MacOS/Godot` is found (executables are
+    matched case-sensitively, as on macOS and Linux), and an archive without a matching
+    executable fails instead of registering the install folder as the tool.
+  - REV-06: the Gemini extension keeps Kiln's original role files in `roles/`, and the Codex,
+    OpenCode and Copilot generators and the MCP check read them from there (from agents/, which
+    holds Gemini's converted agents, a mixed Gemini + Codex/OpenCode project got
+    `kiln-kiln-<role>` agents and no MCP tool list).
 

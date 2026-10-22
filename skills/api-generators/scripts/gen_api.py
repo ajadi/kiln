@@ -22,11 +22,14 @@ refuses unless the estimate is fresh (1 h), unchanged, within the project's caps
 (gen_services). A create request is never resent automatically: the service may have charged it;
 it is counted in .kiln/gen/ledger.jsonl before it is sent (a refusal by the service is
 taken back), and a ledger line that does not parse stops every submit.
+Submits are one at a time per project (.kiln/gen/spend.lock): the checks, the job claim and
+the reservation happen together, so parallel submits cannot pass a cap or send a job twice.
 KILN_GEN_FAKE=http://127.0.0.1:<port> sends every call to a local fake API with a dummy key.
 """
 
 import argparse
 import base64
+import contextlib
 import datetime
 import hashlib
 import json
@@ -38,6 +41,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 
 FAKE = os.environ.get("KILN_GEN_FAKE", "")
 FAKE_KEY = "kiln-fake-key"
@@ -507,7 +511,49 @@ def cmd_request(a, root):
             "ask_the_user": "In the next report: " + spend_row(data, a.why, "yes/no?")}
 
 
+@contextlib.contextmanager
+def spend_lock(root, timeout=30.0, stale=120.0):
+    """One submit at a time per project: the job's state, the daily cap and the reservation are
+    read and written under it (review 2026-10-21, KILN-REV-03: two submits at once both passed
+    a cap, and one job could be sent twice). A lock older than `stale` seconds is a crashed
+    process's and is taken over."""
+    path = os.path.join(root, ".kiln", "gen", "spend.lock")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    deadline = time.time() + timeout
+    while True:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            break
+        except FileExistsError:
+            try:
+                if time.time() - os.path.getmtime(path) > stale:
+                    os.remove(path)
+                    continue
+            except OSError:
+                continue
+            if time.time() > deadline:
+                raise SystemExit("another submit holds .kiln/gen/spend.lock; try again shortly")
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 def cmd_submit(a, root):
+    with spend_lock(root):
+        data, ad, key, body = claim_submit(a, root)
+    return send_submit(a, root, data, ad, key, body)
+
+
+def claim_submit(a, root):
+    """Under the spend lock: every check on a fresh read of the job and the ledger, then the
+    job marked submitting and its cost reserved - the network call comes after the lock."""
     data = load_job(root, a.job)
     ad = adapter_or_exit(data["service"])
     if data["state"] not in ("estimated", "requested"):
@@ -541,10 +587,15 @@ def cmd_submit(a, root):
                                   "model": data.get("model", ""),
                                   "from_remote": data.get("from_remote", "")}, data["opts"])
     data["state"] = "submitting"
+    data["claimed_by"] = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
     save_job(root, data)
     # counted before the request leaves: a timeout or a 5xx may still have been charged (bug
     # hunt 2026-10-20: those never reached the ledger, so resubmits passed the daily cap)
     add_ledger(root, data, data["usd_est"], "submitted")
+    return data, ad, key, body
+
+
+def send_submit(a, root, data, ad, key, body):
     try:
         remote = ad.submit(data["task"], body, key)
     except ApiError as e:

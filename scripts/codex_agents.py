@@ -33,6 +33,11 @@ import tomllib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN = os.path.dirname(HERE)
+# Kiln's own role definitions. A built distribution whose agents/ holds another runtime's
+# converted agents (the Gemini extension) keeps the originals in roles/ (review 2026-10-21,
+# KILN-REV-06: generating from converted agents gave kiln-kiln-<role>).
+ROLES = os.path.join(PLUGIN, "roles") if os.path.isdir(os.path.join(PLUGIN, "roles")) else \
+    os.path.join(PLUGIN, "agents")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks"))
 import guard  # noqa: E402  (role zones: single source of truth)
 import kiln_hooklib as k  # noqa: E402
@@ -219,10 +224,10 @@ def main(argv=None):
 
     os.makedirs(args.out, exist_ok=True)
     written = []
-    for fn in sorted(os.listdir(os.path.join(PLUGIN, "agents"))):
+    for fn in sorted(os.listdir(ROLES)):
         if not fn.endswith(".md"):
             continue
-        name, text = build(os.path.join(PLUGIN, "agents", fn), model_map, plugin_root, version,
+        name, text = build(os.path.join(ROLES, fn), model_map, plugin_root, version,
                            args.with_permission_profiles, override)
         with open(os.path.join(args.out, name + ".toml"), "w", encoding="utf-8",
                   newline="\n") as fh:

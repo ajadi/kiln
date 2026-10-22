@@ -65,8 +65,16 @@ func _run() -> void:
 			"qa contract")
 	var f := FileAccess.open(run_dir.path_join("qa_run.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify({"contract": probe_name, "scene": scene_path(),
-		"headless": headless, "fps": Engine.physics_ticks_per_second, "states": listed}, "  "))
+		"run_id": _run_id(), "headless": headless, "fps": Engine.physics_ticks_per_second,
+		"states": listed}, "  "))
 	f.close()
+
+
+## The id qa_contract.py passes (`-- --run-id <id>`): the report reads only this run's manifest.
+func _run_id() -> String:
+	var args := OS.get_cmdline_user_args()
+	var at := args.find("--run-id")
+	return args[at + 1] if at >= 0 and at + 1 < args.size() else ""
 
 
 func _qa_dir() -> String:

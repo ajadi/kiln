@@ -163,7 +163,7 @@ def find_tool(name, tool, machine):
     """Every place the tool may already be: registry, PATH, the tools root, usual folders."""
     hits = []
     reg = (machine.get("tools") or {}).get(name) or {}
-    if reg.get("path") and os.path.exists(reg["path"]):
+    if reg.get("path") and os.path.isfile(reg["path"]):  # a registered folder is no executable
         hits.append(reg["path"])
     legacy = machine.get(f"{name.replace('-', '_')}_exe")
     if legacy and os.path.exists(legacy):
@@ -253,6 +253,13 @@ def unpack(archive, dest):
     if low.endswith(".zip"):
         with zipfile.ZipFile(archive) as z:
             z.extractall(dest)
+            # extractall drops the Unix mode, so a ZIP's executables (Godot for Linux and macOS,
+            # git-lfs for macOS) came out not executable (review 2026-10-21, KILN-REV-05)
+            for info in z.infolist():
+                mode = (info.external_attr >> 16) & 0o777
+                target = os.path.join(dest, info.filename)
+                if mode and not info.is_dir() and os.path.isfile(target):
+                    os.chmod(target, mode | 0o600)
     elif low.endswith((".tar.gz", ".tgz", ".tar.xz")):
         with tarfile.open(archive) as t:
             t.extractall(dest, filter="data")
@@ -363,10 +370,24 @@ def cmd_install(a, catalog, machine):
         return {"tool": a.tool, "problems": [str(exc)]}, 1
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
-    exe = next((os.path.join(b, f) for b, _d, fs in os.walk(dest) for f in fs
-                if any(fnmatch.fnmatch(f, p) for p in tool.get("find", []))), None)
-    path = exe or dest
-    ok, out = run_verify(tool, path, version, tool["source"].get("series")) if exe else (None, "")
+    # case-sensitive as on Linux and macOS (Godot.app/Contents/MacOS/Godot); a missing
+    # executable or a failed verification is a failed install, never a registered folder
+    # (review 2026-10-21, KILN-REV-05 / KILN-REV-07)
+    exe = next((os.path.join(b, f) for b, _d, fs in os.walk(dest) for f in sorted(fs)
+                if any(fnmatch.fnmatchcase(f, p) for p in tool.get("find", []))), None)
+    if not exe:
+        shutil.rmtree(dest, ignore_errors=True)
+        return {"tool": a.tool, "problems": [f"{asset} has no file matching "
+                                             f"{', '.join(tool.get('find', []))}; nothing "
+                                             "installed"]}, 1
+    if os.name != "nt" and not os.access(exe, os.X_OK):
+        os.chmod(exe, os.stat(exe).st_mode | 0o111)
+    path = exe
+    ok, out = run_verify(tool, path, version, tool["source"].get("series"))
+    if ok is False:
+        shutil.rmtree(dest, ignore_errors=True)
+        return {"tool": a.tool, "version": version, "problems": [
+            f"{norm(path)} did not verify ({out or 'no output'}); nothing registered"]}, 1
     record(machine, a.tool, path, version, url, "sha256 verified" if digest else "unpublished")
     return {"tool": a.tool, "version": version, "path": norm(path),
             "checksum": "sha256 verified" if digest else "unpublished by the source",

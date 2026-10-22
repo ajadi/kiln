@@ -21,7 +21,9 @@ import re
 import sys
 
 PLUGIN = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(PLUGIN, "agents")
+# roles/: the original role files in a converted build such as the Gemini extension (KILN-REV-06)
+SRC = os.path.join(PLUGIN, "roles") if os.path.isdir(os.path.join(PLUGIN, "roles")) else \
+    os.path.join(PLUGIN, "agents")
 OUT = os.path.join(PLUGIN, "copilot", "agents")
 NAMES = {"Read": ["view"], "Grep": ["grep"], "Glob": ["glob"], "LS": ["glob"],
          "Write": ["create", "edit"], "Edit": ["edit"], "MultiEdit": ["edit"],

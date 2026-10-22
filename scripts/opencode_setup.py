@@ -91,9 +91,9 @@ def setup(project, skills_too=True):
     with open(os.path.join(oc, "plugins", "kiln.js"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(plugin)
     agents = 0
-    for fn in sorted(os.listdir(os.path.join(PLUGIN, "agents"))):
+    for fn in sorted(os.listdir(cx.ROLES)):
         if fn.endswith(".md"):
-            name, text = agent_file(os.path.join(PLUGIN, "agents", fn), model)
+            name, text = agent_file(os.path.join(cx.ROLES, fn), model)
             with open(os.path.join(oc, "agents", name), "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(text)
             agents += 1

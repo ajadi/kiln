@@ -1,6 +1,6 @@
 # Kiln for Gemini CLI
 
-Version 0.10.0.
+Version 0.10.1.
 
 This branch is Kiln packaged for Gemini CLI. Gemini installs an extension from the top of a
 branch, and the main branch of this repository is laid out for Claude Code, so the Gemini build

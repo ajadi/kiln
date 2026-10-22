@@ -5,10 +5,14 @@
   python qa_contract.py report <run folder>
 
 run      records the contract with Godot (headless unless --windowed: `frames` states need a
-         window), then reports. Godot: --godot, else KILN_GODOT, else the machine config.
+         window), then reports. Godot: --godot, else KILN_GODOT, else the machine config. Each
+         run has its own id: the old qa_run.json is removed first, and a run that wrote no
+         manifest with its id, or a Godot exit other than 0/1, is NOT ASSESSED - never the
+         previous run's result.
 report   reads <run>/qa_run.json (written by qa_contract.gd) and judges each state:
          ui          text wider than its control, a control outside its container (> 1 px),
-                     plus ui_check.py layout (overlaps, safe area, target sizes)
+                     plus ui_check.py layout (overlaps, safe area, target sizes); PASS
+                     needs ui_check's own "pass" - no answer is NOT ASSESSED
          anchor      max distance emitter-holder over the frames <= the state's `tolerance`
                      (default 0.05 m in 3D, 2 px in 2D)
          loop        analyze.py rigid    transition  analyze.py pops    attack  analyze.py hits
@@ -24,6 +28,7 @@ import math
 import os
 import subprocess
 import sys
+import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 UI_CHECK = os.path.join(HERE, "..", "..", "ui", "scripts", "ui_check.py")
@@ -64,8 +69,18 @@ def ui(state):
                  for item in layout.get(kind) or []]
         problems.append("ui_check layout: " + "; ".join(str(p) for p in found[:4] or
                                                         layout.get("problems", [])[:4]))
-    return {"verdict": "FAIL" if problems else "PASS", "problems": problems,
-            "elements": len(elements), "ui_check": layout.get("verdict")}
+    helper = str(layout.get("verdict", "")).lower()
+    out = {"problems": problems, "elements": len(elements), "ui_check": layout.get("verdict")}
+    if problems:
+        return {"verdict": "FAIL", **out}
+    if helper != "pass":
+        # safe area, target size and overlap were not checked: the helper did not answer
+        # (missing numpy/Pillow, output that is not JSON, NOT ASSESSED) - review 2026-10-21,
+        # KILN-REV-09: that read as PASS
+        return {"verdict": "NOT ASSESSED", **out,
+                "note": "ui_check layout gave no verdict: " + str(layout.get("note") or
+                                                                  layout.get("verdict"))[-300:]}
+    return {"verdict": "PASS", **out}
 
 
 def anchor(state):
@@ -167,14 +182,34 @@ def run(a):
         return {"verdict": "NOT ASSESSED", "note": "no Godot: --godot, KILN_GODOT or machine.json"}, 0
     name = os.path.splitext(os.path.basename(a.contract))[0]
     out = os.path.abspath(a.out or os.path.join(a.project, "production", "qa", name))
+    # this run's own evidence only (review 2026-10-21, KILN-REV-08: a rerun that wrote nothing
+    # was reported from the previous qa_run.json, so an old PASS stood for a broken contract)
+    run_id = uuid.uuid4().hex
+    for stale in ("qa_run.json", "report.json"):
+        try:
+            os.remove(os.path.join(out, stale))
+        except OSError:
+            pass
     cmd = [godot] + ([] if a.windowed else ["--headless"]) + [
-        "--fixed-fps", "60", "--path", a.project, "-s", a.contract, "--", "--out", out]
+        "--fixed-fps", "60", "--path", a.project, "-s", a.contract, "--", "--out", out,
+        "--run-id", run_id]
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=a.timeout)
-    if not os.path.isfile(os.path.join(out, "qa_run.json")):
-        return {"verdict": "NOT ASSESSED", "note": "the contract wrote no qa_run.json",
+    manifest_path = os.path.join(out, "qa_run.json")
+    fresh = False
+    if os.path.isfile(manifest_path):
+        try:
+            fresh = json.load(open(manifest_path, encoding="utf-8")).get("run_id") == run_id
+        except (OSError, ValueError):
+            fresh = False
+    if not fresh:
+        return {"verdict": "NOT ASSESSED", "note": "the contract wrote no qa_run.json for this run",
                 "godot_exit": p.returncode, "log": (p.stdout + p.stderr)[-800:]}, 0
     res = report(out)
-    res["run"] = out
+    res.update(run=out, run_id=run_id, godot_exit=p.returncode)
+    if p.returncode not in (0, 1) and res["verdict"] != "FAIL":
+        # probe_base: 2 = NOT ASSESSED (a script error while recording)
+        res["verdict"] = "NOT ASSESSED"
+        res["note"] = f"Godot exited {p.returncode}: the run did not finish cleanly"
     return res, 1 if res["verdict"] == "FAIL" else 0
 
 
