@@ -152,3 +152,31 @@ class HdriSize(unittest.TestCase):
                 self.assertEqual(out[0][1], want, asked)
         finally:
             assets_api.fetch_json = orig
+
+
+class SafeReplace(unittest.TestCase):
+    def test_a_failed_replacement_keeps_the_old_item(self):
+        # KILN-REV-01: the old item was deleted before the new one was in place
+        sys.path.insert(0, os.path.dirname(SCRIPT))
+        import assets_api
+        root = tempfile.mkdtemp(prefix="kiln-swap-")
+        old = os.path.join(root, "art", "library", "kenney", "mini")
+        os.makedirs(old)
+        with open(os.path.join(old, "keep.txt"), "w", encoding="utf-8") as fh:
+            fh.write("old pack")
+        real = os.replace
+
+        def flaky(src, dst):
+            if src.endswith(".part"):
+                raise OSError("disk full")
+            return real(src, dst)
+        assets_api.os.replace = flaky
+        try:
+            with self.assertRaises(OSError):
+                assets_api.write_item(root, os.path.join("art", "library"), "kenney", "mini",
+                                      lambda part: {"files": []})
+        finally:
+            assets_api.os.replace = real
+        with open(os.path.join(old, "keep.txt"), encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), "old pack")
+        self.assertFalse(os.path.exists(old + ".part"))

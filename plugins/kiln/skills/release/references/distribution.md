@@ -7,7 +7,7 @@ building the credits. Every account, payment, upload and questionnaire answer is
 
 ```
 butler login                                   # once per machine; CI uses BUTLER_API_KEY
-butler push export/windows <user>/<game>:windows --userversion 0.10.0 --if-changed
+butler push export/windows <user>/<game>:windows --userversion 0.10.1 --if-changed
 butler push export/linux   <user>/<game>:linux   --userversion-file export/VERSION
 butler push export/windows <user>/<game>:windows-beta --hidden --dry-run
 ```

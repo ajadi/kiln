@@ -116,6 +116,33 @@ class GpuJob(unittest.TestCase):
         self.assertEqual(code, 0, res)                     # a stale lock (dead pid) is taken over
 
 
+class GpuConfigDiscovery(unittest.TestCase):
+    def test_a_project_gpu_json_is_never_picked_up_by_default(self):
+        # KILN-REV-02 (review 2026-10-21): with CLAUDE_PLUGIN_DATA unset the old-location
+        # candidate became the relative "gpu.json", so a project's file was run as the machine
+        # profile. The sentinel command only writes a marker file in the throwaway project.
+        root = tempfile.mkdtemp(prefix="kiln-gpucwd-")
+        home = tempfile.mkdtemp(prefix="kiln-gpuhome-")
+        marker = os.path.join(root, "RAN")
+        touch = [sys.executable, "-c", f"open({marker!r}, 'w').close()"]
+        with open(os.path.join(root, "gpu.json"), "w", encoding="utf-8") as fh:
+            json.dump({"rented": {"start": touch, "stop": touch, "status": touch,
+                                  "ready_when": "x", "exec": touch, "push": touch,
+                                  "pull": touch, "workdir": "w", "usd_per_hour": 1.0}}, fh)
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PLUGIN_DATA"}
+        env.update(KILN_HOME=home, HOME=home, USERPROFILE=home)
+        p = subprocess.run([sys.executable, "-B", GPU, "status", "--profile", "rented"],
+                           cwd=root, env=env, capture_output=True, text=True, timeout=60)
+        self.assertFalse(os.path.exists(marker), p.stdout + p.stderr)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("no GPU profile file", p.stdout + p.stderr)
+        # an explicit --config is the user's choice and still works
+        p = subprocess.run([sys.executable, "-B", GPU, "status", "--profile", "rented",
+                            "--config", os.path.join(root, "gpu.json")],
+                           cwd=root, env=env, capture_output=True, text=True, timeout=60)
+        self.assertTrue(os.path.exists(marker), p.stdout + p.stderr)
+
+
 class Tools(unittest.TestCase):
     def test_detect_and_verify(self):
         root = tempfile.mkdtemp(prefix="kiln-tools-")

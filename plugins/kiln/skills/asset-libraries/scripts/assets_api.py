@@ -554,19 +554,45 @@ def file_entry(folder, rel, **extra):
             "bytes": len(data), **extra}
 
 
+SAFE_PART = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]*")
+
+
+def item_folder(root, into, source, aid):
+    """The item's folder, strictly inside <into>/<source>. Every part of the source and the id is
+    a plain name (no '.', '..', separators or drive letters): `--id ..` once named art/library
+    itself, and replacing it deleted every pack (review 2026-10-21, KILN-REV-01)."""
+    parts = [source] + str(aid).split("/")
+    if any(not SAFE_PART.fullmatch(p) or set(p) == {"."} for p in parts):
+        raise SystemExit(f"{source}/{aid}: source and id are plain names (letters, digits, - _ ., "
+                         "id parts separated by /), not . or .. or a path")
+    base = os.path.realpath(os.path.join(root, into, source))
+    folder = os.path.realpath(os.path.join(base, *parts[1:]))
+    if not folder.startswith(base + os.sep):
+        raise SystemExit(f"{source}/{aid} would not be inside {os.path.join(into, source)}")
+    return folder
+
+
 def write_item(root, into, source, aid, build):
-    """Assemble <id>.part with `build(part)` -> provenance; keep it only when every check passed."""
-    folder = os.path.join(root, into, source, *aid.split("/"))
-    part = folder + ".part"
-    shutil.rmtree(part, ignore_errors=True)
+    """Assemble <id>.part with `build(part)` -> provenance; keep it only when every check passed.
+    An existing item is moved aside, not deleted, until the new one is in place."""
+    folder = item_folder(root, into, source, aid)
+    part, old = folder + ".part", folder + ".old"
+    for leftover in (part, old):
+        shutil.rmtree(leftover, ignore_errors=True)
     os.makedirs(os.path.join(part, "evidence"))
     try:
         prov = build(part)
         with open(os.path.join(part, "provenance.json"), "w", encoding="utf-8") as fh:
             json.dump(prov, fh, indent=1)
         if os.path.isdir(folder):
-            shutil.rmtree(folder)
-        os.replace(part, folder)
+            os.replace(folder, old)
+        try:
+            os.replace(part, folder)
+        except BaseException:
+            if os.path.isdir(old) and not os.path.exists(folder):
+                os.replace(old, folder)          # the old item comes back
+            raise
+        shutil.rmtree(old, ignore_errors=True)
     except BaseException:
         shutil.rmtree(part, ignore_errors=True)
         raise
@@ -673,8 +699,10 @@ def cmd_import(a, root):
         raise SystemExit(f"{a.source} is not a known source: say the licence with --licence <id> "
                          "as the source's page states it (e.g. CC0-1.0, CC-BY-4.0)")
     refuse_unless_allowed(licence, root)
-    target = os.path.realpath(os.path.join(root, a.into, a.source, a.id))
-    if target.startswith(src_dir + os.sep) or src_dir.startswith(target):
+    target = item_folder(root, a.into, a.source, a.id)
+    real_src = os.path.realpath(src_dir)
+    if target == real_src or target.startswith(real_src + os.sep) or \
+            real_src.startswith(target + os.sep):
         raise SystemExit("import from a folder outside art/library")
     lic_files = [n for n in sorted(os.listdir(src_dir))
                  if re.match(r"(licen[cs]e|copying)", n, re.I) and os.path.isfile(os.path.join(src_dir, n))]

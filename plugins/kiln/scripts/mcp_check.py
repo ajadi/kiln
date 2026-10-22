@@ -109,7 +109,10 @@ def manifest(path):
 def role_tools():
     """{server: {tool: [roles]}} for every MCP tool named explicitly in a role's tools list."""
     used = {}
-    agents = os.path.join(PLUGIN, "agents")
+    # roles/: the original role files in a converted build (the Gemini extension's agents/ hold
+    # Gemini's tool names) - KILN-REV-06
+    agents = os.path.join(PLUGIN, "roles") if os.path.isdir(os.path.join(PLUGIN, "roles")) else \
+        os.path.join(PLUGIN, "agents")
     for fn in sorted(os.listdir(agents)):
         text = open(os.path.join(agents, fn), encoding="utf-8").read()
         m = re.search(r"^tools:(.*)$", text, re.M)

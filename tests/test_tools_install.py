@@ -261,5 +261,103 @@ class Plan(unittest.TestCase):
         self.assertNotIn("godot", rows)
 
 
+class PosixArchives(unittest.TestCase):
+    """KILN-REV-05 / KILN-REV-07 (review 2026-10-21). Runs on any OS: the macOS and Linux paths
+    are taken by setting the module's PLATFORM, and the download and the verify call are
+    replaced, so nothing is fetched or launched."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.dirname(SCRIPT))
+        import tools_check
+        self.tc = tools_check
+        self.home = tempfile.mkdtemp(prefix="kiln-tch-")
+        self.root = tempfile.mkdtemp(prefix="kiln-tcr-")
+        self.saved = (os.environ.get("KILN_HOME"), tools_check.PLATFORM, tools_check.fetch,
+                      tools_check.resolve, tools_check.run_verify)
+        os.environ["KILN_HOME"] = self.home
+        with open(CATALOG, encoding="utf-8") as fh:
+            self.catalog = json.load(fh)
+
+    def tearDown(self):
+        home, self.tc.PLATFORM, self.tc.fetch, self.tc.resolve, self.tc.run_verify = self.saved
+        if home is None:
+            os.environ.pop("KILN_HOME", None)
+        else:
+            os.environ["KILN_HOME"] = home
+
+    def zip_bytes(self, entries):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            for name, mode in entries:
+                info = zipfile.ZipInfo(name)
+                info.external_attr = (0o100000 | mode) << 16
+                z.writestr(info, "#!/bin/sh\necho Godot 4.7.2.stable\n")
+        return buf.getvalue()
+
+    def install(self, platform, entries, verified=True):
+        import argparse
+        self.tc.PLATFORM = platform
+        data = self.zip_bytes(entries)
+        self.tc.fetch = lambda url, binary=False: data
+        self.tc.resolve = lambda name, tool, version=None: (
+            "4.7.2", "https://example.invalid/godot.zip", hashlib.sha256(data).hexdigest(),
+            "godot.zip")
+        seen = []
+
+        def verify(tool, path, version, series):
+            seen.append(path)
+            return verified, "Godot 4.7.2.stable"
+        self.tc.run_verify = verify
+        machine = {"tools_root": self.root}
+        res, code = self.tc.cmd_install(argparse.Namespace(tool="godot", version=None, yes=True),
+                                        self.catalog, machine)
+        return res, code, machine, seen
+
+    def test_the_macos_bundle_executable_is_found_and_a_bundle_without_it_fails(self):
+        res, code, machine, seen = self.install("macos", [
+            ("Godot.app/Contents/Info.plist", 0o644),
+            ("Godot.app/Contents/MacOS/Godot", 0o755)])
+        self.assertEqual(code, 0, res)
+        self.assertTrue(res["path"].endswith("Godot.app/Contents/MacOS/Godot"), res)
+        self.assertEqual(seen, [os.path.join(self.root, "godot", "4.7.2", "Godot.app", "Contents",
+                                             "MacOS", "Godot")])
+        self.assertTrue(machine["tools"]["godot"]["path"].endswith("MacOS/Godot"))
+        res, code, machine, seen = self.install("macos", [("Godot.app/Contents/Info.plist", 0o644)])
+        self.assertEqual(code, 1, res)                     # no executable: not a success
+        self.assertNotIn("godot", machine.get("tools", {}))
+        self.assertFalse(os.path.isdir(os.path.join(self.root, "godot", "4.7.2")))
+
+    def test_a_failed_verification_is_not_registered(self):
+        res, code, machine, seen = self.install(
+            "linux", [("Godot_v4.7.2-stable_linux.x86_64", 0o755)], verified=False)
+        self.assertEqual(code, 1, res)
+        self.assertNotIn("godot", machine.get("tools", {}))
+
+    def test_zip_entries_keep_their_executable_bit(self):
+        chmods = []
+        real = os.chmod
+        self.tc.os.chmod = lambda path, mode: (chmods.append((os.path.basename(path), mode)),
+                                               real(path, mode))
+        try:
+            archive = os.path.join(self.root, "t.zip")
+            with open(archive, "wb") as fh:
+                fh.write(self.zip_bytes([("bin/tool", 0o755), ("bin/readme.txt", 0o644)]))
+            self.tc.unpack(archive, os.path.join(self.root, "out"))
+        finally:
+            self.tc.os.chmod = real
+        modes = dict(chmods)
+        self.assertTrue(modes.get("tool", 0) & 0o111, chmods)
+        self.assertFalse(modes.get("readme.txt", 0) & 0o111, chmods)
+        if os.name == "posix":                             # the real bit, where it exists
+            self.assertTrue(os.access(os.path.join(self.root, "out", "bin", "tool"), os.X_OK))
+
+    def test_a_registered_folder_is_not_a_found_executable(self):
+        folder = os.path.join(self.root, "godot", "4.7.2")
+        os.makedirs(folder)
+        machine = {"tools": {"godot": {"path": folder}}}
+        tool = dict(self.catalog["tools"]["godot"], find=[], known=[])
+        self.assertEqual(self.tc.find_tool("godot", tool, machine), [])
+
+
 if __name__ == "__main__":
     unittest.main()

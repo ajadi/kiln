@@ -250,6 +250,39 @@ class AssetSources(unittest.TestCase):
         self.assertIn("--licence", out["error"])                 # unknown source: say the licence
         shutil.rmtree(src)
 
+    def test_special_ids_never_touch_the_library(self):
+        # KILN-REV-01 (review 2026-10-21): --id .. made the destination art/library itself, and
+        # replacing it deleted every pack. Every special or escaping id must fail before anything
+        # is written or removed, on a throwaway library with sentinel packs.
+        lib = os.path.join(self.root, "art", "library")
+        sentinels = {os.path.join(lib, "kenney", "mini", "keep.txt"): "kenney pack",
+                     os.path.join(lib, "polyhaven", "rock", "keep.txt"): "other source"}
+        for path, text in sentinels.items():
+            os.makedirs(os.path.dirname(path))
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+        before = sorted(os.path.relpath(os.path.join(d, f), lib)
+                        for d, _, fs in os.walk(lib) for f in fs)
+        src = tempfile.mkdtemp(prefix="kiln-dl-")
+        with open(os.path.join(src, "pack.glb"), "wb") as fh:
+            fh.write(GLTF)
+        for bad in ("..", ".", "mini/..", "../kenney", "x/../../polyhaven"):
+            code, out = self.run_api("import", src, "--source", "kenney", "--id", bad,
+                                     "--url", "https://kenney.nl/assets/x")
+            self.assertNotEqual(code, 0, (bad, out))
+            after = sorted(os.path.relpath(os.path.join(d, f), lib)
+                           for d, _, fs in os.walk(lib) for f in fs)
+            self.assertEqual(after, before, bad)
+        for path, text in sentinels.items():
+            with open(path, encoding="utf-8") as fh:
+                self.assertEqual(fh.read(), text)
+        code, out = self.run_api("import", src, "--source", "kenney", "--id", "mini",
+                                 "--url", "https://kenney.nl/assets/mini")      # a real update
+        self.assertEqual(code, 0, out)
+        self.assertTrue(os.path.isfile(os.path.join(lib, "kenney", "mini", "pack.glb")))
+        self.assertTrue(os.path.isfile(os.path.join(lib, "polyhaven", "rock", "keep.txt")))
+        shutil.rmtree(src)
+
     def test_credits_md_lists_required_lines_fonts_and_thanks(self):
         self.run_api("fetch", "gameicons", "lorc/broadsword")
         self.run_api("fetch", "kenney", "furniture-kit")

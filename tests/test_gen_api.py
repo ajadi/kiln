@@ -321,6 +321,73 @@ class GenApi(unittest.TestCase):
         with open(os.path.join(self.root, "manifest.md"), "a", encoding="utf-8") as fh:
             fh.write(text)
 
+    def submit_at_once(self, jobs):
+        """Submit `jobs` from threads that all reach the daily-cap check before any of them
+        reserves (a barrier inside ledger_today), against the local fake Meshy."""
+        import argparse
+        sys.path.insert(0, os.path.dirname(SCRIPT))
+        import gen_api
+        env = {"MESHY_API_KEY": "msy_inprocess_test_key_0000", "KILN_GEN_FAKE": self.url,
+               "KILN_HOME": self.home}
+        saved = {k: os.environ.get(k) for k in env}
+        os.environ.update(env)
+        # the module reads KILN_GEN_FAKE when imported: point it at the fake here, and refuse
+        # any request that would leave this machine
+        saved_fake, saved_request = gen_api.FAKE, gen_api.request
+        gen_api.FAKE = self.url
+
+        def local_only(method, url, *args, **kwargs):
+            if not gen_api.FAKE.startswith("http://127.0.0.1"):
+                raise AssertionError(f"a test request would leave the machine: {url}")
+            return saved_request(method, url, *args, **kwargs)
+        gen_api.request = local_only
+        barrier = threading.Barrier(len(jobs), timeout=3)
+        orig = gen_api.ledger_today
+
+        def at_once(root):
+            try:
+                barrier.wait()
+            except threading.BrokenBarrierError:
+                pass
+            return orig(root)
+        gen_api.ledger_today = at_once
+        results = []
+
+        def go(job):
+            try:
+                results.append(gen_api.cmd_submit(argparse.Namespace(job=job), self.root))
+            except SystemExit as e:
+                results.append({"refused": str(e.code)})
+        try:
+            threads = [threading.Thread(target=go, args=(j,)) for j in jobs]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(60)
+        finally:
+            gen_api.ledger_today = orig
+            gen_api.FAKE, gen_api.request = saved_fake, saved_request
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        return results
+
+    def test_two_submits_at_once_keep_the_cap_and_send_a_job_once(self):
+        # KILN-REV-03 (review 2026-10-21): the check and the reservation were not one step, so
+        # two $0.60 jobs under a $1 cap both went out, and one job could be sent twice
+        self.caps("gen_daily_cap_usd=1\n")
+        a, b = self.estimate()["job"], self.estimate()["job"]
+        results = self.submit_at_once([a, b])
+        self.assertEqual(len(self.posts()), 1, results)
+        self.assertEqual(sum("refused" in r for r in results), 1, results)
+        self.caps("gen_daily_cap_usd=20\n")
+        c = self.estimate()["job"]
+        results = self.submit_at_once([c, c])
+        self.assertEqual(len(self.posts()), 2, results)                 # one more, not two
+        self.assertEqual(sum("refused" in r for r in results), 1, results)
+
     def posts(self):
         return [c for c in FakeMeshy.calls if c[0] == "POST"]
 

@@ -152,6 +152,38 @@ class GitOptions(Case):
         self.check(shell("git add cfg && git commit -m x"), "DENY", root)
 
 
+class GitContext(Case):
+    """KILN-REV-04 (review 2026-10-21): the secrets check read the Kiln root's index, not the
+    repository a `git -C <dir>` or `cd <dir> &&` commit acts on."""
+
+    def repos(self):
+        root = make_project(git=True)
+        nested = os.path.join(root, "nested")
+        subprocess.run(["git", "init", "-q", nested], capture_output=True)
+        return root, nested
+
+    def stage(self, repo, name):
+        with open(os.path.join(repo, name), "w") as fh:
+            fh.write("x")
+        subprocess.run(["git", "-C", repo, "add", "-f", name], capture_output=True)
+
+    def test_the_index_of_the_repository_the_commit_acts_on(self):
+        root, nested = self.repos()
+        self.stage(nested, ".env")                                   # the secret is nested
+        for cmd in ("git -C nested commit -m x", "cd nested && git commit -m x",
+                    "git -C . -C nested commit -m x",
+                    f"git --git-dir={nested}/.git --work-tree={nested} commit -m x"):
+            self.check(shell(cmd), "DENY", root)
+        self.check(shell("git commit -m x"), "ALLOW", root)          # the parent index is clean
+
+    def test_a_clean_nested_commit_does_not_inherit_the_parent_index(self):
+        root, nested = self.repos()
+        self.stage(root, ".env")
+        self.stage(nested, "README.md")
+        self.check(shell("git -C nested commit -m x"), "ALLOW", root)
+        self.check(shell("git commit -m x"), "DENY", root)
+
+
 class Roles(Case):
     def test_effort_copies_are_their_role(self):
         self.check(write("src/game.cs", "verifier-high"), "DENY")

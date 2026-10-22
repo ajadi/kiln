@@ -170,3 +170,93 @@ class QaContract(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UiHelperVerdicts(unittest.TestCase):
+    """KILN-REV-09 (review 2026-10-21): a UI helper that did not answer (missing numpy/Pillow,
+    output that is not JSON, NOT ASSESSED) turned into PASS when the local checks found nothing."""
+
+    def state(self):
+        d = tempfile.mkdtemp(prefix="kiln-uih-")
+        with open(os.path.join(d, "elements.json"), "w", encoding="utf-8") as fh:
+            json.dump({"elements": [{"path": "HUD", "type": "Panel", "global_rect": {
+                "position": {"x": 100, "y": 60}, "size": {"x": 200, "y": 40}}}]}, fh)
+        return {"name": "hud", "kind": "ui", "dir": d, "viewport": [1152, 648]}
+
+    def with_helper(self, script_text):
+        sys.path.insert(0, SCRIPTS)
+        import qa_contract
+        helper = os.path.join(tempfile.mkdtemp(prefix="kiln-uih-"), "ui_check.py")
+        with open(helper, "w", encoding="utf-8") as fh:
+            fh.write(script_text)
+        saved = qa_contract.UI_CHECK
+        qa_contract.UI_CHECK = helper
+        try:
+            return qa_contract.ui(self.state())
+        finally:
+            qa_contract.UI_CHECK = saved
+
+    def test_an_unanswered_helper_is_not_a_pass(self):
+        for name, text in (
+                ("missing dependency", "import numpy_that_is_not_installed\n"),
+                ("not json", "print('layout ok, probably')\n"),
+                ("not assessed", "import json; print(json.dumps({'verdict': 'NOT ASSESSED'}))\n"),
+                ("no verdict", "import json; print(json.dumps({'offscreen': []}))\n")):
+            res = self.with_helper(text)
+            self.assertEqual(res["verdict"], "NOT ASSESSED", (name, res))
+        res = self.with_helper("import json; print(json.dumps({'verdict': 'pass'}))\n")
+        self.assertEqual(res["verdict"], "PASS", res)
+        res = self.with_helper("import json; print(json.dumps({'verdict': 'fail', "
+                               "'outside_safe_area': [{'path': 'HUD'}]}))\n")
+        self.assertEqual(res["verdict"], "FAIL", res)
+
+
+GOOD_CONTRACT = """extends "res://tests/qa/qa_contract.gd"
+
+func scene_path() -> String:
+	return "res://main.tscn"
+
+func states() -> Array:
+	return [{"name": "hud_short", "kind": "ui", "apply": func(s): s.get_node("HUD/Gold").text = "12"}]
+"""
+
+
+@unittest.skipUnless(GODOT, "no Godot console binary found (set KILN_GODOT)")
+class RerunFreshness(unittest.TestCase):
+    """KILN-REV-08 (review 2026-10-21): a rerun into the same folder that wrote nothing new was
+    reported from the old qa_run.json, so an old PASS stood for a broken contract."""
+
+    def test_a_failed_rerun_never_reuses_the_old_pass(self):
+        proj = tempfile.mkdtemp(prefix="kiln-qafresh-")
+        files = {"project.godot": PROJECT, "main.gd": MAIN_GD, "main.tscn": SCENE,
+                 "tests/qa/main_qa.gd": GOOD_CONTRACT}
+        for rel, text in files.items():
+            path = os.path.join(proj, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(text)
+        os.makedirs(os.path.join(proj, "tests", "probes"), exist_ok=True)
+        shutil.copy(os.path.join(SCRIPTS, "probe_base.gd"), os.path.join(proj, "tests", "probes"))
+        shutil.copy(os.path.join(SCRIPTS, "qa_contract.gd"), os.path.join(proj, "tests", "qa"))
+        subprocess.run([GODOT, "--headless", "--path", proj, "--import"], capture_output=True,
+                       timeout=300)
+        out = os.path.join(proj, "qa_out")
+
+        def run():
+            p = subprocess.run([sys.executable, "-B", os.path.join(SCRIPTS, "qa_contract.py"),
+                                "run", "--contract", "res://tests/qa/main_qa.gd", "--project", proj,
+                                "--godot", GODOT, "--out", out],
+                               capture_output=True, text=True, timeout=600)
+            return p.returncode, json.loads(p.stdout)
+
+        code, res = run()
+        self.assertEqual((code, res["verdict"]), (0, "PASS"), res)
+        contract = os.path.join(proj, "tests", "qa", "main_qa.gd")
+        with open(contract, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(GOOD_CONTRACT.replace("func states() -> Array:", "func states() -> Array\n"))
+        code, res = run()                                     # a syntax error
+        self.assertNotEqual(res["verdict"], "PASS", res)
+        with open(contract, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(GOOD_CONTRACT.replace("res://main.tscn", "res://gone.tscn"))
+        code, res = run()                                     # the scene is gone
+        self.assertNotEqual(res["verdict"], "PASS", res)

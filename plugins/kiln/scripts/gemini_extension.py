@@ -215,6 +215,10 @@ def build(out):
     manifest = {"name": "kiln", "version": meta["version"],
                 "description": meta.get("description", ""), "contextFileName": "GEMINI.md"}
     write(os.path.join(out, "gemini-extension.json"), json.dumps(manifest, indent=2) + "\n")
+    # the original role files, for the Codex / OpenCode / Copilot generators a mixed-runtime
+    # project runs from this install: agents/ holds Gemini's converted kiln-<role> agents
+    # (review 2026-10-21, KILN-REV-06: generating from those gave kiln-kiln-<role>)
+    shutil.copytree(os.path.join(PLUGIN, "agents"), os.path.join(out, "roles"))
     write(os.path.join(out, "GEMINI.md"), CONTEXT)
     # the branch page on GitHub: what this is, the --ref that installs it, setup and update
     write(os.path.join(out, "README.md"), README.format(version=meta["version"]))

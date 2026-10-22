@@ -47,6 +47,45 @@ class Build(unittest.TestCase):
         self.assertEqual((manifest["name"], manifest["version"]), ("kiln", version))
         self.assertTrue(os.path.isfile(os.path.join(self.out, manifest["contextFileName"])))
 
+    def test_other_runtimes_generate_the_same_roles_from_the_extension(self):
+        # KILN-REV-06 (review 2026-10-21): the extension ships Gemini agents (kiln-<role>) in
+        # agents/, so a mixed Gemini + Codex/OpenCode project updated from it got
+        # kiln-kiln-<role>. Generation from the extension must match generation from source.
+        def generate(plugin):
+            project = tempfile.mkdtemp(prefix="kiln-mixed-")
+            with open(os.path.join(project, "manifest.md"), "w", encoding="utf-8") as fh:
+                fh.write("framework=kiln\nengine=godot\nruntimes=gemini,codex,opencode\n")
+            for script, args in (("codex_agents.py", []),
+                                 ("opencode_setup.py", ["--project", project])):
+                p = subprocess.run([sys.executable, "-B", os.path.join(plugin, "scripts", script),
+                                    *args], cwd=project, capture_output=True, text=True,
+                                   timeout=120)
+                self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+            codex = sorted(os.listdir(os.path.join(project, ".codex", "agents")))
+            opencode = sorted(os.listdir(os.path.join(project, ".opencode", "agents")))
+            with open(os.path.join(project, ".codex", "agents", "kiln-modeler.toml"),
+                      encoding="utf-8") as fh:
+                modeler = [line for line in fh.read().splitlines()
+                           if line.startswith(("name", "description", "sandbox_mode"))]
+            return codex, opencode, modeler
+
+        from_source, from_extension = generate(PLUGIN), generate(self.out)
+        self.assertFalse([n for n in from_extension[0] + from_extension[1] if "kiln-kiln" in n])
+        self.assertEqual(from_extension, from_source)
+        # the MCP check reads the same roles' tool lists from the extension
+        for plugin in (PLUGIN, self.out):
+            sys.path.insert(0, os.path.join(plugin, "scripts"))
+        import importlib.util
+        found = []
+        for plugin in (PLUGIN, self.out):
+            spec = importlib.util.spec_from_file_location(
+                f"mcp_check_{len(found)}", os.path.join(plugin, "scripts", "mcp_check.py"))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            found.append(mod.role_tools())
+        self.assertTrue(found[0])
+        self.assertEqual(found[1], found[0])
+
     def test_the_branch_has_a_readme_that_says_how_to_install_it(self):
         # the branch page on GitHub: a user who lands there learns the --ref, setup and update
         with open(os.path.join(self.out, "README.md"), encoding="utf-8") as fh:

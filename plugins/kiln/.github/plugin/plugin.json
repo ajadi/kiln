@@ -1,6 +1,6 @@
 {
   "name": "kiln",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Game development framework for Claude Code: a studio of design, art, 2D, animation, lighting, level, gameplay, audio and music roles, acceptance and expert roles, Godot/Unity/Unreal + Blender through MCP, production pipeline with gates, MCP-only and scene-first guards.",
   "author": {
     "name": "David S"

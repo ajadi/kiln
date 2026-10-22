@@ -65,7 +65,7 @@ language-specific), added to the store and dev-comp packages. Scripts live in
 "AppBuild"
 {
   "AppID" "<appid>"
-  "Desc" "v0.10.0 <commit>"
+  "Desc" "v0.10.1 <commit>"
   "ContentRoot" "..\\..\\..\\export\\"
   "BuildOutput" "..\\..\\..\\export\\steam-output\\"
   "Preview" "0"

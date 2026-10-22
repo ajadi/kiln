@@ -171,6 +171,12 @@ def stop(data, root, policy):
         k.log(root, "autopilot: waiting on " + ", ".join(f"{r} {a}" for a, r, _ in running))
         return
     tasks = k.active_tasks(root)
+    # a blocked task is a hard stop, also while a stop was requested (review 2026-10-21,
+    # KILN-REV-10: the stop branch demanded completion of a task that could not complete)
+    if any(task["blocked"] for task in tasks):
+        k.log(root, "autopilot: a task is BLOCKED, letting the turn end")
+        return  # the run skill reports it
+    limit = int(k.number(policy, "autopilot_max_nudges", 3))
     stop_file = os.path.join(root, ".kiln", "stop-after-task")
     if os.path.exists(stop_file):
         started = set(in_progress_ids(root))
@@ -180,28 +186,24 @@ def stop(data, root, policy):
         if not unfinished:
             k.log(root, "autopilot: stop requested and no task in progress, letting the turn end")
             return
+        if nudge_count(root, ("stop-after-task", unfinished)) > limit:
+            k.log(root, f"autopilot: stop requested, no progress after {limit} nudges, letting "
+                  "the turn end")
+            return
         listed = "; ".join(f"{f}: {item}" for f, item in unfinished[:5])
         k.emit({"decision": "block", "reason": (
             f"Stop requested (.kiln/stop-after-task): finish the task in progress — {listed} — "
             "then start nothing new: write .kiln/resume.md (task, state, next step), remove "
-            ".kiln/autopilot and .kiln/stop-after-task, report to the user and end.")})
+            ".kiln/autopilot and .kiln/stop-after-task, report to the user and end. If it "
+            "cannot be finished, record why in the task file (status: BLOCKED).")})
         return
-    if any(task["blocked"] for task in tasks):
-        return  # a blocked task is a hard stop; the run skill reports it
     open_items = [(task["file"], item) for task in tasks for item in task["open"]]
     backlog = ready_backlog_items(root)
     phase, gates = open_phase_gates(root)
     agent_gates = [g for g in gates if not USER_GATE.search(g)]
     if not open_items and not backlog and not agent_gates:
         return
-    state_path = os.path.join(k.kiln_dir(root), "autopilot-state.json")
-    signature = hashlib.sha1(repr((open_items, backlog, agent_gates)).encode()).hexdigest()
-    limit = int(k.number(policy, "autopilot_max_nudges", 3))
-    with k.locked(state_path):  # the owner fields are written by other sessions' hooks
-        state = k.load_json(state_path, {})
-        nudges = state.get("nudges", 0) + 1 if state.get("signature") == signature else 1
-        state.update({"signature": signature, "nudges": nudges})
-        k.save_json(state_path, state)
+    nudges = nudge_count(root, (open_items, backlog, agent_gates))
     if nudges > limit:
         k.log(root, f"autopilot: no progress after {limit} nudges, letting the turn end")
         return
@@ -218,6 +220,18 @@ def stop(data, root, policy):
                   + "; ".join(g[:90] for g in agent_gates[:4]) + ". Plan tasks that close them "
                   "(kiln plan skill, the phase playbook in the pipeline skill) and continue.")
     k.emit({"decision": "block", "reason": reason})
+
+
+def nudge_count(root, what):
+    """How many Stops in a row have seen exactly this unfinished work (1 = the state changed)."""
+    state_path = os.path.join(k.kiln_dir(root), "autopilot-state.json")
+    signature = hashlib.sha1(repr(what).encode()).hexdigest()
+    with k.locked(state_path):  # the owner fields are written by other sessions' hooks
+        state = k.load_json(state_path, {})
+        nudges = state.get("nudges", 0) + 1 if state.get("signature") == signature else 1
+        state.update({"signature": signature, "nudges": nudges})
+        k.save_json(state_path, state)
+    return nudges
 
 
 def open_phase_gates(root):

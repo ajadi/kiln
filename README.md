@@ -1,6 +1,6 @@
 # Kiln
 
-Version 0.10.0. Kiln turns your AI coding agent into a small game studio.
+Version 0.10.1. Kiln turns your AI coding agent into a small game studio.
 
 You talk to one producer: your normal agent session. It plans the work and hands each piece to a
 specialist (modeler, animator, level designer, sound designer, ...). Other specialists check the

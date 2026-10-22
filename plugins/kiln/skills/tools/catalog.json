@@ -23,7 +23,8 @@
     "godot4",
     "Godot_v*-stable_win64_console.exe",
     "Godot_v*-stable_win64.exe",
-    "Godot_v*-stable_linux.x86_64"
+    "Godot_v*-stable_linux.x86_64",
+    "Godot"
    ],
    "known": [
     "C:/Program Files/Godot/*/Godot_v*_win64*.exe",

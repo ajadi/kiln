@@ -146,6 +146,22 @@ class StopAfterTask(unittest.TestCase):
         self.assertIsNone(stop(root, "pilot",
                                transcript(root, "pilot", [typed("2026-10-11T07:48:00Z")])))
 
+    def test_a_blocked_task_and_no_progress_end_the_stop(self):
+        # KILN-REV-10 (review 2026-10-21): the stop-after-task branch demanded completion before
+        # looking at BLOCKED or counting nudges, so a blocked task was pushed on forever
+        root = self.project_with("- [~] TASK-001 helmet\n- [ ] TASK-002 kit\n")
+        path = transcript(root, "pilot", [typed("2026-10-11T07:48:00Z")])
+        with open(os.path.join(root, "tasks", "TASK-001.md"), "a", encoding="utf-8") as fh:
+            fh.write("status: BLOCKED\nwhy: the helmet scan is missing\n")
+        for _ in range(3):
+            self.assertIsNone(stop(root, "pilot", path))
+        with open(os.path.join(root, "tasks", "TASK-001.md"), "w", encoding="utf-8") as fh:
+            fh.write("# TASK-001: helmet\n\n- [x] model\n- [ ] verifier re-check\n")
+        results = [stop(root, "pilot", path) for _ in range(6)]       # nothing ever changes
+        self.assertEqual(results[0]["decision"], "block")
+        self.assertIsNone(results[-1], results)                       # bounded, as autopilot nudges
+        self.assertLessEqual(sum(r is not None for r in results), 3, results)
+
     def test_lets_the_run_end_between_tasks(self):
         # TASK-001 has open items but is not started ([ ]); nothing is in progress
         root = self.project_with("- [ ] TASK-001 helmet\n- [ ] TASK-002 kit\n")
